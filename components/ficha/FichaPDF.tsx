@@ -37,6 +37,11 @@ const white = "#FFFFFF";
 export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [] }: Props) {
   const sec = sections || { ficha: true, estamparia: true, liberacao: true, graduacao: true };
   const compOf = (nome: string) => (tecCad || []).find((t: any) => t.nome === nome)?.comp || "";
+  // Foto do tecido (Cadastros › Tecidos) — impressa junto do desenho técnico
+  const imgTecOf = (nome: string) => (tecCad || []).find((t: any) => t.nome === nome)?.imagem || "";
+  const fotosTec = tec
+    .map((t, i) => ({ i, nome: t.artigo, url: imgTecOf(t.artigo) }))
+    .filter(f => f.url);
   const avT = custoAviamentosPorPeca(avi, row.grade, row.linha);
   const tm = row.tab_medidas || "";
   // tamNum trata a vírgula decimal ("2,5"); parseFloat pararia nela.
@@ -151,6 +156,19 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               <div style={{ padding: "6px 10px" }}>
                 <img src={img} alt="Desenho técnico" style={{ maxHeight: "515px", width: "100%", objectFit: "contain" }} />
               </div>
+              {fotosTec.length > 0 && (
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", padding: "4px 10px", borderTop: `0.5px solid ${line}`, background: bg }}>
+                  {fotosTec.map(f => (
+                    <div key={f.i} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <img src={f.url} alt={`Tecido ${f.nome}`} style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "3px", border: `0.5px solid ${lineDark}` }} />
+                      <div style={{ textAlign: "left" }}>
+                        <div style={{ fontSize: "5.5px", fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Tec.{String(f.i + 1).padStart(2, "0")}</div>
+                        <div style={{ fontSize: "7px", fontWeight: 700, color: navy }}>{f.nome}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

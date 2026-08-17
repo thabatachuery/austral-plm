@@ -34,6 +34,17 @@ function addImageContained(doc: jsPDF, img: ImgResult, bx: number, by: number, b
   doc.addImage(img.data, fmt, bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh);
 }
 
+/** Swatch da foto do tecido no canto inferior esquerdo da área de imagem. */
+function addTecidoSwatch(doc: jsPDF, img: ImgResult, x: number, y: number, size: number) {
+  const pad = 0.6;
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(x - pad, y - pad, size + pad * 2, size + pad * 2, 1.2, 1.2, "F");
+  addImageContained(doc, img, x, y, size, size);
+  doc.setDrawColor(190, 192, 205);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(x - pad, y - pad, size + pad * 2, size + pad * 2, 1.2, 1.2, "S");
+}
+
 function statusRgb(status: string): [number, number, number] {
   const s = (status || "").toUpperCase();
   if (s.includes("CANCELADO"))                                               return [234, 47, 70];
@@ -101,6 +112,14 @@ export async function exportMapaEntregasPDF(
     items.filter(it => imgUrlOf(it)).map(async (it) => {
       const key = `${it.ref}_${it.data_entrega}`;
       if (!imgDataMap[key]) imgDataMap[key] = await loadImg(imgUrlOf(it));
+    })
+  );
+
+  // Fotos de tecido — chaveadas pela URL (o mesmo tecido repete em vários cards)
+  const tecImgMap: Record<string, ImgResult | null> = {};
+  await Promise.all(
+    Array.from(new Set(items.map(it => it.tecido_imagem).filter(Boolean))).map(async (url: string) => {
+      tecImgMap[url] = await loadImg(url);
     })
   );
 
@@ -251,6 +270,13 @@ export async function exportMapaEntregasPDF(
           doc.setFontSize(6);
           doc.setTextColor(170, 174, 188);
           doc.text(item.ref, cx + cw / 2, cy + IMG_H / 2 + 2, { align: "center" });
+        }
+
+        // Foto do tecido — por cima do desenho, no canto de baixo
+        const tecImg = item.tecido_imagem ? tecImgMap[item.tecido_imagem] : null;
+        if (tecImg) {
+          const sw = 7.5;
+          addTecidoSwatch(doc, tecImg, cx + 2, cy + IMG_H - sw - 2, sw);
         }
 
         // Divider

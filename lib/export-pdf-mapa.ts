@@ -31,6 +31,17 @@ async function loadImg(url: string): Promise<ImgResult | null> {
   });
 }
 
+/** Swatch da foto do tecido no canto inferior esquerdo da área de imagem. */
+function addTecidoSwatch(doc: jsPDF, img: ImgResult, x: number, y: number, size: number) {
+  const pad = 0.6;
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(x - pad, y - pad, size + pad * 2, size + pad * 2, 1.2, 1.2, "F");
+  addImageContained(doc, img, x, y, size, size);
+  doc.setDrawColor(190, 192, 205);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(x - pad, y - pad, size + pad * 2, size + pad * 2, 1.2, 1.2, "S");
+}
+
 /** Return RGB for a status string (mirrors the online STATUS_COLORS logic). */
 function statusRgb(status: string): [number, number, number] {
   const s = (status || "").toUpperCase();
@@ -82,6 +93,15 @@ export async function exportMapaColecaoPDF(
   await Promise.all(
     items.filter(it => imgUrlOf(it)).map(async (it) => {
       imgDataMap[it.ref] = await loadImg(imgUrlOf(it));
+    })
+  );
+
+  // Fotos de tecido — chaveadas pela URL, já que vários produtos repetem o
+  // mesmo tecido e não vale baixar a mesma imagem várias vezes.
+  const tecImgMap: Record<string, ImgResult | null> = {};
+  await Promise.all(
+    Array.from(new Set(items.map(it => it.tecido_imagem).filter(Boolean))).map(async (url: string) => {
+      tecImgMap[url] = await loadImg(url);
     })
   );
 
@@ -214,6 +234,13 @@ export async function exportMapaColecaoPDF(
         doc.setFontSize(6.5);
         doc.setTextColor(170, 174, 188);
         doc.text(item.ref, cx + cw / 2, cy + IMG_H / 2 + 1.5, { align: "center" });
+      }
+
+      // Foto do tecido — depois da imagem, para ficar por cima do desenho
+      const tecImg = item.tecido_imagem ? tecImgMap[item.tecido_imagem] : null;
+      if (tecImg) {
+        const sw = 9;
+        addTecidoSwatch(doc, tecImg, cx + 2.5, cy + IMG_H - sw - 2.5, sw);
       }
 
       // Status dot — drawn AFTER image so it's always on top

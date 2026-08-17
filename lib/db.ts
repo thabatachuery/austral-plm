@@ -741,7 +741,7 @@ export async function fetchMapaColecao() {
   const [prods, fichas, tecidos, ficTecidos] = await Promise.all([
     selectAll((de, ate) => sb().from("produtos").select("*").order("grupo").order("ref").range(de, ate), "fetchMapaColecao/produtos"),
     selectAll((de, ate) => sb().from("fichas_tecnicas").select("produto_ref, imagem_url, imagem_modelo, imagem_frente, imagem_costas").range(de, ate), "fetchMapaColecao/fichas"),
-    selectAll((de, ate) => sb().from("tecidos").select("nome, composicao").range(de, ate), "fetchMapaColecao/tecidos"),
+    selectAll((de, ate) => sb().from("tecidos").select("nome, composicao, imagem").range(de, ate), "fetchMapaColecao/tecidos"),
     selectAll((de, ate) => sb().from("ficha_tecidos").select("ficha_id, cores, fichas_tecnicas!inner(produto_ref, colecao)").range(de, ate), "fetchMapaColecao/ficha_tecidos"),
   ]);
 
@@ -757,7 +757,11 @@ export async function fetchMapaColecao() {
   });
 
   const tecidoCompMap: Record<string, string> = {};
-  tecidos.forEach((t: any) => { if (t.composicao) tecidoCompMap[t.nome] = t.composicao; });
+  const tecidoImgMap: Record<string, string> = {};
+  tecidos.forEach((t: any) => {
+    if (t.composicao) tecidoCompMap[t.nome] = t.composicao;
+    if (t.imagem) tecidoImgMap[t.nome] = t.imagem;
+  });
 
   const coresMap: Record<string, string[]> = {};
   const fichasPorColecaoMap: Record<string, Record<string, string[]>> = {};
@@ -779,6 +783,8 @@ export async function fetchMapaColecao() {
     id: p.id, ref: p.ref, desc: p.descricao || "",
     tecido: p.tecido || "", forn_tecido: p.forn_tecido || "",
     composicao: p.composicao || tecidoCompMap[p.tecido] || "",
+    // Foto do tecido (cadastro) — aparece junto do desenho no card e no zoom
+    tecido_imagem: tecidoImgMap[p.tecido] || "",
     fornecedor: p.fornecedor || "", colecao: p.colecao || "",
     grupo: p.grupo || "", subgrupo: p.subgrupo || "", operacao: p.operacao || "",
     categoria: p.categoria || "", subcategoria: p.subcategoria || "",
@@ -799,7 +805,7 @@ export async function fetchMapaEntregas() {
   const [prods, fichas, tecidos, varCompras, laudosPedidos] = await Promise.all([
     selectAll((de, ate) => sb().from("produtos").select("*").range(de, ate), "fetchMapaEntregas/produtos"),
     selectAll((de, ate) => sb().from("fichas_tecnicas").select("id, produto_ref, imagem_url, imagem_modelo, imagem_frente, imagem_costas").range(de, ate), "fetchMapaEntregas/fichas"),
-    selectAll((de, ate) => sb().from("tecidos").select("nome, composicao").range(de, ate), "fetchMapaEntregas/tecidos"),
+    selectAll((de, ate) => sb().from("tecidos").select("nome, composicao, imagem").range(de, ate), "fetchMapaEntregas/tecidos"),
     selectAll((de, ate) => sb().from("produto_variante_compras").select("*").range(de, ate), "fetchMapaEntregas/varCompras"),
     selectAll((de, ate) => sb().from("ficha_laudo_pp_pedidos").select("ficha_id, numero_pedido, status").range(de, ate), "fetchMapaEntregas/laudosPedidos"),
   ]);
@@ -828,7 +834,11 @@ export async function fetchMapaEntregas() {
   });
 
   const tecidoCompMap: Record<string, string> = {};
-  tecidos.forEach((t: any) => { if (t.composicao) tecidoCompMap[t.nome] = t.composicao; });
+  const tecidoImgMap: Record<string, string> = {};
+  tecidos.forEach((t: any) => {
+    if (t.composicao) tecidoCompMap[t.nome] = t.composicao;
+    if (t.imagem) tecidoImgMap[t.nome] = t.imagem;
+  });
 
   const prodMap: Record<number, any> = {};
   prods.forEach((p: any) => { prodMap[p.id] = p; });
@@ -841,6 +851,7 @@ export async function fetchMapaEntregas() {
     const base = {
       ref: prod.ref, desc: prod.descricao || "", status: prod.status || "",
       tecido: prod.tecido || "", composicao: prod.composicao || tecidoCompMap[prod.tecido] || "",
+      tecido_imagem: tecidoImgMap[prod.tecido] || "",
       forn_tecido: prod.forn_tecido || "", fornecedor: prod.fornecedor || "",
       colecao: prod.colecao || "", grupo: prod.grupo || "", subgrupo: prod.subgrupo || "",
       operacao: prod.operacao || "", categoria: prod.categoria || "",

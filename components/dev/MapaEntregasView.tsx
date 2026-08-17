@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchMapaEntregas } from "@/lib/db";
 import { exportMapaEntregasPDF } from "@/lib/export-pdf-entregas";
 import { STATUS_PRE_PRODUCAO_COLORS } from "@/lib/constants";
+import TecidoSwatch from "@/components/ui/TecidoSwatch";
 
 // "Ped. X" do mapa (produto_variante_compras.pedido1/2) e o número do pedido
 // digitado no laudo de pré-produção são dois textos livres sem vínculo
@@ -200,7 +201,8 @@ function EntregaCard({ item, imageMode, onClick }: { item: any; imageMode: "dese
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.07)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"; }}
     >
       {/* Imagem */}
-      <div style={{ width: "100%", aspectRatio: "4/3", background: "#f8f8fa", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, overflow: "hidden" }}>
+      <div style={{ position: "relative", width: "100%", aspectRatio: "4/3", background: "#f8f8fa", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, overflow: "hidden" }}>
+        <TecidoSwatch url={item.tecido_imagem} nome={item.tecido} />
         {fotos.length ? (
           fotos.map((u, i) => (
             // eslint-disable-next-line @next/next/no-img-element
@@ -377,7 +379,8 @@ export default function MapaEntregasView() {
             boxShadow: "0 24px 80px rgba(0,0,0,0.4)",
             maxWidth: 680, width: "90vw", overflow: "hidden",
           }}>
-            <div style={{ background: "#fff", padding: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, minHeight: 300 }}>
+            <div style={{ position: "relative", background: "#fff", padding: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, minHeight: 300 }}>
+              <TecidoSwatch url={zoom.tecido_imagem} nome={zoom.tecido} size={64} />
               {fotosDe(zoom, imageMode).length ? (
                 fotosDe(zoom, imageMode).map((u, i) => (
                   // eslint-disable-next-line @next/next/no-img-element

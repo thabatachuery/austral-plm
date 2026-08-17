@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchMapaColecao } from "@/lib/db";
 import { exportMapaColecaoPDF } from "@/lib/export-pdf-mapa";
+import TecidoSwatch from "@/components/ui/TecidoSwatch";
 
 const STATUS_COLORS: Record<string, string> = {
   CANCELADO: "#EA2F46",
@@ -296,7 +297,8 @@ export default function MapaColecaoView({ rows: _rows }: Props) {
             maxWidth: 700, width: "90vw", overflow: "hidden",
             display: "flex", flexDirection: "column",
           }}>
-            <div style={{ background: "#fff", padding: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, minHeight: 360 }}>
+            <div style={{ position: "relative", background: "#fff", padding: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, minHeight: 360 }}>
+              <TecidoSwatch url={zoom.tecido_imagem} nome={zoom.tecido} size={64} />
               {fotosOf(zoom).length ? (
                 fotosOf(zoom).map((u, i) => (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -476,7 +478,8 @@ export default function MapaColecaoView({ rows: _rows }: Props) {
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 20px rgba(0,0,0,0.13)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.07)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"; }}
                 >
-                  <div style={{ width: "100%", aspectRatio: "4/3", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, overflow: "hidden" }}>
+                  <div style={{ position: "relative", width: "100%", aspectRatio: "4/3", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, overflow: "hidden" }}>
+                    <TecidoSwatch url={item.tecido_imagem} nome={item.tecido} />
                     {fotos.length ? (
                       fotos.map((u, i) => (
                         // eslint-disable-next-line @next/next/no-img-element

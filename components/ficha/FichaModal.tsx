@@ -461,6 +461,8 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   };
 
   const compOf = (nome: string) => tecCad.find((t: any) => t.nome === nome)?.comp || "";
+  // Foto do tecido vem do cadastro (Cadastros › Tecidos), não da ficha
+  const imgTecOf = (nome: string) => tecCad.find((t: any) => t.nome === nome)?.imagem || "";
 
   // Peso = área da modelagem × gramatura do tecido × encolhimento × margem.
   // Usa o 1º tecido da ficha (o principal); se a ficha não tem tecido, cai no
@@ -815,6 +817,25 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             onDragLeave={() => setDragOver(null)}
             onDrop={e => hiDrop(e, "imagem_url", setImg, img)}>
             <div className="aspect-[16/9] max-h-[380px] flex items-center justify-center">{img ? <img src={img} alt="Desenho" className="w-full h-full object-contain p-3" /> : <div className="text-center"><svg className="mx-auto mb-2 text-[var(--label-quaternary)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg><p className="text-[13px] text-[var(--label-tertiary)]">Arrastar aqui ou clique</p></div>}</div>
+            {/* Foto do tecido, junto do desenho — só dos tecidos que têm foto no cadastro.
+                stopPropagation: o card inteiro abre o seletor de arquivo do desenho. */}
+            {tec.some((t: any) => imgTecOf(t.artigo)) && (
+              <div onClick={e => e.stopPropagation()} className="flex flex-wrap items-center gap-3 px-3 py-2.5 border-t border-[var(--separator)] bg-[var(--bg-primary)] cursor-default">
+                {tec.map((t: any, ti: number) => {
+                  const u = imgTecOf(t.artigo);
+                  if (!u) return null;
+                  return (
+                    <div key={ti} className="flex items-center gap-2">
+                      <img src={u} alt={`Tecido ${t.artigo}`} className="w-10 h-10 rounded-lg object-cover border border-[var(--separator)] bg-white" />
+                      <div className="leading-tight">
+                        <div className="text-[10px] text-[var(--label-tertiary)]">Tec.{String(ti + 1).padStart(2, "0")}</div>
+                        <div className="text-[11px] font-semibold">{t.artigo}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {img && <button onClick={e => { e.stopPropagation(); deleteImg(); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
           </div>
           <input ref={fr} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_url", setImg, img)} />
