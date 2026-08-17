@@ -11,6 +11,28 @@ type Props = { comprasRows: any[]; variantes: Record<string, string[]> };
 const QTD_MOST_KEYS = ["qtd_most_var01","qtd_most_var02","qtd_most_var03","qtd_most_var04","qtd_most_var05","qtd_most_var06"] as const;
 const VAR_KEYS = ["var01","var02","var03","var04","var05","var06"] as const;
 
+// Etapa da ficha: define quais produtos entram (pelo status) e por quanto a
+// quantidade de cada aviamento é multiplicada.
+type Modo = "desenvolvimento" | "mostruario" | "producao";
+const MODOS: { key: Modo; label: string; regra: string; statusMatch: (s: string) => boolean }[] = [
+  { key: "desenvolvimento", label: "Desenvolvimento", regra: "1 peça por variante",
+    statusMatch: s => s.includes("DESENVOLVIMENTO") },
+  { key: "mostruario",      label: "Mostruário",      regra: "quantidade de mostruário da variante",
+    statusMatch: s => s.includes("MOSTRUÁRIO") || s.includes("MOSTRUARIO") },
+  { key: "producao",        label: "Produção",        regra: "compra da variante, só pedidos não entregues",
+    statusMatch: s => s.includes("PRODUÇÃO") || s.includes("PRODUCAO") },
+];
+
+// Data de hoje em ISO local (não UTC — perto da meia-noite o toISOString()
+// vira o dia seguinte e faria um pedido de hoje contar como entregue).
+function hojeISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Pedido ainda não entregue: sem data marcada, ou com entrega de hoje pra frente.
+const pedidoPendente = (dataEntrega: string | null | undefined, hoje: string) => !dataEntrega || dataEntrega >= hoje;
+
 // "1089312842 - C11(2584)|C05(17-1012)|C02(19-0303)" + cor "C05 - BEGE" ->
 // "17-1012": o código do fornecedor às vezes junta a referência de cada cor
 // num texto só, "CÓDIGO(ref)" separado por "|". Sem essa cor no texto (item
@@ -34,6 +56,8 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
   const [flFornAvi, setFlFornAvi] = useState("");
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [modo, setModo] = useState<Modo>("producao");
+  const modoInfo = MODOS.find(m => m.key === modo)!;
 
   useEffect(() => {
     fetchExplosaoData().then(d => { setData(d); setLoading(false); });
@@ -48,15 +72,16 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
     return m;
   }, [data]);
 
-  // filter produto rows first
+  // filter produto rows first — o modo já recorta pela etapa (status), os
+  // demais filtros continuam valendo por cima disso.
   const filteredProd = useMemo(() => {
-    let r = comprasRows;
+    let r = comprasRows.filter((x: any) => modoInfo.statusMatch((x.status || "").toUpperCase()));
     if (search)     { const q = search.toLowerCase(); r = r.filter((x: any) => (`${x.ref} ${x.descricao}`).toLowerCase().includes(q)); }
     if (flFornProd) r = r.filter((x: any) => x.fornecedor === flFornProd);
     if (flStatus)   r = r.filter((x: any) => x.status === flStatus);
     if (flColecao)  r = r.filter((x: any) => x.colecao === flColecao);
     return r;
-  }, [comprasRows, search, flFornProd, flStatus, flColecao]);
+  }, [comprasRows, search, flFornProd, flStatus, flColecao, modoInfo]);
 
   const refSet = useMemo(() => new Set(filteredProd.map((r: any) => r.ref as string)), [filteredProd]);
 
@@ -72,13 +97,6 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
   const refFornMap = useMemo(() => {
     const m: Record<string, string> = {};
     filteredProd.forEach((p: any) => { m[p.ref] = p.fornecedor || ""; });
-    return m;
-  }, [filteredProd]);
-
-  // ref → status and id
-  const refStatusMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    filteredProd.forEach((p: any) => { m[p.ref] = (p.status || "").toUpperCase(); });
     return m;
   }, [filteredProd]);
 
@@ -98,27 +116,35 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
     return m;
   }, [data]);
 
-  // produto_id → total qtd_compra (soma de todas as cores) — usado só para
-  // aviamentos sem distinção de cor (ex. adesivo, tag), que valem pra peça
+  // Compra de uma variante somando os dois pedidos, mas só os que ainda não
+  // foram entregues — se o pedido 1 já chegou e o 2 não, conta só o 2.
+  const comprasPendentes = (vc: any, hoje: string) =>
+    (pedidoPendente(vc.data_entrega1, hoje) ? Number(vc.qtd_compra1) || 0 : 0) +
+    (pedidoPendente(vc.data_entrega2, hoje) ? Number(vc.qtd_compra2) || 0 : 0);
+
+  // produto_id → total comprado e pendente (soma de todas as cores) — usado só
+  // para aviamentos sem distinção de cor (ex. adesivo, tag), que valem pra peça
   // inteira independente da cor dela.
   const productTotalComprasMap = useMemo(() => {
     if (!data) return {} as Record<number, number>;
+    const hoje = hojeISO();
     const m: Record<number, number> = {};
     data.comprasVar.forEach((vc: any) => {
-      m[vc.produto_id] = (m[vc.produto_id] || 0) + (Number(vc.qtd_compra1) || 0) + (Number(vc.qtd_compra2) || 0);
+      m[vc.produto_id] = (m[vc.produto_id] || 0) + comprasPendentes(vc, hoje);
     });
     return m;
   }, [data]);
 
-  // produto_id + cor da peça → qtd_compra daquela cor especificamente — é o
-  // que liga "quantas peças pretas foram compradas" à cor do botão que vai
+  // produto_id + cor da peça → compra pendente daquela cor especificamente — é
+  // o que liga "quantas peças pretas foram compradas" à cor do botão que vai
   // na variante preta (não à compra total do produto, que misturaria cores).
   const comprasPorCorMap = useMemo(() => {
     if (!data) return new Map<string, number>();
+    const hoje = hojeISO();
     const m = new Map<string, number>();
     data.comprasVar.forEach((vc: any) => {
       const key = `${vc.produto_id}:${vc.cor}`;
-      m.set(key, (m.get(key) || 0) + (Number(vc.qtd_compra1) || 0) + (Number(vc.qtd_compra2) || 0));
+      m.set(key, (m.get(key) || 0) + comprasPendentes(vc, hoje));
     });
     return m;
   }, [data]);
@@ -175,8 +201,6 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
       const ref = fichaRefMap.get(av.ficha_id);
       if (!ref) return;
 
-      const status = refStatusMap[ref] || "";
-      const isMost = status.includes("MOSTRUÁRIO") || status.includes("MOSTRUARIO");
       const prodId = refIdMap[ref];
       const qtdItem = Number(av.qtd) || 0;
       const qtdMosts = fichaQtdMostMap[av.ficha_id] || [];
@@ -184,28 +208,30 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
 
       if (!coresAviamento.some(Boolean)) {
         // Sem cor por variante (ex. adesivo, tag genérico): vale pra peça
-        // inteira, então soma a compra de todas as cores do produto.
-        const qtdCompra = productTotalComprasMap[prodId] || 0;
+        // inteira, então soma todas as cores do produto.
         let multiplier = 0;
-        if (qtdCompra > 0) multiplier = qtdCompra;
-        else if (isMost) multiplier = qtdMosts.reduce((s: number, v) => s + (Number(v) || 0), 0);
-        else multiplier = Math.max(variantes[ref]?.length ?? 0, 1);
+        if (modo === "producao")        multiplier = productTotalComprasMap[prodId] || 0;
+        else if (modo === "mostruario") multiplier = qtdMosts.reduce((s: number, v) => s + (Number(v) || 0), 0);
+        else                            multiplier = Math.max(variantes[ref]?.length ?? 0, 1);
         addQty(av, "", ref, qtdItem * multiplier);
         return;
       }
 
       // Com cor por variante: cada variante (slot) casa a cor do aviamento
-      // ali escolhida com a quantidade comprada da cor DA PEÇA nesse mesmo
-      // slot — é por isso que precisa das cores do tecido, não só do total.
+      // ali escolhida com a quantidade da cor DA PEÇA nesse mesmo slot — é por
+      // isso que precisa das cores do tecido, não só do total.
       const coresProduto = fichaCoresMap[av.ficha_id] || [];
       coresAviamento.forEach((corAv, i) => {
         if (!corAv) return;
-        const corProd = coresProduto[i] || "";
-        const qtdCompraCor = comprasPorCorMap.get(`${prodId}:${corProd}`) || 0;
         let multiplier = 0;
-        if (qtdCompraCor > 0) multiplier = qtdCompraCor;
-        else if (isMost) multiplier = Number(qtdMosts[i]) || 0;
-        else multiplier = 1; // 1 peça-amostra dessa variante, em desenvolvimento
+        if (modo === "producao") {
+          const corProd = coresProduto[i] || "";
+          multiplier = comprasPorCorMap.get(`${prodId}:${corProd}`) || 0;
+        } else if (modo === "mostruario") {
+          multiplier = Number(qtdMosts[i]) || 0;
+        } else {
+          multiplier = 1; // 1 peça-amostra dessa variante, em desenvolvimento
+        }
         addQty(av, corAv, ref, qtdItem * multiplier);
       });
     });
@@ -224,7 +250,7 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
 
     if (flFornAvi) rows = rows.filter(r => r.fornecedor === flFornAvi);
     return rows;
-  }, [data, fichaRefMap, avLibMap, refFornMap, refStatusMap, refIdMap, fichaQtdMostMap, fichaCoresMap, comprasPorCorMap, productTotalComprasMap, variantes, flFornAvi]);
+  }, [data, fichaRefMap, avLibMap, refFornMap, refIdMap, fichaQtdMostMap, fichaCoresMap, comprasPorCorMap, productTotalComprasMap, variantes, flFornAvi, modo]);
 
   const sorted = useMemo(() => {
     if (!sort) return aggregated;
@@ -245,13 +271,18 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
 
   // distinct filter options
   const uv = (key: string) => Array.from(new Set(comprasRows.map((r: any) => r[key]).filter(Boolean))).sort() as string[];
+  // Status ofertados no filtro: só os que existem dentro da etapa escolhida —
+  // senão dá pra escolher um status que a etapa já excluiu e a tabela zera.
+  const statusOpts = useMemo(() => Array.from(new Set(
+    comprasRows.filter((r: any) => modoInfo.statusMatch((r.status || "").toUpperCase())).map((r: any) => r.status).filter(Boolean)
+  )).sort() as string[], [comprasRows, modoInfo]);
   const uvFornAvi = useMemo(() => Array.from(new Set(Object.values(avLibMap).map(a => a.fornecedor).filter(Boolean))).sort(), [avLibMap]);
 
   const handleExportPdf = async () => {
     setGeneratingPdf(true);
     try {
       const date = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
-      await exportExplosaoPDF(sorted, { fornProd: flFornProd, status: flStatus, colecao: flColecao, fornAvi: flFornAvi }, `explosao_aviamentos_${date}`);
+      await exportExplosaoPDF(sorted, { fornProd: flFornProd, status: flStatus, colecao: flColecao, fornAvi: flFornAvi, etapa: modoInfo.label }, `explosao_aviamentos_${modo}_${date}`);
     } finally {
       setGeneratingPdf(false);
     }
@@ -261,7 +292,7 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
     const headers = ["Código", "Cor", "Nome", "Cód. Forn.", "Forn. Aviamento", "Fornecedor", "Qtd Total", "Vlr. Unit (R$)", "Vlr. Total (R$)", "Referências"];
     const dataRows = sorted.map(r => [r.codigo, r.cor, r.nome, r.codForn, r.fornecedor, r.fornProd, r.qtd, r.valorUnit, r.valorTotal, r.refs]);
     const date = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
-    exportToExcel(`explosao_aviamentos_${date}`, headers, dataRows);
+    exportToExcel(`explosao_aviamentos_${modo}_${date}`, headers, dataRows);
   };
 
   const COLS = [
@@ -282,6 +313,24 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
 
   return (
     <div>
+      {/* Etapa da ficha — define quais produtos entram e por quanto multiplica */}
+      <div className="apple-card p-4 mb-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Etapa</span>
+          <div className="flex bg-[var(--bg-secondary)] rounded-lg border border-[var(--separator)] p-0.5 gap-0.5">
+            {MODOS.map(m => (
+              <button key={m.key} onClick={() => { setModo(m.key); setFlStatus(""); }}
+                className={`text-[12px] font-semibold px-3.5 py-1.5 rounded-md transition-all ${modo === m.key ? "bg-[var(--system-blue)] text-white" : "text-[var(--label-secondary)] hover:text-[var(--label-primary)]"}`}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-[11px] text-[var(--label-tertiary)]">
+            quantidade do aviamento na variante × <span className="font-semibold text-[var(--label-secondary)]">{modoInfo.regra}</span>
+          </span>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="apple-card p-4 mb-4 bg-[var(--bg-secondary)]">
         <div className="flex items-center justify-between mb-3">
@@ -310,7 +359,7 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
             <label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">Status Atual</label>
             <select value={flStatus} onChange={e => setFlStatus(e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${flStatus ? "!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold" : ""}`}>
               <option value="">Todos</option>
-              {uv("status").map(v => <option key={v}>{v}</option>)}
+              {statusOpts.map(v => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>

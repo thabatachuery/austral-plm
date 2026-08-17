@@ -35,6 +35,8 @@ export interface ExplosaoFilters {
   status: string;
   colecao: string;
   fornAvi: string;
+  /** Etapa que gerou os números (Desenvolvimento / Mostruário / Produção). */
+  etapa?: string;
 }
 
 export async function exportExplosaoPDF(
@@ -85,6 +87,9 @@ export async function exportExplosaoPDF(
 
   // Active filters chips
   const filterLabels: string[] = [];
+  // A etapa vem primeiro: sem ela, duas exportações do mesmo filtro com
+  // números diferentes ficam indistinguíveis no papel.
+  if (filters.etapa)    filterLabels.push(`Etapa: ${filters.etapa}`);
   if (filters.fornProd) filterLabels.push(`Fornecedor: ${filters.fornProd}`);
   if (filters.status)   filterLabels.push(`Status: ${filters.status}`);
   if (filters.colecao)  filterLabels.push(`Coleção: ${filters.colecao}`);
