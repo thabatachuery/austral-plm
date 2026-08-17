@@ -275,7 +275,7 @@ export async function exportMapaEntregasPDF(
         // Foto do tecido — por cima do desenho, no canto de baixo
         const tecImg = item.tecido_imagem ? tecImgMap[item.tecido_imagem] : null;
         if (tecImg) {
-          const sw = 7.5;
+          const sw = 11;
           addTecidoSwatch(doc, tecImg, cx + 2, cy + IMG_H - sw - 2, sw);
         }
 

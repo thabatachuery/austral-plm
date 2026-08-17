@@ -380,7 +380,7 @@ export default function MapaEntregasView() {
             maxWidth: 680, width: "90vw", overflow: "hidden",
           }}>
             <div style={{ position: "relative", background: "#fff", padding: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, minHeight: 300 }}>
-              <TecidoSwatch url={zoom.tecido_imagem} nome={zoom.tecido} size={64} />
+              <TecidoSwatch url={zoom.tecido_imagem} nome={zoom.tecido} size={104} />
               {fotosDe(zoom, imageMode).length ? (
                 fotosDe(zoom, imageMode).map((u, i) => (
                   // eslint-disable-next-line @next/next/no-img-element

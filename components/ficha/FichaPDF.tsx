@@ -160,7 +160,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", padding: "4px 10px", borderTop: `0.5px solid ${line}`, background: bg }}>
                   {fotosTec.map(f => (
                     <div key={f.i} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                      <img src={f.url} alt={`Tecido ${f.nome}`} style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "3px", border: `0.5px solid ${lineDark}` }} />
+                      <img src={f.url} alt={`Tecido ${f.nome}`} style={{ width: "56px", height: "56px", objectFit: "cover", borderRadius: "3px", border: `0.5px solid ${lineDark}` }} />
                       <div style={{ textAlign: "left" }}>
                         <div style={{ fontSize: "5.5px", fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Tec.{String(f.i + 1).padStart(2, "0")}</div>
                         <div style={{ fontSize: "7px", fontWeight: 700, color: navy }}>{f.nome}</div>

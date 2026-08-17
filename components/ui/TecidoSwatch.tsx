@@ -5,7 +5,7 @@
  * o tecido junto do desenho técnico sem gastar espaço do card.
  * O container precisa ter position:relative.
  */
-export default function TecidoSwatch({ url, nome, size = 30 }: { url?: string; nome?: string; size?: number }) {
+export default function TecidoSwatch({ url, nome, size = 48 }: { url?: string; nome?: string; size?: number }) {
   if (!url) return null;
   return (
     <div style={{ position: "absolute", left: 6, bottom: 6, zIndex: 2, pointerEvents: "none" }}>

@@ -239,7 +239,7 @@ export async function exportMapaColecaoPDF(
       // Foto do tecido — depois da imagem, para ficar por cima do desenho
       const tecImg = item.tecido_imagem ? tecImgMap[item.tecido_imagem] : null;
       if (tecImg) {
-        const sw = 9;
+        const sw = 13;
         addTecidoSwatch(doc, tecImg, cx + 2.5, cy + IMG_H - sw - 2.5, sw);
       }
 

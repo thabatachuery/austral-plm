@@ -826,10 +826,10 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                   if (!u) return null;
                   return (
                     <div key={ti} className="flex items-center gap-2">
-                      <img src={u} alt={`Tecido ${t.artigo}`} className="w-10 h-10 rounded-lg object-cover border border-[var(--separator)] bg-white" />
+                      <img src={u} alt={`Tecido ${t.artigo}`} className="w-20 h-20 rounded-lg object-cover border border-[var(--separator)] bg-white" />
                       <div className="leading-tight">
                         <div className="text-[10px] text-[var(--label-tertiary)]">Tec.{String(ti + 1).padStart(2, "0")}</div>
-                        <div className="text-[11px] font-semibold">{t.artigo}</div>
+                        <div className="text-[12px] font-semibold">{t.artigo}</div>
                       </div>
                     </div>
                   );
