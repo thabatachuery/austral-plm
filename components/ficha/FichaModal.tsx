@@ -1549,6 +1549,21 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                     Modelo
                     {isAuto && <span className="ml-2 text-[10px] font-normal text-[var(--label-tertiary)] normal-case">(da última prova)</span>}
                   </div>
+                  {imgModelo ? (
+                    /* Imagem do campo "modelo": vem da prancheta MODELO do Illustrator
+                       ou de um envio feito aqui. Antes ela era gravada no banco mas
+                       nunca aparecia — este bloco só mostrava as fotos da prova. */
+                    <div className="relative">
+                      <div onClick={() => mrr.current?.click()} title="Clique para trocar"
+                        className="apple-card bg-[var(--bg-secondary)] overflow-hidden cursor-pointer hover:border-[var(--system-blue)] transition-colors flex items-center justify-center min-h-[220px]">
+                        <img src={imgModelo} alt="Imagem do modelo" className="w-full h-full object-contain p-1" />
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); deleteImgModelo(); }} title="Remover"
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  ) : (<>
                   <div className="grid grid-cols-2 gap-3">
                     {/* Frente */}
                     <div className="space-y-1">
@@ -1571,6 +1586,10 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                       </div>
                     </div>
                   </div>
+                  <button onClick={() => mrr.current?.click()} className="mt-2 text-[11px] font-medium text-[var(--system-blue)] hover:underline">
+                    Adicionar imagem do modelo
+                  </button>
+                  </>)}
                   <input ref={mrr} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_modelo", setImgModelo, imgModelo)} />
                 </div>
               );
