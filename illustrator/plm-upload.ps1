@@ -205,7 +205,7 @@ try {
 }
 
 if ($fichas.Count -eq 0) {
-  Finalizar 'PLM' "Nao existe ficha tecnica para a REF $ref.`n`nCrie a ficha no PLM primeiro e rode o script de novo." 'Error'
+  Finalizar 'PLM' "A REF $ref ainda nao tem ficha tecnica salva no PLM.`n`nAbrir a ficha na tela nao basta: ela so passa a existir depois de salva`numa vez. Abra a REF no PLM, clique em Salvar e rode o script de novo." 'Error'
 }
 
 $ficha = $fichas[0]
