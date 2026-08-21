@@ -117,10 +117,40 @@ export async function updateTecido(nome: string, patch: { forn?: string; comp?: 
     if (!mapa[k]) continue;
     upd[mapa[k]] = numericos.has(k) ? numOuNull(v) : v;
   }
-  if (!Object.keys(upd).length) return;
+  if (!Object.keys(upd).length) return null;
   const { error } = await sb().from("tecidos").update(upd).eq("nome", nome);
-  if (error) console.error("updateTecido:", error);
   invalidateCache("tecidos");
+  if (error) { console.error("updateTecido:", error); return error.message || "Erro ao salvar o tecido."; }
+  return null;
+}
+
+// Renomear tecido é diferente de editar os outros campos: o nome é a chave que o
+// resto do sistema guarda (produtos.tecido e ficha_tecidos.artigo são texto, não
+// id). Sem propagar a troca, o SKU e a ficha ficariam apontando para um tecido
+// que não existe mais.
+export async function renameTecido(antigo: string, novo: string): Promise<{ error?: string; produtos: number; fichas: number }> {
+  const nome = novo.trim();
+  const vazio = { produtos: 0, fichas: 0 };
+  if (!nome) return { ...vazio, error: "O nome do tecido não pode ficar vazio." };
+  if (nome === antigo) return vazio;
+
+  const { data: existente } = await sb().from("tecidos").select("nome").eq("nome", nome).maybeSingle();
+  if (existente) return { ...vazio, error: `Já existe um tecido chamado "${nome}".` };
+
+  const { error } = await sb().from("tecidos").update({ nome }).eq("nome", antigo);
+  if (error) {
+    console.error("renameTecido:", error);
+    return { ...vazio, error: error.message || "Erro ao renomear o tecido." };
+  }
+
+  const { data: prods, error: errProd } = await sb().from("produtos").update({ tecido: nome }).eq("tecido", antigo).select("id");
+  if (errProd) console.error("renameTecido/produtos:", errProd);
+  const { data: fic, error: errFicha } = await sb().from("ficha_tecidos").update({ artigo: nome }).eq("artigo", antigo).select("id");
+  if (errFicha) console.error("renameTecido/ficha_tecidos:", errFicha);
+
+  // O nome aparece em produtos, fichas e mapas — limpa o cache inteiro.
+  invalidateCache();
+  return { produtos: prods?.length || 0, fichas: fic?.length || 0 };
 }
 export async function removeTecido(nome: string) {
   const { error } = await sb().from("tecidos").delete().eq("nome", nome);

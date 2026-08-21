@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { fetchCadastros, addCadastro, removeCadastro, addCadastrosBulk, fetchTecidos, addTecido, removeTecido, updateTecido, fetchAviamentos, addAviamento, addAviamentosBulk, removeAviamento, updateAviamento } from "@/lib/db";
+import { fetchCadastros, addCadastro, removeCadastro, addCadastrosBulk, fetchTecidos, addTecido, removeTecido, updateTecido, renameTecido, fetchAviamentos, addAviamento, addAviamentosBulk, removeAviamento, updateAviamento } from "@/lib/db";
 import { ozParaGramatura } from "@/lib/peso";
 import { uploadImage, deleteImage } from "@/lib/storage";
 import { subscribeRealtime } from "@/lib/realtime";
@@ -42,6 +42,7 @@ export default function CadView(){
   const [newTecImg,setNewTecImg]=useState<string>("");
   const [newTecImgUp,setNewTecImgUp]=useState(false);
   const newTecImgRef=useRef<HTMLInputElement>(null);
+  const [renomeando,setRenomeando]=useState<string|null>(null);
 
   useEffect(()=>{loadAll();},[]);
 
@@ -146,7 +147,24 @@ export default function CadView(){
   // Salva um campo do tecido ao sair do input (mesmo padrão dos aviamentos)
   const saveTec=async(nome:string,patch:Record<string,any>)=>{
     setTecidos(p=>p.map(t=>t.nome===nome?{...t,...patch}:t));
-    await updateTecido(nome,patch);
+    const err=await updateTecido(nome,patch);
+    if(err){setImportMsg({tipo:"erro",texto:err});await fetchTecidos().then(setTecidos);}
+  };
+  // Renomear é separado do saveTec: o nome é a chave que produtos e fichas
+  // guardam, então a troca precisa ser propagada (renameTecido faz isso).
+  // Recebe o próprio input para desfazer o texto recusado sem remontar a linha
+  // (remontar roubaria o foco de quem só passou de um campo para o outro).
+  const renomearTec=async(antigo:string,el:HTMLInputElement)=>{
+    const novo=el.value.trim().toUpperCase();
+    if(!novo||novo===antigo){el.value=antigo;return;}
+    el.value=novo;
+    setRenomeando(antigo);
+    const r=await renameTecido(antigo,novo);
+    setRenomeando(null);
+    if(r.error){el.value=antigo;setImportMsg({tipo:"erro",texto:r.error});return;}
+    setTecidos(p=>p.map(t=>t.nome===antigo?{...t,nome:novo}:t).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"pt-BR")));
+    const usos=[r.produtos?`${r.produtos} SKU${r.produtos>1?"s":""}`:"",r.fichas?`${r.fichas} ficha${r.fichas>1?"s":""}`:""].filter(Boolean).join(" e ");
+    setImportMsg({tipo:"ok",texto:`Tecido renomeado para "${novo}"${usos?` — ${usos} atualizado(s)`:""}.`});
   };
   const triggerTecImg=(nome:string)=>{setTecImgTarget(nome);tecImgRef.current?.click();};
   const handleTecImg=async(e:React.ChangeEvent<HTMLInputElement>)=>{
@@ -219,7 +237,7 @@ export default function CadView(){
           <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--label-tertiary)] px-2 mb-2">Cadastros</div>
           <nav className="flex sm:flex-col gap-0.5 overflow-x-auto sm:overflow-x-visible sm:max-h-[calc(100vh-220px)] sm:overflow-y-auto">
             {TABS.map(t=>{const c=gc(t.k);const on=m===t.k;return(
-              <button key={t.k} onClick={()=>{setM(t.k);setSr("");}} className={`flex justify-between items-center px-2.5 py-[7px] rounded-lg text-[13px] text-left transition-all whitespace-nowrap ${on?"font-semibold bg-[var(--system-blue)] text-white":"text-[var(--label-primary)] hover:bg-[var(--bg-secondary)]"}`}>
+              <button key={t.k} onClick={()=>{setM(t.k);setSr("");setImportMsg(null);}} className={`flex justify-between items-center px-2.5 py-[7px] rounded-lg text-[13px] text-left transition-all whitespace-nowrap ${on?"font-semibold bg-[var(--system-blue)] text-white":"text-[var(--label-primary)] hover:bg-[var(--bg-secondary)]"}`}>
                 <span>{t.l}</span>
                 <span className={`text-[11px] tabnum ml-2 ${on?"text-white/70":"text-[var(--label-tertiary)]"}`}>{c}</span>
               </button>
@@ -251,7 +269,7 @@ export default function CadView(){
                 <span className="text-[12px] text-[var(--label-tertiary)] tabnum">{m==="aviamento"?`${aviamentos.length} aviamentos`:m==="cor"?`${(cad.cor||[]).length} cores`:m==="tecido"?`${tecidos.length} tecidos`:`${items.length} itens`}</span>
               </div>
             </div>
-            {(IMPORTAVEIS_LINX.includes(m) || m==="aviamento") && importMsg && (
+            {(IMPORTAVEIS_LINX.includes(m) || m==="aviamento" || m==="tecido") && importMsg && (
               <div className="mt-2 text-[12px] rounded-lg px-3 py-2" style={importMsg.tipo==="ok"
                 ? { background: "rgba(52,199,89,0.1)", color: "#1a7a35" }
                 : { background: "rgba(255,59,48,0.08)", color: "var(--system-red)" }}>
@@ -511,9 +529,26 @@ export default function CadView(){
                               <span className="text-[8px] font-medium leading-none">foto</span>
                             </button>}
                     </td>
-                    <td className="font-medium px-4">{t.nome}</td>
-                    <td className="px-3">{t.forn}</td>
-                    <td className="text-[12px] text-[var(--label-secondary)] px-3">{t.comp}</td>
+                    <td className="px-2 py-1">
+                      <input title="Nome do tecido — a troca é propagada para os SKUs e fichas que usam ele"
+                        key={`nome-${t.nome}`} defaultValue={t.nome}
+                        disabled={renomeando===t.nome}
+                        className="w-full text-[13px] font-medium uppercase border border-transparent rounded-lg px-2 py-1 outline-none bg-transparent hover:border-[var(--separator-opaque)] focus:border-[var(--system-blue)] focus:bg-[var(--bg-primary)] transition-all disabled:opacity-50"
+                        onBlur={e=>renomearTec(t.nome,e.currentTarget)}
+                        onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();if(e.key==="Escape"){e.currentTarget.value=t.nome;e.currentTarget.blur();}}}/>
+                    </td>
+                    <td className="px-2 py-1">
+                      <input title="Fornecedor do tecido" placeholder="—"
+                        key={`forn-${t.nome}-${t.forn??""}`} defaultValue={t.forn??""}
+                        className="w-full text-[12px] uppercase border border-transparent rounded-lg px-2 py-1 outline-none bg-transparent hover:border-[var(--separator-opaque)] focus:border-[var(--system-blue)] focus:bg-[var(--bg-primary)] transition-all"
+                        onBlur={e=>{const v=e.target.value.trim().toUpperCase();if(v!==(t.forn??""))saveTec(t.nome,{forn:v});}}/>
+                    </td>
+                    <td className="px-2 py-1">
+                      <input title="Composição do tecido" placeholder="—"
+                        key={`comp-${t.nome}-${t.comp??""}`} defaultValue={t.comp??""}
+                        className="w-full text-[12px] text-[var(--label-secondary)] uppercase border border-transparent rounded-lg px-2 py-1 outline-none bg-transparent hover:border-[var(--separator-opaque)] focus:border-[var(--system-blue)] focus:bg-[var(--bg-primary)] transition-all"
+                        onBlur={e=>{const v=e.target.value.trim().toUpperCase();if(v!==(t.comp??""))saveTec(t.nome,{comp:v});}}/>
+                    </td>
                     <td className="px-1 py-1">
                       <input type="text" inputMode="decimal" title="Preço do tecido (R$)"
                         className="w-full text-[12px] text-right tabnum border border-transparent rounded-lg px-1.5 py-1 outline-none bg-transparent hover:border-[var(--separator-opaque)] focus:border-[var(--system-blue)] focus:bg-[var(--bg-primary)] transition-all"
@@ -542,7 +577,7 @@ export default function CadView(){
                   </tr>
                 );})}</tbody></table>
               </div>
-              <p className="text-[11px] text-[var(--label-tertiary)] mt-2">{ft.length} de {tecidos.length} · clique num campo técnico para preencher — salva ao sair</p>
+              <p className="text-[11px] text-[var(--label-tertiary)] mt-2">{ft.length} de {tecidos.length} · clique em qualquer campo para editar (inclusive o nome) — salva ao sair</p>
             </>)}
           </div>
         </div>
