@@ -615,16 +615,13 @@ export async function fetchGraduacoesByTabelaNome(nome: string): Promise<{ taman
   };
 }
 
-// Fetch only tables that have at least 1 point
-export async function fetchTabelasComPontos() {
-  const { data, error } = await sb().rpc('get_tabelas_com_pontos').order('nome' as any);
-  if (error) {
-    // Fallback: fetch all points in parallel, group by tabela_id
-    const tabelas = await fetchTabelasMedidas();
-    const pontos = await selectAll((de, ate) => sb().from("tabela_medida_pontos").select("tabela_id").range(de, ate), "fetchTabelasComPontos");
-    const tabelasComPontos = new Set(pontos.map((p: any) => p.tabela_id));
-    return tabelas.filter((t: any) => tabelasComPontos.has(t.id)).map((t: any) => t.nome);
-  }
+// Nomes das tabelas de medidas, pro select da coluna "Tab. medidas".
+// Lista TODAS as tabelas do cadastro, inclusive as que ainda não têm pontos:
+// acessórios (07 - ÚNICO) são tamanho único e ficam sem medidas, mas precisam
+// poder ser escolhidos no produto.
+export async function fetchNomesTabelasMedidas() {
+  const { data, error } = await sb().from("tabelas_medidas").select("nome").order("nome");
+  if (error) { console.error("fetchNomesTabelasMedidas:", error); return []; }
   return (data || []).map((t: any) => t.nome);
 }
 

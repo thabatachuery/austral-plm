@@ -4,7 +4,7 @@ import InlineCell from "@/components/ui/InlineCell";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import COLUMNS from "@/lib/columns";
-import { fetchCadastros, fetchTecidos, fetchTabelasComPontos, updateProdutoField, insertProduto, deleteProduto, cloneProduto, bulkUpdateStatus, criarAlerta } from "@/lib/db";
+import { fetchCadastros, fetchTecidos, fetchNomesTabelasMedidas, updateProdutoField, insertProduto, deleteProduto, cloneProduto, bulkUpdateStatus, criarAlerta } from "@/lib/db";
 import { useAuth } from "@/lib/auth-context";
 import { exportToExcel, fmtExcelDate } from "@/lib/export-excel";
 import { STATUS_ESTILO, STATUS_COMPRAS_OPTS } from "@/lib/constants";
@@ -160,7 +160,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
   useEffect(() => {
     (async () => {
       const [cadastros, tecidos, tabNomes] = await Promise.all([
-        fetchCadastros(), fetchTecidos(), fetchTabelasComPontos(),
+        fetchCadastros(), fetchTecidos(), fetchNomesTabelasMedidas(),
       ]);
       setCad({ ...cadastros, tecido: tecidos.map((t: any) => t.nome), tab_medidas: tabNomes, _tecidoData: tecidos });
     })();
