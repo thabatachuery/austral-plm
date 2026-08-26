@@ -269,11 +269,26 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
   const { success, error: showError, Container: ToastContainer } = useToast();
 
   const add = async () => {
+    // A referência é única no banco (produtos_ref_unique) e o SKU novo nasce
+    // sem referência — então só cabe UM SKU em branco por vez. Se já existe um,
+    // reaproveita: fixa ele no topo em vez de tentar criar outro e falhar.
+    const emBranco = rows.find((r:any) => !String(r.ref ?? "").trim());
+    if (emBranco) {
+      setNovos(p => new Set(p).add(emBranco.id));
+      success("Já havia um SKU sem referência — fixado no topo pra preencher");
+      return;
+    }
+
     const blank: any = {};
     COLUMNS.forEach(c => { if(c.type!=="action") blank[c.key] = ""; });
     blank.status = STATUS_ESTILO.DESENVOLVIMENTO;
     const { data: result, error } = await insertProduto(blank);
-    if (error) { showError(`Erro ao criar SKU: ${error}`); return; }
+    if (error) {
+      showError(/duplicate key|produtos_ref_unique/i.test(error)
+        ? "Já existe um SKU sem referência. Preencha a referência dele antes de criar outro."
+        : `Erro ao criar SKU: ${error}`);
+      return;
+    }
     if (result) {
       const newRow = { ...blank, id: result.id, ref: result.ref || "" };
       setRows((p:any) => [...p, newRow]);
