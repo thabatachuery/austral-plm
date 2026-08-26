@@ -97,6 +97,9 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
   const [showColMenu, setShowColMenu] = useState(false);
   const colMenuRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  // SKUs criados agora: nascem vazios, então não passariam por nenhum filtro.
+  // Ficam fixados no topo da lista até sair da tela, pra dar pra preencher.
+  const [novos, setNovos] = useState<Set<number>>(new Set());
   const [bulkStatus, setBulkStatus] = useState("");
   const [cloneSource, setCloneSource] = useState<any>(null);
   const [cloneRef, setCloneRef] = useState("");
@@ -187,7 +190,8 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
   const colecoes = useMemo(() => Array.from(new Set(rows.map((r: any) => r.colecao).filter(Boolean))).sort((a, b) => String(b).localeCompare(String(a), "pt-BR", { numeric: true })), [rows]);
 
   const filtered = useMemo(() => {
-    let r = rows;
+    // Os recém-criados saem da filtragem e voltam fixados no topo (ver `novos`).
+    let r = novos.size ? rows.filter((x: any) => !novos.has(x.id)) : rows;
     if (colecaoAtiva) r = r.filter((x: any) => x.colecao === colecaoAtiva);
     Object.entries(fl).forEach(([k,v]) => { if(v) r = r.filter((x:any) => x[k]===v); });
     if(q) { const s=q.toLowerCase(); r = r.filter((x:any) => (x.ref+x.desc+x.tecido+x.composicao+x.fornecedor+x.forn_tecido+x.estilista+x.tab_medidas).toLowerCase().includes(s)); }
@@ -204,8 +208,9 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
         return sort.dir === "asc" ? cmp : -cmp;
       });
     }
-    return r;
-  }, [rows, fl, q, sort, colecaoAtiva]);
+    if (!novos.size) return r;
+    return [...rows.filter((x: any) => novos.has(x.id)), ...r];
+  }, [rows, fl, q, sort, colecaoAtiva, novos]);
 
   // Popup de alerta pros outros usuários quando um SKU já liberado/repilotando tem campo alterado.
   const alertarCampoAlterado = (prevRow: any, campoKey: string, valorAnterior: any, valorNovo: any) => {
@@ -272,7 +277,9 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     if (result) {
       const newRow = { ...blank, id: result.id, ref: result.ref || "" };
       setRows((p:any) => [...p, newRow]);
-      success("SKU criado com sucesso");
+      setNovos(p => new Set(p).add(result.id));
+      const filtrando = ac > 0 || !!q || !!colecaoAtiva;
+      success(filtrando ? "SKU criado — fixado no topo da lista" : "SKU criado com sucesso");
     }
   };
 
@@ -287,6 +294,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     if (!confirmed) return;
     const target = rows.find((r:any) => r.id === id);
     setRows((p:any[]) => p.filter((r:any) => r.id!==id));
+    setNovos(p => { if (!p.has(id)) return p; const n = new Set(p); n.delete(id); return n; });
     const error = await deleteProduto(id, target?.ref);
     if (error) {
       showError(`Erro ao excluir: ${error}`);
@@ -536,7 +544,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
         </span>
       </th>
       <th style={{width:36}}/></tr></thead><tbody>
-        {filtered.map((row:any)=>(<tr key={row.id} style={selected.has(row.id)?{background:"rgba(0,122,255,0.06)"}:{}}>
+        {filtered.map((row:any)=>(<tr key={row.id} style={selected.has(row.id)?{background:"rgba(0,122,255,0.06)"}:novos.has(row.id)?{background:"rgba(255,204,0,0.10)"}:{}}>
           {!readOnly && canAdd && <td style={{width:36,padding:"0 8px"}}><input type="checkbox" aria-label={`Selecionar SKU ${row.ref}`} checked={selected.has(row.id)} onChange={()=>toggleSelect(row.id)} style={{cursor:"pointer"}}/></td>}
           {COLUMNS.filter(c=>isColVisible(c.key)).flatMap(c=>{
           const isSticky = c.key === "ref";
