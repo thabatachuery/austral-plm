@@ -50,6 +50,11 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const [corOpts, setCorOpts] = useState<string[]>([]);
   const [avCad, setAvCad] = useState<any[]>([]);
   const [tecCad, setTecCad] = useState<any[]>([]);
+  // Seletor de tecido da tabela de cores: índice da linha sendo escolhida
+  // (null = fechado) e o texto da busca. O cadastro tem mais de mil tecidos,
+  // então é busca + lista, igual ao "+ Adicionar aviamento".
+  const [tecPick, setTecPick] = useState<number | null>(null);
+  const [tsq, setTsq] = useState("");
   const [estamparia, setEstamparia] = useState<any>({ artes: [{ posicao: "FRENTE", imagem: "", largura: "", localizacao: "" }, { posicao: "COSTAS", imagem: "", largura: "", localizacao: "" }, { posicao: "TAGLESS", imagem: "", largura: "", localizacao: "" }], tecnicas: [], simulacoes: { var01: { nome: "", imgSim: "", imgFoto: "", status: "" }, var02: { nome: "", imgSim: "", imgFoto: "", status: "" }, var03: { nome: "", imgSim: "", imgFoto: "", status: "" }, var04: { nome: "", imgSim: "", imgFoto: "", status: "" } }, observacoes: "" });
   const [varCodigos, setVarCodigos] = useState<{ var01: string; var02: string; var03: string; var04: string; var05: string; var06: string }>({ var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" });
   const [varTingimento, setVarTingimento] = useState<{ var01: string; var02: string; var03: string; var04: string; var05: string; var06: string }>({ var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" });
@@ -506,6 +511,20 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     setSap(false); setAsq("");
   };
   const fa = asq ? avCad.filter((a: any) => (a.cod + a.nome).toLowerCase().includes(asq.toLowerCase())) : avCad;
+
+  // Tecidos filtrados pela busca do seletor. Sem busca a lista é limitada:
+  // são mais de mil tecidos e renderizar tudo trava a ficha no celular.
+  const TEC_LIMITE = 60;
+  const ftAll = tsq
+    ? tecCad.filter((t: any) => `${t.nome} ${t.forn || ""} ${t.comp || ""}`.toLowerCase().includes(tsq.toLowerCase()))
+    : tecCad;
+  const ft = ftAll.slice(0, TEC_LIMITE);
+  // Escolhe o tecido de uma linha da tabela e puxa fornecedor e preço do cadastro.
+  const pickTec = (i: number, c: any) => {
+    const preco = Number(String(c.preco ?? "").replace(",", ".")) || 0;
+    setTec(p => p.map((t: any, j: number) => j === i ? { ...t, artigo: c.nome, forn: c.forn || "", preco } : t));
+    setTecPick(null); setTsq("");
+  };
   // tamNum (e não parseFloat) porque medida e tabela vêm com vírgula decimal
   // ("2,5"): parseFloat pararia na vírgula e compararia contra 2.
   const gd = (t: string, m: string) => { if (!m) return ""; const a = tamNum(t), b = tamNum(m); if (isNaN(a) || isNaN(b)) return ""; const d = b - a; return d === 0 ? "0" : d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1); };
@@ -840,7 +859,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
           </div>
           <input ref={fr} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_url", setImg, img)} />
 
-          <div className="apple-card overflow-x-auto"><table className="plm-table"><thead><tr><th className="px-4">Artigo</th><th className="w-24">Fornec.</th><th className="w-36">Composição</th><th className="text-center w-16">Preço</th>{Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} className="text-center w-[120px]"><div>Var {String(i+1).padStart(2,"0")}</div>{cor && <div className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold" style={pal ? { background: pal.bg, color: pal.text } : { background: "var(--bg-tertiary)", color: "var(--label-secondary)" }}>{cor}</div>}</th>); })}</tr></thead><tbody>{tec.map((t: any, ti: number) => { const cs = t.cores || []; while (cs.length < numVars) cs.push(""); return (<tr key={ti}><td className="px-4"><span className="text-[var(--label-tertiary)] text-[11px] mr-1.5">Tec.{String(ti + 1).padStart(2, "0")}</span><span className="font-semibold">{t.artigo}</span></td><td>{t.forn}</td><td className="text-[12px] text-[var(--label-secondary)] px-3">{compOf(t.artigo) || "—"}</td><td className="text-center tabnum">{t.preco > 0 ? t.preco.toFixed(2) : "—"}</td>{cs.slice(0, numVars).map((c: string, ci: number) => { const pal = c ? COR_PALETTE[c] : null; return (<td key={ci} className="px-1.5 py-1.5"><select value={c} onChange={e => utc(ti, ci, e.target.value)} className="w-full text-[12px] px-2 py-1.5 rounded-lg border outline-none cursor-pointer font-bold" style={pal ? { background: pal.bg, color: pal.text, borderColor: pal.bg } : { borderColor: "var(--separator-opaque)", color: "var(--label-quaternary)" }}><option value="">Selecionar</option>{corOpts.map(x => <option key={x} value={x}>{x}</option>)}</select></td>); })}</tr>); })}</tbody><tfoot>
+          <div className="apple-card overflow-x-auto"><table className="plm-table"><thead><tr><th className="px-4">Artigo</th><th className="w-24">Fornec.</th><th className="w-36">Composição</th><th className="text-center w-16">Preço</th>{Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} className="text-center w-[120px]"><div>Var {String(i+1).padStart(2,"0")}</div>{cor && <div className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold" style={pal ? { background: pal.bg, color: pal.text } : { background: "var(--bg-tertiary)", color: "var(--label-secondary)" }}>{cor}</div>}</th>); })}</tr></thead><tbody>{tec.map((t: any, ti: number) => { const cs = t.cores || []; while (cs.length < numVars) cs.push(""); return (<tr key={ti}><td className="px-4"><span className="text-[var(--label-tertiary)] text-[11px] mr-1.5">Tec.{String(ti + 1).padStart(2, "0")}</span>{ti === 0 ? <span className="font-semibold" title="O tecido principal vem do SKU (coluna Tecido, em Desenvolvimento)">{t.artigo}</span> : <button type="button" onClick={() => { setTecPick(ti); setTsq(""); }} className={`text-left font-semibold underline decoration-dotted decoration-[var(--separator-opaque)] underline-offset-2 hover:decoration-[var(--system-blue)] hover:text-[var(--system-blue)] ${t.artigo ? "" : "text-[var(--system-blue)]"}`} title="Escolher tecido do cadastro">{t.artigo || "Selecionar tecido..."}</button>}</td><td>{t.forn || "—"}</td><td className="text-[12px] text-[var(--label-secondary)] px-3">{compOf(t.artigo) || "—"}</td><td className="text-center tabnum">{t.preco > 0 ? t.preco.toFixed(2) : "—"}</td>{cs.slice(0, numVars).map((c: string, ci: number) => { const pal = c ? COR_PALETTE[c] : null; return (<td key={ci} className="px-1.5 py-1.5"><select value={c} onChange={e => utc(ti, ci, e.target.value)} className="w-full text-[12px] px-2 py-1.5 rounded-lg border outline-none cursor-pointer font-bold" style={pal ? { background: pal.bg, color: pal.text, borderColor: pal.bg } : { borderColor: "var(--separator-opaque)", color: "var(--label-quaternary)" }}><option value="">Selecionar</option>{corOpts.map(x => <option key={x} value={x}>{x}</option>)}</select></td>); })}</tr>); })}</tbody><tfoot>
                 <tr className="border-t border-[var(--separator-opaque)] bg-[var(--bg-secondary)]">
                   <td colSpan={3} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] whitespace-nowrap">Pantone / Código</td>
                   <td />
@@ -929,18 +948,44 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                 </tr>
                 )}
               </tfoot></table></div>
+          {/* Seletor de tecido do cadastro (Cadastros › Tecidos) */}
+          {tecPick !== null && (
+            <div className="apple-card p-3.5 mt-2 bg-[rgba(0,122,255,0.03)] border-[var(--system-blue)]">
+              <div className="flex gap-2 mb-2">
+                <input type="text" value={tsq} onChange={e => setTsq(e.target.value)} placeholder={`Buscar tecido para o Tec.${String(tecPick + 1).padStart(2, "0")}...`} className="apple-input flex-1" autoFocus />
+                <button onClick={() => { setTecPick(null); setTsq(""); }} className="text-[13px] text-[var(--label-secondary)] px-2">Cancelar</button>
+              </div>
+              <div className="max-h-[240px] overflow-y-auto overscroll-y-contain border border-[var(--separator-opaque)] rounded-xl bg-[var(--bg-primary)]">
+                {ft.map((c: any) => (
+                  <button key={c.nome} onClick={() => pickTec(tecPick, c)} className="w-full text-left px-4 py-2.5 text-[13px] hover:bg-[var(--bg-secondary)] border-b border-[var(--separator)] flex items-center gap-3">
+                    {c.imagem ? <img src={c.imagem} alt={c.nome} className="w-8 h-8 object-cover rounded border border-[var(--separator)] flex-shrink-0" /> : <div className="w-8 h-8 rounded border border-dashed border-[var(--separator-opaque)] flex-shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{c.nome}</div>
+                      <div className="text-[11px] text-[var(--label-secondary)] truncate">{[c.forn, c.comp].filter(Boolean).join(" · ") || "—"}</div>
+                    </div>
+                    {c.preco ? <span className="text-[12px] tabnum text-[var(--label-secondary)] flex-shrink-0">{c.preco}</span> : null}
+                  </button>
+                ))}
+                {!ft.length && <div className="px-4 py-3 text-[13px] text-[var(--label-tertiary)]">Nenhum tecido encontrado</div>}
+              </div>
+              {ftAll.length > ft.length && (
+                <p className="text-[11px] text-[var(--label-tertiary)] mt-2">Mostrando {ft.length} de {ftAll.length} tecidos — refine a busca.</p>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2 mt-2 mb-1">
             {numVars > 1 && <button onClick={() => setNumVars(n => n - 1)} className="apple-btn-secondary text-[12px]">− Remover variante</button>}
             {numVars < 6 && <button onClick={() => setNumVars(n => n + 1)} className="apple-btn-secondary text-[12px]">+ Adicionar variante</button>}
             {tec.length < 2 && (
               <button
-                onClick={() => setTec(p => [...p, { artigo: "", forn: "", composicao: "", preco: 0, cores: Array(numVars).fill("") }])}
+                onClick={() => { setTec(p => [...p, { artigo: "", forn: "", composicao: "", preco: 0, cores: Array(numVars).fill("") }]); setTecPick(tec.length); setTsq(""); }}
                 className="apple-btn-secondary text-[12px]"
               >+ Segundo tecido</button>
             )}
             {tec.length > 1 && (
               <button
-                onClick={() => setTec(p => p.slice(0, -1))}
+                onClick={() => { setTec(p => p.slice(0, -1)); setTecPick(null); setTsq(""); }}
                 className="apple-btn-secondary text-[12px] text-[var(--system-red)]"
               >− Remover segundo tecido</button>
             )}
