@@ -366,26 +366,26 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
       {/* ══════════ ESTAMPARIA ══════════ */}
       {sec.estamparia && hasEstamparia && (<>
-        <div className="print-page" style={pb()}>
+        <div className="print-page fit-page" style={pb()}>
           <PageHead title={tipoEstTitulo} sub={`${row.operacao} · ${row.fornecedor} · ${row.estilista}`} />
 
           {/* Artes (frente, costas, lateral…) — colunas lado a lado */}
-          <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+          <div style={{ display: "flex", gap: "10px", marginBottom: "10px", flex: 1, minHeight: 0 }}>
             {artes.filter((a: any) => a.posicao !== "TAGLESS").map((arte: any, ai: number) => (
-              <div key={`${arte.posicao}-${ai}`} style={{ flex: 1, border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden" }}>
+              <div key={`${arte.posicao}-${ai}`} style={{ flex: 1, border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                 {/* Arte header */}
                 <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>Arte {arte.posicao}</div>
                 {/* Arte image */}
-                <div style={{ padding: "6px", textAlign: "center", background: white, display: "flex", alignItems: "center", justifyContent: "center", minHeight: "150px" }}>
-                  {arte.imagem ? <img src={arte.imagem} alt={arte.posicao} style={{ maxHeight: "230px", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>Sem imagem</span>}
+                <div style={{ padding: "6px", textAlign: "center", background: white, display: "flex", alignItems: "center", justifyContent: "center", flex: 1.3, minHeight: "40px", maxHeight: "300px", overflow: "hidden" }}>
+                  {arte.imagem ? <img src={arte.imagem} alt={arte.posicao} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>Sem imagem</span>}
                 </div>
                 {/* Largura */}
                 {arte.largura && <div style={{ textAlign: "center", fontSize: "8px", fontWeight: 700, color: accent, padding: "3px 0", background: bg, borderTop: `0.5px solid ${line}` }}>{arte.largura}</div>}
                 {/* Localização */}
                 {(arte.imagemLocal || arte.localizacao) && (
-                  <div style={{ background: bg, borderTop: `0.5px solid ${line}`, padding: "5px 8px" }}>
+                  <div style={{ background: bg, borderTop: `0.5px solid ${line}`, padding: "5px 8px", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
                     <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>Localização Arte {arte.posicao}</div>
-                    {arte.imagemLocal && <div style={{ textAlign: "center", marginBottom: arte.localizacao ? "4px" : 0 }}><img src={arte.imagemLocal} alt={`Localização ${arte.posicao}`} style={{ maxHeight: "175px", maxWidth: "100%", objectFit: "contain" }} /></div>}
+                    {arte.imagemLocal && <div style={{ textAlign: "center", marginBottom: arte.localizacao ? "4px" : 0, flex: 1, minHeight: "30px", maxHeight: "230px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><img src={arte.imagemLocal} alt={`Localização ${arte.posicao}`} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /></div>}
                     {arte.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4 }}>{arte.localizacao}</div>}
                   </div>
                 )}
@@ -444,9 +444,9 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
         {/* Simulações — 2 variantes por página */}
         {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVarsEst).reduce<string[][]>((acc, vk, i) => { if (i % 2 === 0) acc.push([vk]); else acc[acc.length - 1].push(vk); return acc; }, []).map((pair, pageIdx) => (
-          <div key={pageIdx} className="print-page" style={pb()}>
+          <div key={pageIdx} className="print-page fit-page" style={pb()}>
             <PageHead title={`Simulações e Fotos — Variante${pair.length > 1 ? "s" : ""} ${pair.map((_, vi) => String(pageIdx * 2 + vi + 1).padStart(2, "0")).join(" e ")}`} sub={`${row.operacao} · ${row.fornecedor}`} />
-            <div style={{ display: "flex", gap: "14px", height: "calc(100% - 60px)" }}>
+            <div style={{ display: "flex", gap: "14px", flex: 1, minHeight: 0 }}>
               {pair.map((vk, vi) => {
                 const sim = sims[vk] || {};
                 const corIdx = pageIdx * 2 + vi;
@@ -455,7 +455,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 const stColor = st.includes("LIBERADA") ? success : st === "REPROVADA" ? danger : st.includes("AJUSTE") ? warn : muted;
                 const pal = corName ? COR_PALETTE[corName] : null;
                 return (
-                  <div key={vk} style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div key={vk} style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", minHeight: 0 }}>
                     {/* Variant header */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: bg, borderRadius: "6px", border: `0.5px solid ${line}` }}>
                       <div>
@@ -466,18 +466,18 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                     </div>
 
                     {/* Simulação */}
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                    <div style={{ flex: 1.35, display: "flex", flexDirection: "column", minHeight: 0 }}>
                       <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px" }}>Simulação</div>
-                      <div style={{ flex: 1, background: bg, borderRadius: "6px", border: `0.5px solid ${line}`, padding: "8px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "180px" }}>
-                        {sim.imgSim ? <img src={sim.imgSim} alt="Simulação" style={{ maxHeight: "220px", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "9px" }}>Sem imagem</span>}
+                      <div style={{ flex: 1, background: bg, borderRadius: "6px", border: `0.5px solid ${line}`, padding: "8px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "120px", overflow: "hidden" }}>
+                        {sim.imgSim ? <img src={sim.imgSim} alt="Simulação" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "9px" }}>Sem imagem</span>}
                       </div>
                     </div>
 
                     {/* Foto */}
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                       <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px" }}>Foto</div>
-                      <div style={{ flex: 1, background: bg, borderRadius: "6px", border: `0.5px solid ${line}`, padding: "8px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "150px" }}>
-                        {sim.imgFoto ? <img src={sim.imgFoto} alt="Foto" style={{ maxHeight: "190px", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "9px" }}>Sem imagem</span>}
+                      <div style={{ flex: 1, background: bg, borderRadius: "6px", border: `0.5px solid ${line}`, padding: "8px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "120px", overflow: "hidden" }}>
+                        {sim.imgFoto ? <img src={sim.imgFoto} alt="Foto" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "9px" }}>Sem imagem</span>}
                       </div>
                     </div>
                   </div>
@@ -490,7 +490,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
       {/* ══════════ LIBERAÇÃO — Foto do produto (frente | costas) ══════════ */}
       {sec.liberacao && (imgFrente || imgCostas) && (
-        <div className="print-page" style={pb()}>
+        <div className="print-page fit-page" style={pb()}>
           <PageHead title="FOTO DO PRODUTO" sub={statusLib || "Pendente"} bg={modelagemColor} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0 16px", marginBottom: "10px" }}>
             <Field label="Referência" value={row.ref} />
@@ -498,11 +498,11 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
             <Field label="Coleção" value={row.colecao} />
             <Field label="Grade" value={row.grade} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", flex: 1, minHeight: 0 }}>
             {([["Frente", imgFrente], ["Costas", imgCostas]] as [string, string | null | undefined][]).map(([lbl, url]) => (
-              <div key={lbl} style={{ border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden" }}>
+              <div key={lbl} style={{ border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                 <div style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: muted, padding: "5px 8px", borderBottom: `0.5px solid ${line}`, background: bg }}>{lbl}</div>
-                <div style={{ height: "360px", display: "flex", alignItems: "center", justifyContent: "center", background: white }}>
+                <div style={{ flex: 1, minHeight: "240px", display: "flex", alignItems: "center", justifyContent: "center", background: white, overflow: "hidden" }}>
                   {url ? <img src={url} alt={lbl} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: "9px", color: light }}>Sem foto</span>}
                 </div>
               </div>
@@ -854,8 +854,19 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
       {/* Watermark footer via CSS */}
       <style>{`
+        /* Cada página é uma coluna flex: os blocos de imagem pedem o espaço que
+           sobra (flex: 1) e a imagem cresce até encher, então uma página com
+           pouco texto rende imagem grande e uma cheia rende imagem menor. */
+        .print-page { display: flex; flex-direction: column; }
+        /* Páginas dominadas por imagem têm ALTURA definida: aí o flex encolhe as
+           imagens pra caber quando há mais conteúdo, em vez de a página crescer
+           e vazar pra folha seguinte. Páginas de tabela ficam de fora — cortar
+           medida seria perder informação. */
+        .print-page.fit-page { height: 250mm; max-height: 250mm; overflow: hidden; }
         @media print {
-          .print-page { position: relative; padding-bottom: 24px; }
+          /* A4 (297mm) menos as margens de @page (12mm) dá 273mm; 250mm deixa
+             folga pro navegador/iOS aplicar margem própria sem estourar página. */
+          .print-page { position: relative; padding-bottom: 24px; min-height: 250mm; box-sizing: border-box; }
           .print-page::after {
             content: "Austral® · Confidencial";
             position: absolute; bottom: 4px; left: 0; right: 0;
