@@ -254,7 +254,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         setObs(ficha.observacoes || "");
         if (ficha.provas) setPv(ficha.provas);
         if (ficha.anotacoes) setAn(prev => ({ ...prev, ...ficha.anotacoes }));
-        if (ficha.estamparia) { setEstamparia(ficha.estamparia); if (ficha.estamparia.numVariantes) setNumVars(Math.max(4, ficha.estamparia.numVariantes)); }
+        if (ficha.estamparia) { setEstamparia((prev: any) => ({ ...prev, ...ficha.estamparia, artes: ficha.estamparia.artes?.length ? ficha.estamparia.artes : prev.artes, simulacoes: ficha.estamparia.simulacoes || prev.simulacoes })); if (ficha.estamparia.numVariantes) setNumVars(Math.max(4, ficha.estamparia.numVariantes)); }
         if (ficha.pantones) setVarCodigos({ var01: ficha.pantones.var01 || "", var02: ficha.pantones.var02 || "", var03: ficha.pantones.var03 || "", var04: ficha.pantones.var04 || "", var05: ficha.pantones.var05 || "", var06: ficha.pantones.var06 || "" });
         if (ficha.tingimento) setVarTingimento(prev => ({ ...prev, ...ficha.tingimento }));
         if (ficha.qtdMost) setQtdMost(prev => ({ ...prev, ...ficha.qtdMost }));
@@ -1178,10 +1178,10 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               <select
                 value={tipoEst}
                 onChange={e => setEstamparia((prev: any) => ({ ...prev, tipo: e.target.value }))}
-                className="bg-white/15 text-white text-[12px] font-bold rounded-lg px-2 py-1 outline-none cursor-pointer"
+                className="bg-white text-[var(--label-primary)] text-[12px] font-bold rounded-lg pl-2.5 pr-1.5 py-1 outline-none cursor-pointer shadow-sm"
                 title="Tipo desta ficha — sai no título do PDF"
               >
-                {TIPOS_EST.map(t => <option key={t} value={t} className="text-[var(--label-primary)]">{t}</option>)}
+                {TIPOS_EST.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </span>
             <span className="text-[11px] font-semibold bg-white/15 px-3 py-0.5 rounded-full whitespace-nowrap">{(s => s.includes("REPILOTANDO") ? "REPILOTANDO PRODUÇÃO" : s.includes("PRODUÇÃO") || s.includes("PRODUCAO") ? "PRODUÇÃO" : s.includes("MOSTRUÁRIO") || s.includes("MOSTRUARIO") ? "MOSTRUÁRIO" : s.includes("CANCELADO") ? "CANCELADO" : "DESENVOLVIMENTO")((row.status || "").toUpperCase())}</span>
@@ -1199,8 +1199,8 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               <div key={ai} className="space-y-2.5">
                 <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-2">
                   <span className="text-[12px] font-bold tracking-wide">ARTE</span>
-                  <select value={arte.posicao || ""} onChange={e => updArte(ai, "posicao", e.target.value)} className="bg-white/15 text-white text-[12px] font-bold rounded-lg px-2 py-0.5 outline-none cursor-pointer" title="Posição desta arte — muda o título no PDF">
-                    {POSICOES_ARTE.map(pos => <option key={pos} value={pos} className="text-[var(--label-primary)]">{pos}</option>)}
+                  <select value={arte.posicao || ""} onChange={e => updArte(ai, "posicao", e.target.value)} className="bg-white text-[var(--label-primary)] text-[12px] font-bold rounded-lg pl-2.5 pr-1.5 py-1 outline-none cursor-pointer shadow-sm" title="Posição desta arte — muda o título no PDF">
+                    {POSICOES_ARTE.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                   </select>
                 </div>
                 <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `arte-${ai}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
@@ -1231,8 +1231,8 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             <div className="space-y-2.5">
               <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-2">
                 <span className="text-[12px] font-bold tracking-wide">ARTE</span>
-                <select value={tg.posicao || ""} onChange={e => updArte(tgi, "posicao", e.target.value)} className="bg-white/15 text-white text-[12px] font-bold rounded-lg px-2 py-0.5 outline-none cursor-pointer" title="Posição desta arte — muda o título no PDF">
-                  {POSICOES_ARTE.map(pos => <option key={pos} value={pos} className="text-[var(--label-primary)]">{pos}</option>)}
+                <select value={tg.posicao || ""} onChange={e => updArte(tgi, "posicao", e.target.value)} className="bg-white text-[var(--label-primary)] text-[12px] font-bold rounded-lg pl-2.5 pr-1.5 py-1 outline-none cursor-pointer shadow-sm" title="Posição desta arte — muda o título no PDF">
+                  {POSICOES_ARTE.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
