@@ -544,7 +544,14 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const hasEstamparia = (estamparia?.tecnicas || []).length > 0 || (estamparia?.artes || []).some((a: any) => a.imagem || a.largura || a.localizacao);
 
   /* ── Estamparia helpers ── */
-  const updArte = (posicao: string, field: string, value: string) => setEstamparia((prev: any) => ({ ...prev, artes: (prev.artes || []).map((a: any) => a.posicao === posicao ? { ...a, [field]: value } : a) }));
+  // Por ÍNDICE, não pela posição: a posição virou escolha do usuário (frente,
+  // costas, lateral, tagless) e pode repetir — pela posição, editar uma arte
+  // acabaria alterando a outra.
+  const updArte = (i: number, field: string, value: string) => setEstamparia((prev: any) => ({ ...prev, artes: (prev.artes || []).map((a: any, j: number) => j === i ? { ...a, [field]: value } : a) }));
+  const POSICOES_ARTE = ["FRENTE", "COSTAS", "LATERAL", "TAGLESS"];
+  const TIPOS_EST = ["ESTAMPARIA", "BORDADO", "APLIQUE"];
+  const tipoEst = String(estamparia?.tipo || "ESTAMPARIA").toUpperCase();
+  const tipoEstTitulo = tipoEst.charAt(0) + tipoEst.slice(1).toLowerCase();
   const updTecnica = (i: number, field: string, value: string) => setEstamparia((prev: any) => ({ ...prev, tecnicas: prev.tecnicas.map((t: any, j: number) => j === i ? { ...t, [field]: value } : t) }));
   const addTecnica = () => setEstamparia((prev: any) => ({ ...prev, tecnicas: [...prev.tecnicas, { tecnica: "", var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" }] }));
   const _s = (row.status || "").toUpperCase();
@@ -572,10 +579,10 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     if (type === "foto")      return `${row.ref}/estamparia/foto_${key}`;
     return `${row.ref}/estamparia/${key}`;
   };
-  const handleEstImg = async (e: any) => { const file = e.target.files?.[0]; if (!file || !estImgTarget) return; setUp(true); const url = await uploadImage(file, estImgPath(estImgTarget.type, estImgTarget.key)); if (url) { if (estImgTarget.type === "arte") updArte(estImgTarget.key, "imagem", url); else if (estImgTarget.type === "arteLocal") updArte(estImgTarget.key, "imagemLocal", url); else if (estImgTarget.type === "sim") updSim(estImgTarget.key, "imgSim", url); else if (estImgTarget.type === "foto") updSim(estImgTarget.key, "imgFoto", url); } setUp(false); setEstImgTarget(null); if (estImgRef.current) estImgRef.current.value = ""; };
+  const handleEstImg = async (e: any) => { const file = e.target.files?.[0]; if (!file || !estImgTarget) return; setUp(true); const url = await uploadImage(file, estImgPath(estImgTarget.type, estImgTarget.key)); if (url) { if (estImgTarget.type === "arte") updArte(Number(estImgTarget.key), "imagem", url); else if (estImgTarget.type === "arteLocal") updArte(Number(estImgTarget.key), "imagemLocal", url); else if (estImgTarget.type === "sim") updSim(estImgTarget.key, "imgSim", url); else if (estImgTarget.type === "foto") updSim(estImgTarget.key, "imgFoto", url); } setUp(false); setEstImgTarget(null); if (estImgRef.current) estImgRef.current.value = ""; };
   const triggerEstImg = (type: string, key: string) => { setEstImgTarget({ type, key }); setTimeout(() => estImgRef.current?.click(), 0); };
-  const dropEstImg = async (e: React.DragEvent, type: string, key: string) => { e.preventDefault(); setDragOver(null); const file = e.dataTransfer.files[0]; if (!file || !file.type.startsWith("image/")) return; setUp(true); const url = await uploadImage(file, estImgPath(type, key)); if (url) { if (type === "arte") updArte(key, "imagem", url); else if (type === "arteLocal") updArte(key, "imagemLocal", url); else if (type === "sim") updSim(key, "imgSim", url); else if (type === "foto") updSim(key, "imgFoto", url); } setUp(false); };
-  const deleteEstImg = async (type: string, key: string, url: string) => { if (url) await deleteImage(url); if (type === "arte") updArte(key, "imagem", ""); else if (type === "arteLocal") updArte(key, "imagemLocal", ""); else if (type === "sim") updSim(key, "imgSim", ""); else if (type === "foto") updSim(key, "imgFoto", ""); };
+  const dropEstImg = async (e: React.DragEvent, type: string, key: string) => { e.preventDefault(); setDragOver(null); const file = e.dataTransfer.files[0]; if (!file || !file.type.startsWith("image/")) return; setUp(true); const url = await uploadImage(file, estImgPath(type, key)); if (url) { if (type === "arte") updArte(Number(key), "imagem", url); else if (type === "arteLocal") updArte(Number(key), "imagemLocal", url); else if (type === "sim") updSim(key, "imgSim", url); else if (type === "foto") updSim(key, "imgFoto", url); } setUp(false); };
+  const deleteEstImg = async (type: string, key: string, url: string) => { if (url) await deleteImage(url); if (type === "arte") updArte(Number(key), "imagem", ""); else if (type === "arteLocal") updArte(Number(key), "imagemLocal", ""); else if (type === "sim") updSim(key, "imgSim", ""); else if (type === "foto") updSim(key, "imgFoto", ""); };
   const TECNICAS_OPTS = ["SILK ZERO TOQUE", "SILK TRADICIONAL", "SILK HD", "SUBLIMAÇÃO", "TRANSFER", "DTF", "DTG", "BORDADO", "LASER", "HOT STAMPING"];
 
   /* ── Tabela Especial helpers ── */
@@ -643,7 +650,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
           <div className="seg-control overflow-x-auto">
             {([
               ["ficha", "Ficha técnica"],
-              ["estamparia", "Estamparia"],
+              ["estamparia", tipoEstTitulo],
               ["liberacao", "Liberação"],
               ...(isProd && (statusLib === "APROVADO" || statusLib === "APROVADO COM RESTRIÇÃO") ? [["graduacao", "Graduação Prod."]] : []),
             ] as [string, string][]).map(([id, l]) => (
@@ -693,7 +700,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               <div className="px-6 py-4 space-y-3">
                 {([
                   ["ficha", "Ficha Técnica", "Dados do produto, tecidos, aviamentos, pilotagem"],
-                  ["estamparia", "Estamparia", "Artes, técnicas, simulações e fotos"],
+                  ["estamparia", tipoEstTitulo, "Artes, técnicas, simulações e fotos"],
                   ["liberacao", "Liberação", "Tabela de medidas, provas e graduação"],
                   ...(isProd && (statusLib === "APROVADO" || statusLib === "APROVADO COM RESTRIÇÃO") ? [["graduacao", "Graduação de Produção", "Tabela graduada com medidas aprovadas para envio ao fornecedor"]] : []),
                 ] as [string, string, string][]).map(([key, label, desc]) => (
@@ -1166,7 +1173,17 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         {tab === "estamparia" && (<div className="px-3 sm:px-6 py-4 sm:py-6 space-y-5">
           {/* Header */}
           <div style={{ background: fichaColor }} className="text-white rounded-xl px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[13px] font-bold">FICHA TECNICA DE ESTAMPARIA</span>
+            <span className="text-[13px] font-bold flex items-center gap-2">
+              FICHA TECNICA DE
+              <select
+                value={tipoEst}
+                onChange={e => setEstamparia((prev: any) => ({ ...prev, tipo: e.target.value }))}
+                className="bg-white/15 text-white text-[12px] font-bold rounded-lg px-2 py-1 outline-none cursor-pointer"
+                title="Tipo desta ficha — sai no título do PDF"
+              >
+                {TIPOS_EST.map(t => <option key={t} value={t} className="text-[var(--label-primary)]">{t}</option>)}
+              </select>
+            </span>
             <span className="text-[11px] font-semibold bg-white/15 px-3 py-0.5 rounded-full whitespace-nowrap">{(s => s.includes("REPILOTANDO") ? "REPILOTANDO PRODUÇÃO" : s.includes("PRODUÇÃO") || s.includes("PRODUCAO") ? "PRODUÇÃO" : s.includes("MOSTRUÁRIO") || s.includes("MOSTRUARIO") ? "MOSTRUÁRIO" : s.includes("CANCELADO") ? "CANCELADO" : "DESENVOLVIMENTO")((row.status || "").toUpperCase())}</span>
             <span className="text-[12px]"><span className="text-white/50">Coleção</span> <span className="font-semibold ml-1">{row.colecao}</span></span>
           </div>
@@ -1176,59 +1193,69 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             <div className="grid grid-cols-1 sm:grid-cols-2">{([["Referência", row.ref], ["Descrição", row.desc], ["Operação", row.operacao], ["Fornecedor", row.fornecedor], ["Estilista", row.estilista], ["Grade", row.grade], ["Drop", row.drop], ["Tecido", row.tecido]] as [string, any][]).map(([l, v]) => <F key={l} l={l} v={v} />)}</div>
           </div>
 
-          {/* Artes: FRENTE + COSTAS */}
+          {/* Artes: a posição de cada uma é escolhida (frente, costas, lateral, tagless) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {(estamparia.artes || []).filter((a: any) => a.posicao !== "TAGLESS").map((arte: any) => (
-              <div key={arte.posicao} className="space-y-2.5">
-                <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 text-center"><span className="text-[12px] font-bold tracking-wide">ARTE {arte.posicao}</span></div>
-                <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `arte-${arte.posicao}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
-                  onClick={() => triggerEstImg("arte", arte.posicao)}
-                  onDragOver={e => { e.preventDefault(); setDragOver(`arte-${arte.posicao}`); }}
+            {(estamparia.artes || []).map((a: any, i: number) => ({ arte: a, ai: i })).filter((x: any) => x.arte.posicao !== "TAGLESS").map(({ arte, ai }: any) => (
+              <div key={ai} className="space-y-2.5">
+                <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-2">
+                  <span className="text-[12px] font-bold tracking-wide">ARTE</span>
+                  <select value={arte.posicao || ""} onChange={e => updArte(ai, "posicao", e.target.value)} className="bg-white/15 text-white text-[12px] font-bold rounded-lg px-2 py-0.5 outline-none cursor-pointer" title="Posição desta arte — muda o título no PDF">
+                    {POSICOES_ARTE.map(pos => <option key={pos} value={pos} className="text-[var(--label-primary)]">{pos}</option>)}
+                  </select>
+                </div>
+                <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `arte-${ai}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
+                  onClick={() => triggerEstImg("arte", String(ai))}
+                  onDragOver={e => { e.preventDefault(); setDragOver(`arte-${ai}`); }}
                   onDragLeave={() => setDragOver(null)}
-                  onDrop={e => dropEstImg(e, "arte", arte.posicao)}>
+                  onDrop={e => dropEstImg(e, "arte", String(ai))}>
                   {arte.imagem ? <img src={arte.imagem} alt={`Arte ${arte.posicao}`} className="w-full h-full object-contain p-3" /> : <div className="text-center"><svg className="mx-auto mb-2 text-[var(--label-quaternary)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg><p className="text-[13px] text-[var(--label-tertiary)]">Arrastar aqui ou clique</p></div>}
-                  {arte.imagem && <button onClick={e => { e.stopPropagation(); deleteEstImg("arte", arte.posicao, arte.imagem); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
+                  {arte.imagem && <button onClick={e => { e.stopPropagation(); deleteEstImg("arte", String(ai), arte.imagem); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                 </div>
-                <input type="text" value={arte.largura} onChange={e => updArte(arte.posicao, "largura", e.target.value)} placeholder="Ex: 34CM LARG." className="apple-input w-full text-[12px]" />
+                <input type="text" value={arte.largura} onChange={e => updArte(ai, "largura", e.target.value)} placeholder="Ex: 34CM LARG." className="apple-input w-full text-[12px]" />
                 <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 text-center"><span className="text-[12px] font-bold tracking-wide">LOCALIZAÇÃO ARTE {arte.posicao}</span></div>
-                <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `local-${arte.posicao}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
-                  onClick={() => triggerEstImg("arteLocal", arte.posicao)}
-                  onDragOver={e => { e.preventDefault(); setDragOver(`local-${arte.posicao}`); }}
+                <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `local-${ai}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
+                  onClick={() => triggerEstImg("arteLocal", String(ai))}
+                  onDragOver={e => { e.preventDefault(); setDragOver(`local-${ai}`); }}
                   onDragLeave={() => setDragOver(null)}
-                  onDrop={e => dropEstImg(e, "arteLocal", arte.posicao)}>
+                  onDrop={e => dropEstImg(e, "arteLocal", String(ai))}>
                   {arte.imagemLocal ? <img src={arte.imagemLocal} alt={`Localização ${arte.posicao}`} className="w-full h-full object-contain p-3" /> : <div className="text-center"><svg className="mx-auto mb-2 text-[var(--label-quaternary)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg><p className="text-[13px] text-[var(--label-tertiary)]">Arrastar aqui ou clique</p></div>}
-                  {arte.imagemLocal && <button onClick={e => { e.stopPropagation(); deleteEstImg("arteLocal", arte.posicao, arte.imagemLocal); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
+                  {arte.imagemLocal && <button onClick={e => { e.stopPropagation(); deleteEstImg("arteLocal", String(ai), arte.imagemLocal); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                 </div>
-                <textarea value={arte.localizacao} onChange={e => updArte(arte.posicao, "localizacao", e.target.value)} placeholder="Descreva a localização da estampa..." rows={3} className="apple-input w-full resize-none text-[12px]" />
+                <textarea value={arte.localizacao} onChange={e => updArte(ai, "localizacao", e.target.value)} placeholder="Descreva a localização da estampa..." rows={3} className="apple-input w-full resize-none text-[12px]" />
               </div>
             ))}
           </div>
 
           {/* TAGLESS */}
-          {(() => { const tg = (estamparia.artes || []).find((a: any) => a.posicao === "TAGLESS"); if (!tg) return null; return (
+          {(() => { const tgi = (estamparia.artes || []).findIndex((a: any) => a.posicao === "TAGLESS"); if (tgi < 0) return null; const tg = estamparia.artes[tgi]; return (
             <div className="space-y-2.5">
-              <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 text-center"><span className="text-[12px] font-bold tracking-wide">TAGLESS</span></div>
+              <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-2">
+                <span className="text-[12px] font-bold tracking-wide">ARTE</span>
+                <select value={tg.posicao || ""} onChange={e => updArte(tgi, "posicao", e.target.value)} className="bg-white/15 text-white text-[12px] font-bold rounded-lg px-2 py-0.5 outline-none cursor-pointer" title="Posição desta arte — muda o título no PDF">
+                  {POSICOES_ARTE.map(pos => <option key={pos} value={pos} className="text-[var(--label-primary)]">{pos}</option>)}
+                </select>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div className={`apple-card bg-[var(--bg-secondary)] aspect-[3/2] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === "arte-TAGLESS" ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
-                  onClick={() => triggerEstImg("arte", "TAGLESS")}
-                  onDragOver={e => { e.preventDefault(); setDragOver("arte-TAGLESS"); }}
+                <div className={`apple-card bg-[var(--bg-secondary)] aspect-[3/2] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `arte-${tgi}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
+                  onClick={() => triggerEstImg("arte", String(tgi))}
+                  onDragOver={e => { e.preventDefault(); setDragOver(`arte-${tgi}`); }}
                   onDragLeave={() => setDragOver(null)}
-                  onDrop={e => dropEstImg(e, "arte", "TAGLESS")}>
+                  onDrop={e => dropEstImg(e, "arte", String(tgi))}>
                   {tg.imagem ? <img src={tg.imagem} alt="Tagless" className="w-full h-full object-contain p-3" /> : <div className="text-center"><svg className="mx-auto mb-2 text-[var(--label-quaternary)]" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg><p className="text-[13px] text-[var(--label-tertiary)]">Arrastar aqui ou clique</p></div>}
-                  {tg.imagem && <button onClick={e => { e.stopPropagation(); deleteEstImg("arte", "TAGLESS", tg.imagem); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
+                  {tg.imagem && <button onClick={e => { e.stopPropagation(); deleteEstImg("arte", String(tgi), tg.imagem); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                 </div>
                 <div className="space-y-2">
-                  <input type="text" value={tg.largura} onChange={e => updArte("TAGLESS", "largura", e.target.value)} placeholder="Ex: 5,5CM" className="apple-input w-full text-[12px]" />
+                  <input type="text" value={tg.largura} onChange={e => updArte(tgi, "largura", e.target.value)} placeholder="Ex: 5,5CM" className="apple-input w-full text-[12px]" />
                   <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 text-center"><span className="text-[12px] font-bold tracking-wide">LOCALIZAÇÃO ARTE TAGLESS</span></div>
-                  <div className={`apple-card bg-[var(--bg-secondary)] aspect-[3/2] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === "local-TAGLESS" ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
-                    onClick={() => triggerEstImg("arteLocal", "TAGLESS")}
-                    onDragOver={e => { e.preventDefault(); setDragOver("local-TAGLESS"); }}
+                  <div className={`apple-card bg-[var(--bg-secondary)] aspect-[3/2] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `local-${tgi}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
+                    onClick={() => triggerEstImg("arteLocal", String(tgi))}
+                    onDragOver={e => { e.preventDefault(); setDragOver(`local-${tgi}`); }}
                     onDragLeave={() => setDragOver(null)}
-                    onDrop={e => dropEstImg(e, "arteLocal", "TAGLESS")}>
+                    onDrop={e => dropEstImg(e, "arteLocal", String(tgi))}>
                     {tg.imagemLocal ? <img src={tg.imagemLocal} alt="Localização TAGLESS" className="w-full h-full object-contain p-3" /> : <div className="text-center"><svg className="mx-auto mb-2 text-[var(--label-quaternary)]" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg><p className="text-[13px] text-[var(--label-tertiary)]">Arrastar aqui ou clique</p></div>}
-                    {tg.imagemLocal && <button onClick={e => { e.stopPropagation(); deleteEstImg("arteLocal", "TAGLESS", tg.imagemLocal); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
+                    {tg.imagemLocal && <button onClick={e => { e.stopPropagation(); deleteEstImg("arteLocal", String(tgi), tg.imagemLocal); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                   </div>
-                  <textarea value={tg.localizacao} onChange={e => updArte("TAGLESS", "localizacao", e.target.value)} placeholder="Ex: Tagless centralizado na parte interna das costas a 1,5cm do cobre gola" rows={3} className="apple-input w-full resize-none text-[12px]" />
+                  <textarea value={tg.localizacao} onChange={e => updArte(tgi, "localizacao", e.target.value)} placeholder="Ex: Tagless centralizado na parte interna das costas a 1,5cm do cobre gola" rows={3} className="apple-input w-full resize-none text-[12px]" />
                 </div>
               </div>
             </div>

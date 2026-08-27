@@ -59,7 +59,25 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   const headerBg = fichaType === 'cancelado' ? '#EA2F46' : fichaType === 'producao' ? '#2DB564' : fichaType === 'mostruario' ? '#EDCA35' : '#4464AF';
   const headerLabel = fichaType === 'cancelado' ? 'CANCELADO' : fichaType === 'producao' ? 'PRODUÇÃO' : fichaType === 'mostruario' ? 'MOSTRUÁRIO' : 'DESENVOLVIMENTO';
   const modelagemColor = statusLib === 'REPROVADO' ? '#EA2F46' : (statusLib === 'APROVADO' || statusLib === 'APROVADO COM RESTRIÇÃO') ? '#2DB564' : '#4464AF';
+  // Tipo da seção: estamparia, bordado ou aplique (escolhido na ficha).
+  const tipoEst = String(estamparia?.tipo || "ESTAMPARIA").trim().toUpperCase() || "ESTAMPARIA";
+  const tipoEstTitulo = tipoEst.charAt(0) + tipoEst.slice(1).toLowerCase();
+  // Colunas de variante das páginas da ficha (cores, pantone, aviamentos):
+  // mínimo de 4, como sempre foi — reduzir aqui esconderia dado preenchido.
   const numVars = Math.max(4, Math.min(6, estamparia?.numVariantes || tec[0]?.cores?.filter(Boolean).length || 4));
+  // Já nas técnicas e nas simulações só entram as variantes que existem de
+  // verdade: as que têm cor, mais qualquer uma com técnica ou simulação
+  // preenchida (pra não esconder nada informado). Antes o mínimo era 4 e saíam
+  // páginas de simulação vazias.
+  const VARS = ["var01", "var02", "var03", "var04", "var05", "var06"] as const;
+  const varsComCor = (tec[0]?.cores || []).filter(Boolean).length;
+  const ultimaVarEst = VARS.reduce((acc: number, k, i) => {
+    const naTecnica = tecnicas.some((t: any) => String(t[k] ?? "").trim());
+    const s = sims[k] || {};
+    const naSim = [s.nome, s.imgSim, s.imgFoto, s.status].some((v: any) => String(v ?? "").trim());
+    return naTecnica || naSim ? i + 1 : acc;
+  }, 0);
+  const numVarsEst = Math.min(6, Math.max(1, varsComCor, ultimaVarEst));
 
   let pageNum = 0;
   const pb = (): React.CSSProperties => { pageNum++; return pageNum > 1 ? { pageBreakBefore: "always" } : {}; };
@@ -349,17 +367,17 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
       {/* ══════════ ESTAMPARIA ══════════ */}
       {sec.estamparia && hasEstamparia && (<>
         <div className="print-page" style={pb()}>
-          <PageHead title="Estamparia" sub={`${row.operacao} · ${row.fornecedor} · ${row.estilista}`} />
+          <PageHead title={tipoEstTitulo} sub={`${row.operacao} · ${row.fornecedor} · ${row.estilista}`} />
 
-          {/* Artes FRENTE + COSTAS — 2 colunas compactas */}
+          {/* Artes (frente, costas, lateral…) — colunas lado a lado */}
           <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-            {artes.filter((a: any) => a.posicao !== "TAGLESS").map((arte: any) => (
-              <div key={arte.posicao} style={{ flex: 1, border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden" }}>
+            {artes.filter((a: any) => a.posicao !== "TAGLESS").map((arte: any, ai: number) => (
+              <div key={`${arte.posicao}-${ai}`} style={{ flex: 1, border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden" }}>
                 {/* Arte header */}
                 <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>Arte {arte.posicao}</div>
                 {/* Arte image */}
-                <div style={{ padding: "6px", textAlign: "center", background: white, display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80px" }}>
-                  {arte.imagem ? <img src={arte.imagem} alt={arte.posicao} style={{ maxHeight: "90px", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>Sem imagem</span>}
+                <div style={{ padding: "6px", textAlign: "center", background: white, display: "flex", alignItems: "center", justifyContent: "center", minHeight: "150px" }}>
+                  {arte.imagem ? <img src={arte.imagem} alt={arte.posicao} style={{ maxHeight: "230px", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>Sem imagem</span>}
                 </div>
                 {/* Largura */}
                 {arte.largura && <div style={{ textAlign: "center", fontSize: "8px", fontWeight: 700, color: accent, padding: "3px 0", background: bg, borderTop: `0.5px solid ${line}` }}>{arte.largura}</div>}
@@ -367,7 +385,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 {(arte.imagemLocal || arte.localizacao) && (
                   <div style={{ background: bg, borderTop: `0.5px solid ${line}`, padding: "5px 8px" }}>
                     <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>Localização Arte {arte.posicao}</div>
-                    {arte.imagemLocal && <div style={{ textAlign: "center", marginBottom: arte.localizacao ? "4px" : 0 }}><img src={arte.imagemLocal} alt={`Localização ${arte.posicao}`} style={{ maxHeight: "70px", maxWidth: "100%", objectFit: "contain" }} /></div>}
+                    {arte.imagemLocal && <div style={{ textAlign: "center", marginBottom: arte.localizacao ? "4px" : 0 }}><img src={arte.imagemLocal} alt={`Localização ${arte.posicao}`} style={{ maxHeight: "175px", maxWidth: "100%", objectFit: "contain" }} /></div>}
                     {arte.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4 }}>{arte.localizacao}</div>}
                   </div>
                 )}
@@ -376,40 +394,40 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           </div>
 
           {/* Tagless — layout horizontal compacto */}
-          {(() => { const tg = artes.find((a: any) => a.posicao === "TAGLESS"); if (!tg || (!tg.imagem && !tg.localizacao && !tg.imagemLocal && !tg.largura)) return null; return (
-            <div style={{ display: "flex", gap: "0", marginBottom: "10px", border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden" }}>
+          {artes.filter((a: any) => a.posicao === "TAGLESS" && (a.imagem || a.localizacao || a.imagemLocal || a.largura)).map((tg: any, tgi: number) => (
+            <div key={`tagless-${tgi}`} style={{ display: "flex", gap: "0", marginBottom: "10px", border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden" }}>
               {/* Arte TAGLESS */}
               <div style={{ flex: "0 0 28%", borderRight: `0.5px solid ${line}` }}>
                 <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>Tagless</div>
-                <div style={{ padding: "6px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60px", background: white }}>
-                  {tg.imagem ? <img src={tg.imagem} alt="Tagless" style={{ maxHeight: "65px", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>Sem imagem</span>}
+                <div style={{ padding: "6px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "90px", background: white }}>
+                  {tg.imagem ? <img src={tg.imagem} alt="Tagless" style={{ maxHeight: "130px", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>Sem imagem</span>}
                 </div>
                 {tg.largura && <div style={{ textAlign: "center", fontSize: "8px", fontWeight: 700, color: accent, padding: "3px 0", background: bg, borderTop: `0.5px solid ${line}` }}>{tg.largura}</div>}
               </div>
               {/* Localização TAGLESS */}
               <div style={{ flex: 1, padding: "5px 8px", background: bg }}>
                 <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>Localização Arte Tagless</div>
-                {tg.imagemLocal && <div style={{ textAlign: "center", marginBottom: "4px" }}><img src={tg.imagemLocal} alt="Localização TAGLESS" style={{ maxHeight: "65px", maxWidth: "100%", objectFit: "contain" }} /></div>}
+                {tg.imagemLocal && <div style={{ textAlign: "center", marginBottom: "4px" }}><img src={tg.imagemLocal} alt="Localização TAGLESS" style={{ maxHeight: "130px", maxWidth: "100%", objectFit: "contain" }} /></div>}
                 {tg.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4 }}>{tg.localizacao}</div>}
               </div>
             </div>
-          ); })()}
+          ))}
 
           {/* Técnicas */}
           {tecnicas.length > 0 && (
             <div>
-              <div style={secTitle}>Técnicas de Estamparia</div>
+              <div style={secTitle}>Técnicas de {tipoEstTitulo}</div>
               <table style={tbl}>
                 <thead><tr style={headRow}>
                   <th style={{ ...th, textAlign: "center", width: "26px" }}>#</th>
                   <th style={th}>Técnica</th>
-                  {Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} style={{ ...th, textAlign: "center", width: "70px" }}><div>Var {String(i + 1).padStart(2, "0")}</div>{cor && <div style={{ marginTop: "3px", display: "inline-block", padding: "1px 5px", borderRadius: "3px", fontSize: "7px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333" }}>{cor}</div>}</th>); })}
+                  {Array.from({length: numVarsEst}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} style={{ ...th, textAlign: "center", width: "70px" }}><div>Var {String(i + 1).padStart(2, "0")}</div>{cor && <div style={{ marginTop: "3px", display: "inline-block", padding: "1px 5px", borderRadius: "3px", fontSize: "7px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333" }}>{cor}</div>}</th>); })}
                 </tr></thead>
                 <tbody>{tecnicas.map((t: any, i: number) => (
                   <tr key={i} style={i % 2 ? { background: bg } : {}}>
                     <td style={{ ...td, textAlign: "center", fontWeight: 800, fontSize: "12px", color: muted }}>{i + 1}</td>
                     <td style={{ ...td, fontWeight: 700 }}>{t.tecnica || "—"}</td>
-                    {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVars).map(k => <td key={k} style={{ ...td, textAlign: "center", fontSize: "8.5px" }}>{t[k] || "—"}</td>)}
+                    {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVarsEst).map(k => <td key={k} style={{ ...td, textAlign: "center", fontSize: "8.5px" }}>{t[k] || "—"}</td>)}
                   </tr>
                 ))}</tbody>
               </table>
@@ -425,7 +443,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         </div>
 
         {/* Simulações — 2 variantes por página */}
-        {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVars).reduce<string[][]>((acc, vk, i) => { if (i % 2 === 0) acc.push([vk]); else acc[acc.length - 1].push(vk); return acc; }, []).map((pair, pageIdx) => (
+        {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVarsEst).reduce<string[][]>((acc, vk, i) => { if (i % 2 === 0) acc.push([vk]); else acc[acc.length - 1].push(vk); return acc; }, []).map((pair, pageIdx) => (
           <div key={pageIdx} className="print-page" style={pb()}>
             <PageHead title={`Simulações e Fotos — Variante${pair.length > 1 ? "s" : ""} ${pair.map((_, vi) => String(pageIdx * 2 + vi + 1).padStart(2, "0")).join(" e ")}`} sub={`${row.operacao} · ${row.fornecedor}`} />
             <div style={{ display: "flex", gap: "14px", height: "calc(100% - 60px)" }}>
