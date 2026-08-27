@@ -342,8 +342,13 @@ export async function fetchFicha(ref: string, colecao?: string | null) {
   let q = sb().from("fichas_tecnicas").select("*").eq("produto_ref", ref);
   if (colecao) q = q.eq("colecao", colecao);
   else q = q.is("colecao", null);
-  const { data, error } = await q.maybeSingle();
-  if (error || !data) return null;
+  // Deveria existir só uma ficha por (ref, coleção), mas duplicatas já
+  // aconteceram. Com maybeSingle() isso virava erro, a ficha abria em branco e
+  // o próximo salvamento criava OUTRA duplicata — então pega a mais recente
+  // (a que tem os últimos dados salvos) em vez de desistir.
+  const { data: achadas, error } = await q.order("id", { ascending: false }).limit(1);
+  if (error || !achadas?.length) return null;
+  const data = achadas[0];
   const fid = data.id;
   const [tec, avi, pil, prv, ant] = await Promise.all([
     sb().from("ficha_tecidos").select("*").eq("ficha_id", fid).order("id"),
@@ -436,6 +441,15 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
     imagem_costas: f.imagem_costas || "",
   };
   let fid = f.id;
+  if (!fid) {
+    // Antes de criar, confere se já existe ficha pra essa (ref, coleção): se a
+    // leitura falhou ou dois salvamentos correram juntos, criar de novo geraria
+    // uma duplicata — e a partir daí toda ficha aberta vinha vazia.
+    let busca = sb().from("fichas_tecnicas").select("id").eq("produto_ref", ref);
+    busca = colecao ? busca.eq("colecao", colecao) : busca.is("colecao", null);
+    const { data: existentes } = await busca.order("id", { ascending: false }).limit(1);
+    if (existentes?.length) fid = existentes[0].id;
+  }
   if (!fid) {
     // Tenta inserir com todos os campos; se falhar por coluna ausente, insere sem extras
     let result = await sb().from("fichas_tecnicas").insert({

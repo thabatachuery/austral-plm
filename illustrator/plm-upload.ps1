@@ -209,18 +209,29 @@ if ($fichas.Count -eq 0) {
 }
 
 $ficha = $fichas[0]
-if ($fichas.Count -gt 1) {
-  # Referência "clássico": uma ficha por temporada.
+# Só referência "clássico" tem temporada (uma ficha por coleção). Nas outras a
+# ficha vem com colecao vazia — aí não faz sentido perguntar nada, mesmo que o
+# banco tenha mais de uma linha (duplicata de salvamento).
+$comTemporada = @($fichas | Where-Object { $_.colecao })
+if ($comTemporada.Count -gt 1) {
   Escrever ''
   Escrever "  A REF $ref tem mais de uma temporada:" 'Yellow'
-  for ($i = 0; $i -lt $fichas.Count; $i++) {
-    $nome = if ($fichas[$i].colecao) { $fichas[$i].colecao } else { '(sem colecao)' }
-    Escrever ('   [{0}] {1}' -f ($i + 1), $nome)
+  for ($i = 0; $i -lt $comTemporada.Count; $i++) {
+    Escrever ('   [{0}] {1}' -f ($i + 1), $comTemporada[$i].colecao)
   }
   do {
     $escolha = Read-Host '  Numero da temporada'
-  } until ($escolha -as [int] -and [int]$escolha -ge 1 -and [int]$escolha -le $fichas.Count)
-  $ficha = $fichas[[int]$escolha - 1]
+  } until ($escolha -as [int] -and [int]$escolha -ge 1 -and [int]$escolha -le $comTemporada.Count)
+  $ficha = $comTemporada[[int]$escolha - 1]
+} elseif ($comTemporada.Count -eq 1) {
+  $ficha = $comTemporada[0]
+} else {
+  # Sem temporada: usa a ficha mais recente da REF, igual o app faz.
+  $ficha = @($fichas | Sort-Object id)[-1]
+  if ($fichas.Count -gt 1) {
+    Escrever "  Atencao: a REF $ref tem $($fichas.Count) fichas sem temporada (duplicadas no banco)." 'Yellow'
+    Escrever "  Usando a mais recente (#$($ficha.id)), que e a que o PLM abre." 'Yellow'
+  }
 }
 
 $temporada = if ($ficha.colecao) { " / $($ficha.colecao)" } else { '' }
