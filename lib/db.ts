@@ -210,11 +210,38 @@ export async function fetchProdutos() {
     selectAll((de, ate) => sb().from("tecidos").select("nome, composicao").range(de, ate), "fetchProdutos/tecidos"),
   ]);
 
+  // A composição fica gravada no próprio SKU, mas SKUs antigos vieram sem ela —
+  // nesses o cadastro de tecidos preenche a lacuna.
   const tecidoCompMap: Record<string, string> = {};
   tecidos.forEach((t: any) => { if (t.composicao) tecidoCompMap[t.nome] = t.composicao; });
   return data.map((p: any) => ({
-    id: p.id, ref: p.ref, desc: p.descricao || "", tecido: p.tecido || "",
+    ...mapProduto(p),
     composicao: p.composicao || tecidoCompMap[p.tecido] || "",
+  }));
+}
+export async function insertProduto(p: any): Promise<{ data: any; error: string | null }> {
+  const { data, error } = await sb().from("produtos").insert({
+    ref: p.ref || "", descricao: p.desc || "", tecido: p.tecido || "",
+    forn_tecido: p.forn_tecido || "", status: p.status || "DESENVOLVIMENTO",
+    piloto_most: p.piloto_most || "", colecao: p.colecao || "",
+    grupo: p.grupo || "", subgrupo: p.subgrupo || "",
+    operacao: p.operacao || "", fornecedor: p.fornecedor || "",
+    grade: p.grade || "", categoria: p.categoria || "",
+    subcategoria: p.subcategoria || "", lavagem: p.lavagem || "",
+    tab_medidas: p.tab_medidas || "", tipo: p.tipo || "",
+    linha: p.linha || "", drop_num: p.drop || "", estilista: p.estilista || "",
+  }).select().single();
+  if (error) console.error("insertProduto:", error);
+  return { data, error: error ? (error.message || "Erro ao criar produto") : null };
+}
+// A tabela produtos usa nomes de coluna diferentes dos que a tela lê
+// (descricao→desc, drop_num→drop). Toda entrada de produto no estado — a carga
+// inicial E o realtime — tem que passar por aqui: sem isso a alteração chega
+// numa chave que ninguém lê e o campo "não atualiza" na tela.
+export function mapProduto(p: any): Record<string, any> {
+  return {
+    id: p.id, ref: p.ref, desc: p.descricao || "", tecido: p.tecido || "",
+    composicao: p.composicao || "",
     forn_tecido: p.forn_tecido || "", status: p.status || "",
     piloto_most: p.piloto_most || "", colecao: p.colecao || "",
     grupo: p.grupo || "", subgrupo: p.subgrupo || "",
@@ -236,27 +263,63 @@ export async function fetchProdutos() {
     qtd_compra2:     p.qtd_compra2    != null ? Number(p.qtd_compra2)  : null,
     pedido2:         p.pedido2        || "",
     data_entrega2:   p.data_entrega2  || "",
+  };
+}
+
+// O Tec.01 da ficha é um espelho do tecido do SKU — a própria tabela da ficha
+// avisa que "o tecido principal vem do SKU". Só que ficha_tecidos guarda o nome
+// COPIADO e nada reescrevia essa cópia: trocar o tecido em Desenvolvimento
+// deixava a ficha, o PDF, as variantes e a explosão de custo mostrando o tecido
+// antigo pra sempre. Reescreve a 1ª linha de tecido de todas as fichas da
+// referência (clássicos têm uma ficha por temporada), preservando as cores —
+// cor é da ficha, não do SKU.
+export async function sincronizarTecidoDaFicha(ref: string, artigo: string, fornecedor: string): Promise<void> {
+  if (!ref || !artigo) return;
+  const { data: fichas, error } = await sb().from("fichas_tecnicas").select("id").eq("produto_ref", ref);
+  if (error) { console.error("sincronizarTecidoDaFicha:", error); return; }
+  if (!fichas?.length) return;
+
+  // Preço do tecido vem do cadastro, igual ao seletor de tecido da ficha.
+  const cad = await fetchTecidos();
+  const preco = Number(String(cad.find((t: any) => t.nome === artigo)?.preco ?? "").replace(",", ".")) || 0;
+
+  await Promise.all(fichas.map(async (f: any) => {
+    const { data: linhas } = await sb().from("ficha_tecidos").select("id, artigo").eq("ficha_id", f.id).order("id").limit(1);
+    const principal = linhas?.[0];
+    if (!principal) {
+      const { error: e } = await sb().from("ficha_tecidos").insert({ ficha_id: f.id, artigo, fornecedor, preco, cores: [] });
+      if (e) console.error("sincronizarTecidoDaFicha/insert:", e);
+      return;
+    }
+    // Com o artigo já espelhado só o fornecedor pode ter mudado (edição no
+    // cadastro do tecido) — nesse caso o preço gravado na ficha fica como está.
+    const patch = principal.artigo === artigo ? { fornecedor } : { artigo, fornecedor, preco };
+    const { error: e } = await sb().from("ficha_tecidos").update(patch).eq("id", principal.id);
+    if (e) console.error("sincronizarTecidoDaFicha/update:", e);
   }));
 }
-export async function insertProduto(p: any): Promise<{ data: any; error: string | null }> {
-  const { data, error } = await sb().from("produtos").insert({
-    ref: p.ref || "", descricao: p.desc || "", tecido: p.tecido || "",
-    forn_tecido: p.forn_tecido || "", status: p.status || "DESENVOLVIMENTO",
-    piloto_most: p.piloto_most || "", colecao: p.colecao || "",
-    grupo: p.grupo || "", subgrupo: p.subgrupo || "",
-    operacao: p.operacao || "", fornecedor: p.fornecedor || "",
-    grade: p.grade || "", categoria: p.categoria || "",
-    subcategoria: p.subcategoria || "", lavagem: p.lavagem || "",
-    tab_medidas: p.tab_medidas || "", tipo: p.tipo || "",
-    linha: p.linha || "", drop_num: p.drop || "", estilista: p.estilista || "",
-  }).select().single();
-  if (error) console.error("insertProduto:", error);
-  return { data, error: error ? (error.message || "Erro ao criar produto") : null };
-}
+
 export async function updateProdutoField(id: number, field: string, value: any): Promise<string | null> {
+  return updateProdutoFields(id, { [field]: value });
+}
+
+// Grava vários campos do SKU de uma vez e propaga o que a ficha copia. Trocar o
+// tecido mexe em tecido + forn_tecido + composicao: numa chamada só eles nunca
+// ficam pela metade se a rede cair no meio.
+export async function updateProdutoFields(id: number, patch: Record<string, any>): Promise<string | null> {
   const m: Record<string, string> = { desc: "descricao", drop: "drop_num" };
-  const { error } = await sb().from("produtos").update({ [m[field] || field]: value }).eq("id", id);
-  if (error) { console.error("updateProdutoField:", error); return error.message || "Erro ao salvar"; }
+  const upd: Record<string, any> = {};
+  for (const [k, v] of Object.entries(patch)) upd[m[k] || k] = v;
+  if (!Object.keys(upd).length) return null;
+
+  // O select devolve a linha já gravada — é dela que saem a referência e o par
+  // tecido/fornecedor finais usados na propagação pra ficha.
+  const { data, error } = await sb().from("produtos").update(upd).eq("id", id).select("*").maybeSingle();
+  if (error) { console.error("updateProdutoFields:", error); return error.message || "Erro ao salvar"; }
+
+  if (data && ("tecido" in upd || "forn_tecido" in upd)) {
+    await sincronizarTecidoDaFicha(data.ref, data.tecido || "", data.forn_tecido || "");
+  }
   return null;
 }
 export async function deleteProduto(id: number, ref?: string): Promise<string | null> {

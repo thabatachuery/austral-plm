@@ -189,6 +189,26 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     setNewColecaoMode(false);
   };
 
+  /* O Tec.01 da ficha é um espelho do tecido do SKU — a própria tabela abaixo
+     avisa que "o tecido principal vem do SKU". Só que ficha_tecidos guarda o
+     nome COPIADO na hora em que a ficha foi salva: trocar o tecido em
+     Desenvolvimento deixava a ficha (e o PDF) mostrando o artigo antigo. O
+     alinhamento é refeito na leitura, então ficha que já ficou dessincronizada
+     abre certa. Cores e as demais linhas de tecido não são tocadas — cor é da
+     ficha, não do SKU. */
+  const espelharTecidoDoSku = (linhas: any[], tecs: any[]) => {
+    if (!row.tecido) return linhas;
+    const t0 = linhas[0];
+    const forn = row.forn_tecido || "";
+    if (t0 && t0.artigo === row.tecido && (t0.forn || "") === forn) return linhas;
+    // O preço acompanha o artigo e sai do cadastro, igual ao seletor de tecido.
+    const preco = t0 && t0.artigo === row.tecido
+      ? t0.preco
+      : Number(String(tecs.find((t: any) => t.nome === row.tecido)?.preco ?? "").replace(",", ".")) || 0;
+    const principal = { artigo: row.tecido, forn, preco, cores: t0?.cores || ["", "", "", ""] };
+    return t0 ? [{ ...t0, ...principal }, ...linhas.slice(1)] : [principal];
+  };
+
   useEffect(() => {
     (async () => {
       // Para clássicos: carrega a ficha da temporada selecionada (ou null se nenhuma ainda)
@@ -238,17 +258,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       if (ficha) {
         setFichaId(ficha.id); setImg(ficha.imagem_url); setImgModelo(ficha.imagem_modelo);
         setImgFrente(ficha.imagem_frente || null); setImgCostas(ficha.imagem_costas || null);
-        const ficTec = ficha.tecidos || [];
-        if (ficTec.length > 0) {
-          // Se o primeiro tecido da ficha está vazio mas o produto tem tecido, preenche
-          const first = ficTec[0];
-          if ((!first.artigo || first.artigo === "") && row.tecido) {
-            ficTec[0] = { ...first, artigo: row.tecido, forn: row.forn_tecido || "" };
-          }
-          tecComputed = ficTec;
-        } else {
-          tecComputed = row.tecido ? [{ artigo: row.tecido, forn: row.forn_tecido || "", preco: 0, cores: ["", "", "", ""] }] : [];
-        }
+        tecComputed = espelharTecidoDoSku(ficha.tecidos || [], tecs);
         setTec(tecComputed);
         if (ficha.pilotagem?.length) setPil(ficha.pilotagem);
         setObs(ficha.observacoes || "");
@@ -271,7 +281,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       }
       /* Se não há ficha, cria linha inicial de tecido */
       if (!ficha) {
-        tecComputed = [{ artigo: row.tecido || "", forn: row.forn_tecido || "", preco: 0, cores: ["", "", "", ""] }];
+        tecComputed = espelharTecidoDoSku([{ artigo: "", forn: "", preco: 0, cores: ["", "", "", ""] }], tecs);
         setTec(tecComputed);
       }
       baselineRef.current = { tec: tecComputed, avi: aviComputed };
@@ -290,6 +300,20 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.ref, row.tab_medidas, selectedColecao, isClassic]);
+
+  /* O tecido do SKU pode mudar com a ficha aberta — outro usuário editando
+     Desenvolvimento chega aqui pelo realtime. O Tec.01 acompanha sem recarregar
+     a ficha inteira, que descartaria o que está sendo digitado. O baseline anda
+     junto: a troca já gerou alerta em Desenvolvimento, não vale gerar de novo
+     como se a ficha tivesse sido alterada aqui. */
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    const proximo = espelharTecidoDoSku(tec, tecCad);
+    if (proximo === tec) return;
+    baselineRef.current = { ...baselineRef.current, tec: proximo };
+    setTec(proximo);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.tecido, row.forn_tecido, isDataLoaded, tecCad, tec]);
 
   // Só apaga o arquivo se nenhuma outra temporada do clássico ainda usar ele.
   const apagarImagem = async (url: string) => {

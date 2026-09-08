@@ -18,7 +18,7 @@ import MapaColecaoView from "@/components/dev/MapaColecaoView";
 import MapaEntregasView from "@/components/dev/MapaEntregasView";
 import EtiquetasLineView from "@/components/dev/EtiquetasLineView";
 import CalendarioView from "@/components/calendario/CalendarioView";
-import { fetchProdutos, fetchAllVariantes, fetchVariantesPorColecao, fetchAlertasPendentes, marcarAlertaCiente } from "@/lib/db";
+import { fetchProdutos, fetchAllVariantes, fetchVariantesPorColecao, fetchAlertasPendentes, marcarAlertaCiente, mapProduto } from "@/lib/db";
 import { COMPRAS_STATUS_ALLOW } from "@/lib/constants";
 import { subscribeRealtime } from "@/lib/realtime";
 import { nomeUsuario } from "@/lib/utils";
@@ -119,11 +119,23 @@ export default function Home() {
     const unsub = subscribeRealtime("produtos-sync", [
       {
         table: "produtos",
+        // O realtime entrega a linha crua do banco (descricao, drop_num…), e a
+        // tela lê desc/drop. Sem passar por mapProduto o valor novo chegava numa
+        // chave que ninguém renderiza: a descrição alterada por outro usuário
+        // simplesmente não aparecia até dar F5.
         onInsert: (row) => setRows(prev => {
           if (prev.some(r => r.id === row.id)) return prev;
-          return [...prev, row];
+          return [...prev, mapProduto(row)];
         }),
-        onUpdate: (row) => setRows(prev => prev.map(r => r.id === row.id ? { ...r, ...row } : r)),
+        onUpdate: (row) => setRows(prev => prev.map(r => {
+          if (r.id !== row.id) return r;
+          const novo = mapProduto(row);
+          // SKU antigo pode não ter composição gravada — na carga ela vem
+          // derivada do cadastro de tecidos. Não descarta essa derivada se o
+          // tecido nem mudou.
+          if (!novo.composicao && novo.tecido === r.tecido) novo.composicao = r.composicao;
+          return { ...r, ...novo };
+        })),
         onDelete: (old) => setRows(prev => prev.filter(r => r.id !== old.id)),
       },
       {
@@ -168,6 +180,17 @@ export default function Home() {
     ]);
     return unsub;
   }, [user]);
+
+  /* A ficha lê descrição, tecido, composição e companhia direto do SKU, mas
+     recebe uma cópia congelada no instante em que abriu. Sem isso, alterar o
+     produto em Desenvolvimento (aqui ou em outra máquina, via realtime) não
+     chegava na ficha aberta nem no PDF gerado a partir dela. */
+  useEffect(() => {
+    if (!fichaRow) return;
+    const atual = rows.find(r => r.id === fichaRow.id);
+    if (!atual || !Object.keys(atual).some(k => atual[k] !== fichaRow[k])) return;
+    setFichaRow((prev: any) => prev && prev.id === atual.id ? { ...prev, ...atual } : prev);
+  }, [rows, fichaRow]);
 
   const handleFichaSave = async (updatedRow: any, variantesChanged = true) => {
     setRows(prev => prev.map(r => r.id === updatedRow.id ? updatedRow : r));

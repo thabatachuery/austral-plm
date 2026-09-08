@@ -4,7 +4,7 @@ import InlineCell from "@/components/ui/InlineCell";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import COLUMNS from "@/lib/columns";
-import { fetchCadastros, fetchTecidos, fetchNomesTabelasMedidas, updateProdutoField, insertProduto, deleteProduto, cloneProduto, bulkUpdateStatus, criarAlerta } from "@/lib/db";
+import { fetchCadastros, fetchTecidos, fetchNomesTabelasMedidas, updateProdutoFields, insertProduto, deleteProduto, cloneProduto, bulkUpdateStatus, criarAlerta } from "@/lib/db";
 import { useAuth } from "@/lib/auth-context";
 import { exportToExcel, fmtExcelDate } from "@/lib/export-excel";
 import { STATUS_ESTILO, STATUS_COMPRAS_OPTS } from "@/lib/constants";
@@ -243,26 +243,27 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     const prevRow = rows.find((r:any) => r.id === id);
     const tecidoInfo = k === "tecido" ? (cad._tecidoData||[]).find((t:any)=>t.nome===v) : null;
 
-    setRows((p:any[]) => p.map((r:any) => {
-      if(r.id!==id) return r;
-      const u={...r,[k]:v};
-      if(tecidoInfo){u.forn_tecido=tecidoInfo.forn;u.composicao=tecidoInfo.comp||"";}
-      return u;
-    }));
+    // Trocar o tecido arrasta fornecedor e composição junto. Os três vão numa
+    // gravação só: separados, uma falha no meio deixava o SKU com o tecido novo
+    // e a composição do antigo — e a propagação pra ficha rodava com o par
+    // tecido/fornecedor ainda pela metade.
+    const patch: Record<string, any> = { [k]: v };
+    if (tecidoInfo) { patch.forn_tecido = tecidoInfo.forn; patch.composicao = tecidoInfo.comp || ""; }
 
-    const err = await updateProdutoField(id, k, v);
+    setRows((p:any[]) => p.map((r:any) => r.id === id ? { ...r, ...patch } : r));
+
+    const err = await updateProdutoFields(id, patch);
     if (err) {
       showError(`Erro ao salvar: ${err}`);
-      setRows((p:any[]) => p.map((r:any) => r.id === id && prevRow ? { ...r, [k]: prevRow[k] } : r));
+      setRows((p:any[]) => p.map((r:any) => {
+        if (r.id !== id || !prevRow) return r;
+        const desfeito = { ...r };
+        Object.keys(patch).forEach(campo => { desfeito[campo] = prevRow[campo]; });
+        return desfeito;
+      }));
       return;
     }
     alertarCampoAlterado(prevRow, k, prevRow?.[k], v);
-
-    if (tecidoInfo) {
-      const err2 = await updateProdutoField(id, "forn_tecido", tecidoInfo.forn);
-      const err3 = await updateProdutoField(id, "composicao", tecidoInfo.comp || "");
-      if (err2 || err3) showError(`Tecido salvo, mas houve erro ao atualizar fornecedor/composição: ${err2 || err3}`);
-    }
   };
 
   const { confirm, Dialog: ConfirmDialog } = useConfirm();
