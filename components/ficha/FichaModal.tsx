@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth-context";
 import { nomeUsuario } from "@/lib/utils";
 import { STATUS_ESTILO } from "@/lib/constants";
 import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num as tamNum } from "@/lib/tamanhos";
-import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva, nomeTipoEstamparia, tituloFichaEstamparia } from "@/lib/ficha-i18n";
+import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva, nomeTipoEstamparia, tituloFichaEstamparia, traduzirPontoMedida } from "@/lib/ficha-i18n";
 import FichaPDF from "./FichaPDF";
 
 // Status em que qualquer alteração de cor/tecido/aviamento dispara o popup de alerta.
@@ -1542,7 +1542,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               </tr>
             </thead><tbody>{ptsAtivo.map((p: any, pi: number) => { const v = pv[p.cod] || { p1: "", p2: "", p3: "" }; return (<tr key={p.cod}>
               <td className="text-center font-bold text-[var(--label-secondary)] px-3">{p.cod}</td>
-              <td className="font-medium px-3">{p.desc}</td>
+              <td className="font-medium px-3">{traduzirPontoMedida(tr, p.desc)}</td>
               <td className={`text-center tabnum font-semibold px-1 ${tEsp ? "bg-[rgba(255,159,10,0.04)]" : ""}`}>{tEsp
                 ? <input type="text" value={p.tabela} onChange={e => updPtsEsp(pi, "tabela", e.target.value)} className="w-14 text-center text-[13px] tabnum border border-[rgba(255,159,10,0.4)] rounded-md px-1 py-1 outline-none focus:border-[var(--system-orange)] bg-[rgba(255,159,10,0.04)]" />
                 : p.tabela
@@ -1569,7 +1569,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                     </tr></thead>
                     <tbody>{gradAtivo.map((g: any, i: number) => (
                       <tr key={i}>
-                        <td className="font-medium px-3">{g.desc}</td>
+                        <td className="font-medium px-3">{traduzirPontoMedida(tr, g.desc)}</td>
                         {gradTamanhos.map(t => (
                           t === gradBase ? (
                             <td key={t} className={`text-center tabnum font-bold px-1 ${tEsp ? "bg-[rgba(255,159,10,0.04)]" : "bg-[rgba(0,122,255,0.03)]"}`}>{tEsp
@@ -1847,7 +1847,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                       const calc = calcRow(g);
                       return (
                         <tr key={i}>
-                          <td className="font-medium px-3">{g.desc}</td>
+                          <td className="font-medium px-3">{traduzirPontoMedida(tr, g.desc)}</td>
                           {gradTamanhos.map(t => (
                             t === gradBase ? (
                               <td key={t} className="text-center tabnum text-[13px] font-bold px-2 bg-[rgba(255,204,0,0.14)] text-[#856500]">{calc[t] || "—"}</td>

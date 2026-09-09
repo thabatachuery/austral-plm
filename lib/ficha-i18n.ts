@@ -232,6 +232,76 @@ export function tituloTecnicas(t: Tradutor, tipo: string) {
   return t.importado ? `${TIPO_EST_EN[tp] ?? nome} Techniques` : `Técnicas de ${nome}`;
 }
 
+// ── Pontos de medida ────────────────────────────────────────────────────────
+// Descrição de ponto de medida é cadastro (tabela_medida_pontos.descricao), mas
+// ao contrário de cor e fornecedor é vocabulário fechado de ficha técnica — e é
+// justamente o que o fornecedor de fora precisa entender pra medir a peça certo.
+// Ponto novo que não esteja aqui sai em português, como qualquer outro rótulo.
+const MEDIDAS: [string, string][] = [
+  ["TORAX", "CHEST"],
+  ["CINTURA", "WAIST"],
+  ["QUADRIL", "HIP"],
+  ["BARRA", "HEM"],
+  ["BARRA DA MANGA", "SLEEVE HEM"],
+  ["BARRA C/ PUNHO", "HEM W/ CUFF"],
+  ["BARRA S/ PUNHO", "HEM W/O CUFF"],
+  ["OMBRO A OMBRO", "SHOULDER TO SHOULDER"],
+  ["COMPRIMENTO TOTAL", "TOTAL LENGTH"],
+  ["COMPRIMENTO TOTAL(HPS)", "TOTAL LENGTH (HPS)"],
+  ["COMPRIMENTO LATERAL", "SIDE LENGTH"],
+  ["COMP. TOTAL TRASEIRO CENTRO", "CENTER BACK TOTAL LENGTH"],
+  ["COMP. TOTAL TRASEIRO - BARRA RETA", "CENTER BACK LENGTH - STRAIGHT HEM"],
+  ["COMP. TOTAL TRASEIRO - BARRA CURVA", "CENTER BACK LENGTH - CURVED HEM"],
+  ["COMPRIMENTO DA MANGA", "SLEEVE LENGTH"],
+  ["COMPRIMENTO DA MANGA RAGLAN", "RAGLAN SLEEVE LENGTH"],
+  ["ABERTURA DA MANGA", "SLEEVE OPENING"],
+  ["ABERTURA DA MANGA C/ PUNHO", "SLEEVE OPENING W/ CUFF"],
+  ["BICEPS", "BICEPS"],
+  ["COTOVELO", "ELBOW"],
+  ["PUNHO", "CUFF"],
+  ["PUNHO FECHADO", "CUFF CLOSED"],
+  ["CAVA RETA", "ARMHOLE STRAIGHT"],
+  ["CAVA RAGLAN FRENTE", "FRONT RAGLAN ARMHOLE"],
+  ["CAVA RAGLAN COSTAS", "BACK RAGLAN ARMHOLE"],
+  ["ENTRE CAVAS FRENTE", "ACROSS FRONT"],
+  ["ENTRE CAVAS COSTAS", "ACROSS BACK"],
+  ["ABERTURA DO DECOTE", "NECK WIDTH"],
+  ["PROFUNDIDADE DO DECOTE", "NECK DROP"],
+  ["CIRCUNFERENCIA DO DECOTE", "NECK CIRCUMFERENCE"],
+  ["ABERTURA DECOTE C/ CAPUZ", "NECK WIDTH W/ HOOD"],
+  ["PROFUNDIDADE DECOTE C/ CAPUZ", "NECK DROP W/ HOOD"],
+  ["ALTURA DO CAPUZ", "HOOD HEIGHT"],
+  ["LARGURA DO CAPUZ", "HOOD WIDTH"],
+  ["COLARINHO", "COLLAR"],
+  ["COLARINHO COM PÉ DE GOLA", "COLLAR WITH STAND"],
+  ["COLARINHO SEM PÉ DE GOLA", "COLLAR WITHOUT STAND"],
+  ["CONTORNO S/ PÉ DE GOLA", "NECK CIRCUMFERENCE W/O STAND"],
+  ["GOLA", "COLLAR"],
+  ["PONTA DE GOLA", "COLLAR POINT"],
+  ["COMPRIMENTO DA VISTA", "PLACKET LENGTH"],
+  ["LARGURA DA VISTA", "PLACKET WIDTH"],
+  ["COMP. TOTAL DA CARCELA", "SLEEVE PLACKET TOTAL LENGTH"],
+  ["ABERTURA DA CARCELA", "SLEEVE PLACKET OPENING"],
+  ["GANCHO DIANTEIRO COM CÓS", "FRONT RISE INCL. WAISTBAND"],
+  ["GANCHO TRASEIRO COM CÓS", "BACK RISE INCL. WAISTBAND"],
+  ["ENTREPERNAS", "INSEAM"],
+  ["COXA", "THIGH"],
+  ["JOELHO A 31 CM DO GANCHO", "KNEE AT 31 CM FROM CROTCH"],
+];
+
+// A busca ignora acento, caixa e pontuação: o mesmo ponto aparece cadastrado
+// como "COMPRIMENTO TOTAL(HPS)" e "Comprimento Total (HPS)" em tabelas
+// diferentes, e as duas formas têm de cair na mesma tradução.
+const chaveMedida = (d: string) =>
+  String(d ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+const MEDIDAS_EN = new Map(MEDIDAS.map(([pt, en]) => [chaveMedida(pt), en]));
+
+export function traduzirPontoMedida(t: Tradutor, descricao: string) {
+  if (!t.importado) return descricao;
+  return MEDIDAS_EN.get(chaveMedida(descricao)) ?? descricao;
+}
+
 // Rótulos montados em tempo de execução ("Prova 2", "Arte COSTAS"): traduz só a
 // parte fixa e mantém o resto, que costuma ser valor (posição, número).
 export function rotuloProva(t: Tradutor, n: number | string) {

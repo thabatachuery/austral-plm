@@ -4,7 +4,7 @@ import { valorNoTamanho, calcularDaBase, num as tamNum } from "@/lib/tamanhos";
 import type { ResultadoPeso } from "@/lib/peso";
 import { fotosParaExibir } from "@/lib/aviamento-fotos";
 import { custoAviamentosPorPeca } from "@/lib/etiquetas-tamanho";
-import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva, tituloFichaEstamparia, tituloTecnicas } from "@/lib/ficha-i18n";
+import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva, tituloFichaEstamparia, tituloTecnicas, traduzirPontoMedida } from "@/lib/ficha-i18n";
 
 type Props = {
   row: any; tec: any[]; avi: any[]; pil: any[]; pts: any[]; grad: any[];
@@ -628,7 +628,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                   return (
                     <tr key={p.cod} style={pi2 % 2 ? { background: bg } : {}}>
                       <td style={{ ...td, textAlign: "center", fontWeight: 800, color: light, fontSize: "7.5px" }}>{p.cod}</td>
-                      <td style={{ ...td, fontWeight: 600 }}>{p.desc}</td>
+                      <td style={{ ...td, fontWeight: 600 }}>{traduzirPontoMedida(tr, p.desc)}</td>
                       <td style={{ ...td, textAlign: "center", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{p.tabela}</td>
                       <td style={{ ...td, textAlign: "center", fontWeight: val ? 700 : 400, fontVariantNumeric: "tabular-nums" }}>{val || "—"}</td>
                       <td style={{ ...td, textAlign: "center", fontSize: "7.5px", fontWeight: 800, fontVariantNumeric: "tabular-nums", color: isOk ? success : isBad ? danger : isWarn ? warn : lineDark }}>{d || "—"}</td>
@@ -832,7 +832,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 const calc = calcRow(g);
                 return (
                   <tr key={i} style={i % 2 ? { background: bg } : {}}>
-                    <td style={{ ...td, fontWeight: 600 }}>{g.desc}</td>
+                    <td style={{ ...td, fontWeight: 600 }}>{traduzirPontoMedida(tr, g.desc)}</td>
                     {gradTamanhos.map(t => (
                       t === gradBase ? (
                         <td key={t} style={{ ...td, textAlign: "center", fontWeight: 800, fontVariantNumeric: "tabular-nums", background: "#FEFCE8", color: warn }}>{calc[t] || "—"}</td>
