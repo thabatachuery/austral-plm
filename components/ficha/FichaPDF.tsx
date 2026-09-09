@@ -4,7 +4,7 @@ import { valorNoTamanho, calcularDaBase, num as tamNum } from "@/lib/tamanhos";
 import type { ResultadoPeso } from "@/lib/peso";
 import { fotosParaExibir } from "@/lib/aviamento-fotos";
 import { custoAviamentosPorPeca } from "@/lib/etiquetas-tamanho";
-import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva } from "@/lib/ficha-i18n";
+import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva, tituloFichaEstamparia, tituloTecnicas } from "@/lib/ficha-i18n";
 
 type Props = {
   row: any; tec: any[]; avi: any[]; pil: any[]; pts: any[]; grad: any[];
@@ -66,7 +66,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   const modelagemColor = statusLib === 'REPROVADO' ? '#EA2F46' : (statusLib === 'APROVADO' || statusLib === 'APROVADO COM RESTRIÇÃO') ? '#2DB564' : '#4464AF';
   // Tipo da seção: estamparia, bordado ou aplique (escolhido na ficha).
   const tipoEst = String(estamparia?.tipo || "ESTAMPARIA").trim().toUpperCase() || "ESTAMPARIA";
-  const tipoEstTitulo = tr(tipoEst.charAt(0) + tipoEst.slice(1).toLowerCase());
+  const tipoEstTitulo = tituloFichaEstamparia(tr, tipoEst);
   // Colunas de variante das páginas da ficha (cores, pantone, aviamentos):
   // mínimo de 4, como sempre foi — reduzir aqui esconderia dado preenchido.
   const numVars = Math.max(4, Math.min(6, estamparia?.numVariantes || tec[0]?.cores?.filter(Boolean).length || 4));
@@ -421,7 +421,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           {/* Técnicas */}
           {tecnicas.length > 0 && (
             <div>
-              <div style={secTitle}>{tr.importado ? `${tipoEstTitulo} Techniques` : `Técnicas de ${tipoEstTitulo}`}</div>
+              <div style={secTitle}>{tituloTecnicas(tr, tipoEst)}</div>
               <table style={tbl}>
                 <thead><tr style={headRow}>
                   <th style={{ ...th, textAlign: "center", width: "26px" }}>#</th>

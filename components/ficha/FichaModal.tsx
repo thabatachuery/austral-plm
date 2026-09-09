@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth-context";
 import { nomeUsuario } from "@/lib/utils";
 import { STATUS_ESTILO } from "@/lib/constants";
 import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num as tamNum } from "@/lib/tamanhos";
-import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva } from "@/lib/ficha-i18n";
+import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva, nomeTipoEstamparia, tituloFichaEstamparia } from "@/lib/ficha-i18n";
 import FichaPDF from "./FichaPDF";
 
 // Status em que qualquer alteração de cor/tecido/aviamento dispara o popup de alerta.
@@ -587,7 +587,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const POSICOES_ARTE = ["FRENTE", "COSTAS", "LATERAL", "TAGLESS"];
   const TIPOS_EST = ["ESTAMPARIA", "BORDADO", "APLIQUE"];
   const tipoEst = String(estamparia?.tipo || "ESTAMPARIA").toUpperCase();
-  const tipoEstTitulo = tipoEst.charAt(0) + tipoEst.slice(1).toLowerCase();
+  const tipoEstTitulo = tituloFichaEstamparia(tr, tipoEst);
   const updTecnica = (i: number, field: string, value: string) => setEstamparia((prev: any) => ({ ...prev, tecnicas: prev.tecnicas.map((t: any, j: number) => j === i ? { ...t, [field]: value } : t) }));
   const addTecnica = () => setEstamparia((prev: any) => ({ ...prev, tecnicas: [...prev.tecnicas, { tecnica: "", var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" }] }));
   const _s = (row.status || "").toUpperCase();
@@ -1225,15 +1225,16 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
           {/* Header */}
           <div style={{ background: fichaColor }} className="text-white rounded-xl px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
             <span className="text-[13px] font-bold flex items-center gap-2">
-              FICHA TECNICA DE
+              {!tr.importado && "FICHA TECNICA DE"}
               <select
                 value={tipoEst}
                 onChange={e => setEstamparia((prev: any) => ({ ...prev, tipo: e.target.value }))}
                 className="bg-white text-[var(--label-primary)] text-[12px] font-bold rounded-lg pl-2.5 pr-1.5 py-1 outline-none cursor-pointer shadow-sm"
                 title="Tipo desta ficha — sai no título do PDF"
               >
-                {TIPOS_EST.map(t => <option key={t} value={t}>{t}</option>)}
+                {TIPOS_EST.map(t => <option key={t} value={t}>{nomeTipoEstamparia(tr, t)}</option>)}
               </select>
+              {tr.importado && "TECH PACK"}
             </span>
             <span className="text-[11px] font-semibold bg-white/15 px-3 py-0.5 rounded-full whitespace-nowrap">{tr((s => s.includes("REPILOTANDO") ? "REPILOTANDO PRODUÇÃO" : s.includes("PRODUÇÃO") || s.includes("PRODUCAO") ? "PRODUÇÃO" : s.includes("MOSTRUÁRIO") || s.includes("MOSTRUARIO") ? "MOSTRUÁRIO" : s.includes("CANCELADO") ? "CANCELADO" : "DESENVOLVIMENTO")((row.status || "").toUpperCase()))}</span>
             <span className="text-[12px]"><span className="text-white/50">{tr("Coleção")}</span> <span className="font-semibold ml-1">{row.colecao}</span></span>

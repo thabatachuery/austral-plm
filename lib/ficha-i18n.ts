@@ -189,6 +189,42 @@ export function criarTradutor(importado: boolean): Tradutor {
   return Object.assign(t, { importado });
 }
 
+// Título da ficha de estamparia. Não sai por concatenação de rótulo porque a
+// ordem das palavras inverte: "FICHA TÉCNICA DE BORDADO" vira "EMBROIDERY TECH
+// PACK". Os nomes em inglês também não são tradução literal — é o vocabulário
+// que o fornecedor de fora usa (aplique → embellishment).
+const TIPO_EST_EN: Record<string, string> = {
+  ESTAMPARIA: "Print",
+  BORDADO: "Embroidery",
+  APLIQUE: "Embellishment",
+};
+const normalizaTipoEst = (tipo: string) => String(tipo || "ESTAMPARIA").trim().toUpperCase() || "ESTAMPARIA";
+
+// Só o nome do tipo (para as opções do seletor na tela).
+export function nomeTipoEstamparia(t: Tradutor, tipo: string) {
+  const tp = normalizaTipoEst(tipo);
+  return t.importado ? (TIPO_EST_EN[tp] ?? tp).toUpperCase() : tp;
+}
+
+// Título completo da ficha, em caixa alta (faixa da tela) ou title case (PDF).
+export function tituloFichaEstamparia(t: Tradutor, tipo: string, caixaAlta = false) {
+  const tp = normalizaTipoEst(tipo);
+  if (!t.importado) {
+    const titulo = tp.charAt(0) + tp.slice(1).toLowerCase();
+    return caixaAlta ? `FICHA TÉCNICA DE ${tp}` : titulo;
+  }
+  const en = `${TIPO_EST_EN[tp] ?? tp.charAt(0) + tp.slice(1).toLowerCase()} Tech Pack`;
+  return caixaAlta ? en.toUpperCase() : en;
+}
+
+// Título da tabela de técnicas — usa só o nome do tipo, não o título da ficha
+// (senão sairia "Print Tech Pack Techniques").
+export function tituloTecnicas(t: Tradutor, tipo: string) {
+  const tp = normalizaTipoEst(tipo);
+  const nome = tp.charAt(0) + tp.slice(1).toLowerCase();
+  return t.importado ? `${TIPO_EST_EN[tp] ?? nome} Techniques` : `Técnicas de ${nome}`;
+}
+
 // Rótulos montados em tempo de execução ("Prova 2", "Arte COSTAS"): traduz só a
 // parte fixa e mantém o resto, que costuma ser valor (posição, número).
 export function rotuloProva(t: Tradutor, n: number | string) {
