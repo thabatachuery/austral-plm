@@ -113,9 +113,16 @@ const EN: Record<string, string> = {
   "Aplique": "Applique",
   "ARTE": "ARTWORK",
   "Arte": "Artwork",
+  // "Localização Arte" é uma expressão só: em inglês a ordem inverte
+  // ("Artwork Placement"), então não pode sair da soma dos dois rótulos.
+  "Localização Arte": "Artwork Placement",
+  "LOCALIZAÇÃO ARTE": "ARTWORK PLACEMENT",
+  // Posição da arte — valor de lista fechada, como o estágio da ficha.
+  "LATERAL": "SIDE",
+  "TAGLESS": "TAGLESS",
   "Tagless": "Tagless",
-  "Localização Arte Tagless": "Tagless Artwork Placement",
-  "LOCALIZAÇÃO ARTE TAGLESS": "TAGLESS ARTWORK PLACEMENT",
+  "Localização Arte Tagless": "Artwork Placement Tagless",
+  "LOCALIZAÇÃO ARTE TAGLESS": "ARTWORK PLACEMENT TAGLESS",
   "Técnica": "Technique",
   "Técnica de Estamparia": "Printing Technique",
   "TÉCNICA DE ESTAMPARIA": "PRINTING TECHNIQUE",

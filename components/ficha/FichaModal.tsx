@@ -1252,7 +1252,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                 <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-2">
                   <span className="text-[12px] font-bold tracking-wide">{tr("ARTE")}</span>
                   <select value={arte.posicao || ""} onChange={e => updArte(ai, "posicao", e.target.value)} className="bg-white text-[var(--label-primary)] text-[12px] font-bold rounded-lg pl-2.5 pr-1.5 py-1 outline-none cursor-pointer shadow-sm" title="Posição desta arte — muda o título no PDF">
-                    {POSICOES_ARTE.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                    {POSICOES_ARTE.map(pos => <option key={pos} value={pos}>{tr(pos)}</option>)}
                   </select>
                 </div>
                 <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `arte-${ai}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
@@ -1264,7 +1264,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                   {arte.imagem && <button onClick={e => { e.stopPropagation(); deleteEstImg("arte", String(ai), arte.imagem); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                 </div>
                 <input type="text" value={arte.largura} onChange={e => updArte(ai, "largura", e.target.value)} placeholder="Ex: 34CM LARG." className="apple-input w-full text-[12px]" />
-                <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 text-center"><span className="text-[12px] font-bold tracking-wide">LOCALIZAÇÃO ARTE {arte.posicao}</span></div>
+                <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 text-center"><span className="text-[12px] font-bold tracking-wide">{tr("LOCALIZAÇÃO ARTE")} {tr(arte.posicao)}</span></div>
                 <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `local-${ai}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
                   onClick={() => triggerEstImg("arteLocal", String(ai))}
                   onDragOver={e => { e.preventDefault(); setDragOver(`local-${ai}`); }}
@@ -1284,7 +1284,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-2">
                 <span className="text-[12px] font-bold tracking-wide">{tr("ARTE")}</span>
                 <select value={tg.posicao || ""} onChange={e => updArte(tgi, "posicao", e.target.value)} className="bg-white text-[var(--label-primary)] text-[12px] font-bold rounded-lg pl-2.5 pr-1.5 py-1 outline-none cursor-pointer shadow-sm" title="Posição desta arte — muda o título no PDF">
-                  {POSICOES_ARTE.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                  {POSICOES_ARTE.map(pos => <option key={pos} value={pos}>{tr(pos)}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
