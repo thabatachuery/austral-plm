@@ -3,9 +3,13 @@
 // precisa ler o documento.
 //
 // Só entram cabeçalhos de campo, de tabela e de seção. Os VALORES continuam em
-// português de propósito: nome de cor, tecido, fornecedor, subgrupo e status
-// vêm dos cadastros e do Linx, onde qualquer item novo entra em português; um
+// português de propósito: nome de cor, tecido, fornecedor e subgrupo vêm dos
+// cadastros e do Linx, onde qualquer item novo entra em português; um
 // dicionário de valores nasceria desatualizado no primeiro cadastro criado.
+//
+// A exceção é o estágio da ficha (DESENVOLVIMENTO/MOSTRUÁRIO/PRODUÇÃO): ele é
+// a tarja que identifica o documento, não um dado da peça, e vem de uma lista
+// fechada — está traduzido logo abaixo.
 //
 // Botões, avisos de salvamento e placeholders da tela também ficam em
 // português: quem opera o PLM é o time interno.
@@ -42,6 +46,16 @@ const EN: Record<string, string> = {
   "Categoria": "Category",
   "Subcategoria": "Subcategory",
 
+  // ── Estágio da ficha (a tarja do cabeçalho) ──
+  // Única exceção à regra de manter valores em português: a tarja identifica o
+  // documento, e sair "DESENVOLVIMENTO" numa ficha em inglês confunde o
+  // fornecedor. "SMS" (salesman sample) é como o mostruário é chamado lá fora.
+  "DESENVOLVIMENTO": "DEVELOPMENT",
+  "MOSTRUÁRIO": "SMS",
+  "PRODUÇÃO": "PRODUCTION",
+  "REPILOTANDO PRODUÇÃO": "PRODUCTION RE-SAMPLING",
+  "CANCELADO": "CANCELLED",
+
   // ── Seções e cabeçalhos de página ──
   "FICHA TÉCNICA": "TECH PACK",
   "Ficha Técnica": "Tech Pack",
@@ -61,8 +75,9 @@ const EN: Record<string, string> = {
   "Foto do produto": "Product photo",
   "COMENTÁRIOS DE PROVA": "FITTING COMMENTS",
   "TABELA DE PRODUÇÃO": "PRODUCTION MEASUREMENT CHART",
-  "TABELA DE MOSTRUÁRIO": "SAMPLE MEASUREMENT CHART",
+  "TABELA DE MOSTRUÁRIO": "SMS MEASUREMENT CHART",
   "TABELA DE DESENVOLVIMENTO": "DEVELOPMENT MEASUREMENT CHART",
+  "TABELA DE MEDIDAS — LIBERAÇÃO DE": "MEASUREMENT CHART — APPROVAL FOR",
   "Detalhamento de Custo": "Cost Breakdown",
   "Informações de Compras": "Purchasing Information",
 
