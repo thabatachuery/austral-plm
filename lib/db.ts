@@ -315,7 +315,17 @@ export async function updateProdutoFields(id: number, patch: Record<string, any>
   // O select devolve a linha já gravada — é dela que saem a referência e o par
   // tecido/fornecedor finais usados na propagação pra ficha.
   const { data, error } = await sb().from("produtos").update(upd).eq("id", id).select("*").maybeSingle();
-  if (error) { console.error("updateProdutoFields:", error); return error.message || "Erro ao salvar"; }
+  if (error) {
+    console.error("updateProdutoFields:", error);
+    // 23503 = violação de chave estrangeira. Trocar a referência de um SKU que
+    // já tem ficha técnica ou controle de fluxo é recusado pelo banco enquanto
+    // as FKs não tiverem ON UPDATE CASCADE (migration 029). O texto do Postgres
+    // não diz nada pra quem está na tela — some sem explicação.
+    if (error.code === "23503" && "ref" in upd) {
+      return "Não dá para trocar a referência: existe ficha técnica ou controle de fluxo ligado a ela. Falta rodar a migration 029 no Supabase.";
+    }
+    return error.message || "Erro ao salvar";
+  }
 
   if (data && ("tecido" in upd || "forn_tecido" in upd)) {
     await sincronizarTecidoDaFicha(data.ref, data.tecido || "", data.forn_tecido || "");
