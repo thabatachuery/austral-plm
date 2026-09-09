@@ -67,7 +67,9 @@ const EN: Record<string, string> = {
   "Informações de Compras": "Purchasing Information",
 
   // ── Tabela de tecidos ──
-  "Artigo": "Article",
+  // A coluna "Artigo" da tabela de tecidos é o próprio tecido — "Article" não
+  // diz nada para o fornecedor de fora.
+  "Artigo": "Fabric",
   "Preço": "Price",
   "Pantone": "Pantone",
   "Pantone / Código": "Pantone / Code",
