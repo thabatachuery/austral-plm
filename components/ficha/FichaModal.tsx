@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth-context";
 import { nomeUsuario } from "@/lib/utils";
 import { STATUS_ESTILO } from "@/lib/constants";
 import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num as tamNum } from "@/lib/tamanhos";
+import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva } from "@/lib/ficha-i18n";
 import FichaPDF from "./FichaPDF";
 
 // Status em que qualquer alteração de cor/tecido/aviamento dispara o popup de alerta.
@@ -63,6 +64,10 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const [vcCompras, setVcCompras] = useState<Record<string, any>>({});
   const [tingimentoOpts, setTingimentoOpts] = useState<string[]>([]);
   const [statusLib, setStatusLib] = useState("");
+  // Ficha de fornecedor importado: troca os rótulos (campos, cabeçalhos de
+  // tabela e títulos de seção) para inglês, aqui e no PDF. Os valores seguem em
+  // português — vêm dos cadastros. Ver lib/ficha-i18n.ts.
+  const [importado, setImportado] = useState(false);
   const [numVars, setNumVars] = useState(4);
   const [pendingSave, setPendingSave] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
@@ -171,7 +176,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         id: null,
         tecidos: tec.map((t: any) => ({ ...t, cores: [] })),
         aviamentos: avi.map((a: any) => ({ ...a, var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" })),
-        pilotagem: pil, provas: pv, anotacoes: an, provaInfo, statusLiberacao: statusLib,
+        pilotagem: pil, provas: pv, anotacoes: an, provaInfo, statusLiberacao: statusLib, importado,
         observacoes: obs, ncm, custoDet, obsCusto, pesoCalculo: peso,
         imagem_url: img, imagem_modelo: imgModelo, imagem_modo_medir: imgModoMedir,
         imagem_frente: imgFrente, imagem_costas: imgCostas,
@@ -214,6 +219,9 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       // Para clássicos: carrega a ficha da temporada selecionada (ou null se nenhuma ainda)
       const fichaColecao = isClassic ? selectedColecao : null;
       setFichaId(null);
+      // Trocar de temporada não pode herdar a marcação da anterior: quem tem
+      // ficha salva (ou seed) recebe o valor certo mais abaixo.
+      setImportado(false);
       const [fichaSalva, cadastros, aviCad, tecs, vcAll, tabs] = await Promise.all([fetchFicha(row.ref, fichaColecao), fetchCadastros(), fetchAviamentos(), fetchTecidos(), fetchVarianteCompras(), fetchTabelasMedidas()]);
       // Temporada recém-adicionada ainda não tem ficha salva: usa a cópia da
       // temporada anterior montada em adicionarTemporada.
@@ -269,6 +277,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         if (ficha.tingimento) setVarTingimento(prev => ({ ...prev, ...ficha.tingimento }));
         if (ficha.qtdMost) setQtdMost(prev => ({ ...prev, ...ficha.qtdMost }));
         if (ficha.statusLiberacao) setStatusLib(ficha.statusLiberacao);
+        setImportado(!!ficha.importado);
         if (ficha.provaInfo) {
           const migrated = Object.fromEntries(Object.entries(ficha.provaInfo).map(([k, v]: [string, any]) => [k, { data: v.data || "", status: v.status || "", link: v.link || "", fotoFrente: v.fotoFrente || v.foto || "", fotoLado: v.fotoLado || "", fotoCostas: v.fotoCostas || "", tipo: v.tipo || "" }]));
           setProvaInfo(prev => ({ ...prev, ...migrated }));
@@ -406,7 +415,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     setPendingSave(false);
     setAutoSaveStatus("saving");
     try {
-      const fichaData = { id: fichaId, tecidos: tec, aviamentos: avi, pilotagem: pil, observacoes: obs, imagem_url: img, imagem_modelo: imgModelo, imagem_modo_medir: imgModoMedir, imagem_frente: imgFrente, imagem_costas: imgCostas, provas: pv, anotacoes: an, pantones: varCodigos, tingimento: varTingimento, qtdMost, statusLiberacao: statusLib, ncm, estamparia: { ...estamparia, numVariantes: numVars }, provaInfo, custoDet, obsCusto, pesoCalculo: peso, tabelaEspecialAtiva: tEsp, pontosEspeciais: tEsp ? ptsEsp : undefined, gradEspecial: tEsp ? gradEsp : undefined };
+      const fichaData = { id: fichaId, tecidos: tec, aviamentos: avi, pilotagem: pil, observacoes: obs, imagem_url: img, imagem_modelo: imgModelo, imagem_modo_medir: imgModoMedir, imagem_frente: imgFrente, imagem_costas: imgCostas, provas: pv, anotacoes: an, pantones: varCodigos, tingimento: varTingimento, qtdMost, statusLiberacao: statusLib, importado, ncm, estamparia: { ...estamparia, numVariantes: numVars }, provaInfo, custoDet, obsCusto, pesoCalculo: peso, tabelaEspecialAtiva: tEsp, pontosEspeciais: tEsp ? ptsEsp : undefined, gradEspecial: tEsp ? gradEsp : undefined };
       const newId = await upsertFicha(row.ref, fichaData, isClassic ? selectedColecao : null);
       if (!newId) throw new Error("Falha ao salvar a ficha técnica.");
       setFichaId(newId);
@@ -463,7 +472,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     }, 1500);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tec, avi, pil, obs, pv, an, provaInfo, estamparia, varCodigos, varTingimento, qtdMost, statusLib, ncm, numVars, custoDet, obsCusto, peso, tEsp, img, imgModelo, imgModoMedir, imgFrente, imgCostas]);
+  }, [tec, avi, pil, obs, pv, an, provaInfo, estamparia, varCodigos, varTingimento, qtdMost, statusLib, importado, ncm, numVars, custoDet, obsCusto, peso, tEsp, img, imgModelo, imgModoMedir, imgFrente, imgCostas]);
 
   const exportPDF = () => { setShowExportDlg(true); };
   const doExport = () => {
@@ -488,6 +497,9 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     document.title = pdfName;
     setTimeout(() => { window.print(); }, 300);
   };
+
+  // Rótulos da ficha: em inglês quando ela é de fornecedor importado.
+  const tr = criarTradutor(importado);
 
   const compOf = (nome: string) => tecCad.find((t: any) => t.nome === nome)?.comp || "";
   // Foto do tecido vem do cadastro (Cadastros › Tecidos), não da ficha
@@ -645,7 +657,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   if (showPrint) {
     return (
       <div className="print-overlay">
-        <FichaPDF row={row} tec={tec} avi={avi} pil={pil} pts={tEsp ? ptsEsp : pts} grad={tEsp ? gradEsp : grad} pv={pv} an={an} img={img} imgModelo={imgModelo} imgModoMedir={imgModoMedir} imgFrente={imgFrente} imgCostas={imgCostas} hasEstamparia={hasEstamparia} estamparia={estamparia} pantones={varCodigos} obs={obs} statusLib={statusLib} tecCad={tecCad} tabelaEspecial={tEsp} sections={exportSections} ncm={ncm} peso={peso} vcCompras={vcCompras} provaInfo={provaInfo} gradTamanhos={gradTamanhos} gradBase={gradBase} tabTamanhos={tabTamanhos} />
+        <FichaPDF row={row} tec={tec} avi={avi} pil={pil} pts={tEsp ? ptsEsp : pts} grad={tEsp ? gradEsp : grad} pv={pv} an={an} img={img} imgModelo={imgModelo} imgModoMedir={imgModoMedir} imgFrente={imgFrente} imgCostas={imgCostas} hasEstamparia={hasEstamparia} estamparia={estamparia} pantones={varCodigos} obs={obs} statusLib={statusLib} tecCad={tecCad} tabelaEspecial={tEsp} sections={exportSections} ncm={ncm} peso={peso} vcCompras={vcCompras} provaInfo={provaInfo} gradTamanhos={gradTamanhos} gradBase={gradBase} tabTamanhos={tabTamanhos} importado={importado} />
       </div>
     );
   }
@@ -748,9 +760,9 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         {/* ═══ FICHA TÉCNICA ═══ */}
         {tab === "ficha" && (<div className="px-3 sm:px-6 py-4 sm:py-6 space-y-5">
           <div style={{ background: fichaColor }} className="text-white rounded-xl px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[13px] font-bold">FICHA TÉCNICA</span>
+            <span className="text-[13px] font-bold">{tr("FICHA TÉCNICA")}</span>
             <span className="text-[11px] font-semibold bg-white/15 px-3 py-0.5 rounded-full whitespace-nowrap">{(s => s.includes("REPILOTANDO") ? "REPILOTANDO PRODUÇÃO" : s.includes("PRODUÇÃO") || s.includes("PRODUCAO") ? "PRODUÇÃO" : s.includes("MOSTRUÁRIO") || s.includes("MOSTRUARIO") ? "MOSTRUÁRIO" : s.includes("CANCELADO") ? "CANCELADO" : "DESENVOLVIMENTO")((row.status || "").toUpperCase())}</span>
-            <span className="text-[12px]"><span className="text-white/50">Coleção</span> <span className="font-semibold ml-1">{row.colecao}</span></span>
+            <span className="text-[12px]"><span className="text-white/50">{tr("Coleção")}</span> <span className="font-semibold ml-1">{row.colecao}</span></span>
           </div>
 
           {/* Seletor de temporada — apenas para refs clássicas */}
@@ -819,11 +831,26 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               )}
             </div>
           )}
+          {/* Ficha de importado — o fornecedor de fora não lê português, então
+              os rótulos (aqui e no PDF) passam a sair em inglês. A marcação é
+              por ficha: um clássico pode ser nacional numa temporada e
+              importado em outra. */}
+          <label className="apple-card px-4 py-3 flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={importado} onChange={e => setImportado(e.target.checked)} className="w-4 h-4 accent-[var(--system-blue)] flex-shrink-0" />
+            <div className="min-w-0">
+              <div className="text-[13px] font-semibold">Ficha de importado</div>
+              <div className="text-[11px] text-[var(--label-tertiary)]">
+                Exibe os cabeçalhos da ficha e do PDF em inglês. Os valores (cor, tecido, fornecedor, status) continuam em português.
+              </div>
+            </div>
+            {importado && <span className="ml-auto text-[10px] font-bold tracking-wide uppercase text-[var(--system-blue)] bg-[rgba(0,122,255,0.1)] px-2 py-1 rounded-md whitespace-nowrap">EN</span>}
+          </label>
+
           <div className="apple-card">
-            <div className="grid grid-cols-1 sm:grid-cols-2">{([["Referência", row.ref], ["Descrição", row.desc], ["Tecido", row.tecido], ["Forn. tecido", row.forn_tecido], ["Composição", row.composicao || compOf(row.tecido)], ["Operação", row.operacao], ["Fornecedor", row.fornecedor], ["Estilista", row.estilista], ["Tab. medidas", row.tab_medidas]] as [string, any][]).map(([l, v]) => <F key={l} l={l} v={v} />)}</div>
-            <div className="grid grid-cols-2 sm:grid-cols-4">{([["Drop", row.drop], ["Grade", row.grade], ["Tipo", row.tipo], ["Linha", row.linha]] as [string, any][]).map(([l, v]) => <F key={l} l={l} v={v} />)}</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2">{([["Referência", row.ref], ["Descrição", row.desc], ["Tecido", row.tecido], ["Forn. tecido", row.forn_tecido], ["Composição", row.composicao || compOf(row.tecido)], ["Operação", row.operacao], ["Fornecedor", row.fornecedor], ["Estilista", row.estilista], ["Tab. medidas", row.tab_medidas]] as [string, any][]).map(([l, v]) => <F key={l} l={tr(l)} v={v} />)}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4">{([["Drop", row.drop], ["Grade", row.grade], ["Tipo", row.tipo], ["Linha", row.linha]] as [string, any][]).map(([l, v]) => <F key={l} l={tr(l)} v={v} />)}</div>
             <div className="border-t border-[var(--separator)]" />
-            <div className="grid grid-cols-2 sm:grid-cols-3">{([["Grupo", row.grupo], ["Subgrupo", row.subgrupo], ["Categoria", row.categoria], ["Subcategoria", row.subcategoria], ["Tipo", row.tipo]] as [string, any][]).map(([l, v]) => <F key={l} l={l} v={v} />)}<div /></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3">{([["Grupo", row.grupo], ["Subgrupo", row.subgrupo], ["Categoria", row.categoria], ["Subcategoria", row.subcategoria], ["Tipo", row.tipo]] as [string, any][]).map(([l, v]) => <F key={l} l={tr(l)} v={v} />)}<div /></div>
             <div className="border-t border-[var(--separator)]" />
             <div className="px-4 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-[11px] text-[var(--label-secondary)] font-medium whitespace-nowrap">NCM:</span>
@@ -890,9 +917,9 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
           </div>
           <input ref={fr} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_url", setImg, img)} />
 
-          <div className="apple-card overflow-x-auto"><table className="plm-table"><thead><tr><th className="px-4">Artigo</th><th className="w-24">Fornec.</th><th className="w-36">Composição</th><th className="text-center w-16">Preço</th>{Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} className="text-center w-[120px]"><div>Var {String(i+1).padStart(2,"0")}</div>{cor && <div className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold" style={pal ? { background: pal.bg, color: pal.text } : { background: "var(--bg-tertiary)", color: "var(--label-secondary)" }}>{cor}</div>}</th>); })}</tr></thead><tbody>{tec.map((t: any, ti: number) => { const cs = t.cores || []; while (cs.length < numVars) cs.push(""); return (<tr key={ti}><td className="px-4"><span className="text-[var(--label-tertiary)] text-[11px] mr-1.5">Tec.{String(ti + 1).padStart(2, "0")}</span>{ti === 0 ? <span className="font-semibold" title="O tecido principal vem do SKU (coluna Tecido, em Desenvolvimento)">{t.artigo}</span> : <button type="button" onClick={() => { setTecPick(ti); setTsq(""); }} className={`text-left font-semibold underline decoration-dotted decoration-[var(--separator-opaque)] underline-offset-2 hover:decoration-[var(--system-blue)] hover:text-[var(--system-blue)] ${t.artigo ? "" : "text-[var(--system-blue)]"}`} title="Escolher tecido do cadastro">{t.artigo || "Selecionar tecido..."}</button>}</td><td>{t.forn || "—"}</td><td className="text-[12px] text-[var(--label-secondary)] px-3">{compOf(t.artigo) || "—"}</td><td className="text-center tabnum">{t.preco > 0 ? t.preco.toFixed(2) : "—"}</td>{cs.slice(0, numVars).map((c: string, ci: number) => { const pal = c ? COR_PALETTE[c] : null; return (<td key={ci} className="px-1.5 py-1.5"><select value={c} onChange={e => utc(ti, ci, e.target.value)} className="w-full text-[12px] px-2 py-1.5 rounded-lg border outline-none cursor-pointer font-bold" style={pal ? { background: pal.bg, color: pal.text, borderColor: pal.bg } : { borderColor: "var(--separator-opaque)", color: "var(--label-quaternary)" }}><option value="">Selecionar</option>{corOpts.map(x => <option key={x} value={x}>{x}</option>)}</select></td>); })}</tr>); })}</tbody><tfoot>
+          <div className="apple-card overflow-x-auto"><table className="plm-table"><thead><tr><th className="px-4">{tr("Artigo")}</th><th className="w-24">{tr("Fornec.")}</th><th className="w-36">{tr("Composição")}</th><th className="text-center w-16">{tr("Preço")}</th>{Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} className="text-center w-[120px]"><div>Var {String(i+1).padStart(2,"0")}</div>{cor && <div className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold" style={pal ? { background: pal.bg, color: pal.text } : { background: "var(--bg-tertiary)", color: "var(--label-secondary)" }}>{cor}</div>}</th>); })}</tr></thead><tbody>{tec.map((t: any, ti: number) => { const cs = t.cores || []; while (cs.length < numVars) cs.push(""); return (<tr key={ti}><td className="px-4"><span className="text-[var(--label-tertiary)] text-[11px] mr-1.5">Tec.{String(ti + 1).padStart(2, "0")}</span>{ti === 0 ? <span className="font-semibold" title="O tecido principal vem do SKU (coluna Tecido, em Desenvolvimento)">{t.artigo}</span> : <button type="button" onClick={() => { setTecPick(ti); setTsq(""); }} className={`text-left font-semibold underline decoration-dotted decoration-[var(--separator-opaque)] underline-offset-2 hover:decoration-[var(--system-blue)] hover:text-[var(--system-blue)] ${t.artigo ? "" : "text-[var(--system-blue)]"}`} title="Escolher tecido do cadastro">{t.artigo || "Selecionar tecido..."}</button>}</td><td>{t.forn || "—"}</td><td className="text-[12px] text-[var(--label-secondary)] px-3">{compOf(t.artigo) || "—"}</td><td className="text-center tabnum">{t.preco > 0 ? t.preco.toFixed(2) : "—"}</td>{cs.slice(0, numVars).map((c: string, ci: number) => { const pal = c ? COR_PALETTE[c] : null; return (<td key={ci} className="px-1.5 py-1.5"><select value={c} onChange={e => utc(ti, ci, e.target.value)} className="w-full text-[12px] px-2 py-1.5 rounded-lg border outline-none cursor-pointer font-bold" style={pal ? { background: pal.bg, color: pal.text, borderColor: pal.bg } : { borderColor: "var(--separator-opaque)", color: "var(--label-quaternary)" }}><option value="">Selecionar</option>{corOpts.map(x => <option key={x} value={x}>{x}</option>)}</select></td>); })}</tr>); })}</tbody><tfoot>
                 <tr className="border-t border-[var(--separator-opaque)] bg-[var(--bg-secondary)]">
-                  <td colSpan={3} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] whitespace-nowrap">Pantone / Código</td>
+                  <td colSpan={3} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] whitespace-nowrap">{tr("Pantone / Código")}</td>
                   <td />
                   {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVars).map(k => (
                     <td key={k} className="px-1.5 py-1.5">
@@ -909,7 +936,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                   ))}
                 </tr>
                 <tr className="border-t border-[var(--separator-opaque)]">
-                  <td colSpan={3} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] whitespace-nowrap">Tipo de Tingimento</td>
+                  <td colSpan={3} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] whitespace-nowrap">{tr("Tipo de Tingimento")}</td>
                   <td />
                   {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVars).map(k => (
                     <td key={k} className="px-1.5 py-1.5">
@@ -961,7 +988,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                 {isProd && (
                 <tr className="border-t border-[var(--system-blue)]/20 bg-blue-50/40">
                   <td colSpan={3} className="px-4 py-2.5 whitespace-nowrap">
-                    <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-[var(--system-blue)]">NÚMERO DO PEDIDO 1</span>
+                    <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-[var(--system-blue)]">{tr("NÚMERO DO PEDIDO 1")}</span>
                     <span className="text-[10px] text-[var(--label-tertiary)] ml-1.5">por cor</span>
                   </td>
                   <td />
@@ -1026,36 +1053,36 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             <div className="apple-card p-0 overflow-hidden border border-[var(--separator)]">
               <div className="px-4 py-2.5 bg-[var(--bg-secondary)] border-b border-[var(--separator)] flex items-center gap-2">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--system-blue)" strokeWidth="2.2" strokeLinecap="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-                <span className="text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--system-blue)]">Informações de Compras</span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--system-blue)]">{tr("Informações de Compras")}</span>
               </div>
               <div className="grid grid-cols-2 divide-x divide-[var(--separator)]">
                 <div className="p-4 space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--label-tertiary)] mb-3">Compra 1</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--label-tertiary)] mb-3">{tr("Compra 1")}</p>
                   <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">Qtd. Compra</span>
+                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">{tr("Qtd. Compra")}</span>
                     <span className="text-[13px] font-bold tabnum text-[var(--label-primary)]">{row.qtd_compra1 ? Math.round(Number(row.qtd_compra1)) : "—"}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">Pedido</span>
+                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">{tr("Pedido")}</span>
                     <span className="text-[13px] font-semibold text-[var(--label-primary)]">{row.pedido1 || "—"}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">Entrega</span>
+                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">{tr("Entrega")}</span>
                     <span className="text-[13px] font-semibold text-[var(--label-primary)]">{row.data_entrega1 ? String(row.data_entrega1).split("-").reverse().join("/") : "—"}</span>
                   </div>
                 </div>
                 <div className="p-4 space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--label-tertiary)] mb-3">Compra 2</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--label-tertiary)] mb-3">{tr("Compra 2")}</p>
                   <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">Qtd. Compra</span>
+                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">{tr("Qtd. Compra")}</span>
                     <span className="text-[13px] font-bold tabnum text-[var(--label-primary)]">{row.qtd_compra2 ? Math.round(Number(row.qtd_compra2)) : "—"}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">Pedido</span>
+                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">{tr("Pedido")}</span>
                     <span className="text-[13px] font-semibold text-[var(--label-primary)]">{row.pedido2 || "—"}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">Entrega</span>
+                    <span className="text-[11px] text-[var(--label-secondary)] w-20 shrink-0">{tr("Entrega")}</span>
                     <span className="text-[13px] font-semibold text-[var(--label-primary)]">{row.data_entrega2 ? String(row.data_entrega2).split("-").reverse().join("/") : "—"}</span>
                   </div>
                 </div>
@@ -1064,17 +1091,17 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
           )}
 
           <div style={{ borderTop: `2px solid ${fichaColor}` }} className="pt-5">
-            <div style={{ background: fichaColor }} className="text-white rounded-xl px-5 py-3 flex items-center justify-between mb-4"><span className="text-[13px] font-bold">AVIAMENTAÇÃO</span></div>
+            <div style={{ background: fichaColor }} className="text-white rounded-xl px-5 py-3 flex items-center justify-between mb-4"><span className="text-[13px] font-bold">{tr("AVIAMENTAÇÃO")}</span></div>
             <div className="mb-3 rounded-xl border border-[var(--separator)]" style={{ maxHeight: "420px", overflowX: "auto", overflowY: "auto" }}><table className="plm-table" style={{ minWidth: "max-content" }}><thead className="sticky top-0 z-10 bg-[var(--bg-secondary)]"><tr>
               <th className="w-8 px-1"></th>
               <th className="text-center w-8 px-2">#</th>
-              <th className="w-28">Código</th>
-              <th className="px-4">Matéria prima</th>
-              <th className="min-w-[120px]">Fornecedor</th>
-              <th className="w-32">Cód. forn.</th>
-              <th className="text-center w-12">Qtd</th>
-              <th className="text-right w-16">Valor</th>
-              <th className="min-w-[200px]">Localização</th>
+              <th className="w-28">{tr("Código")}</th>
+              <th className="px-4">{tr("Matéria prima")}</th>
+              <th className="min-w-[120px]">{tr("Fornecedor")}</th>
+              <th className="w-32">{tr("Cód. forn.")}</th>
+              <th className="text-center w-12">{tr("Qtd")}</th>
+              <th className="text-right w-16">{tr("Valor")}</th>
+              <th className="min-w-[200px]">{tr("Localização")}</th>
               {Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} className="text-center w-24"><div>Var {String(i+1).padStart(2,"0")}</div>{cor && <div className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold" style={pal ? { background: pal.bg, color: pal.text } : { background: "var(--bg-tertiary)", color: "var(--label-secondary)" }}>{cor}</div>}</th>); })}
             </tr></thead><tbody className="overflow-y-auto">{avi.map((a: any, i: number) => (
               <tr key={i}>
@@ -1093,7 +1120,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                 <td className="px-1 py-1"><textarea value={a.local} onChange={e => ua(i, "local", e.target.value)} rows={2} className="w-full text-[12px] border border-[var(--separator-opaque)] rounded-lg px-2.5 py-1.5 outline-none resize-none leading-tight" placeholder="Localização..." /></td>
                 {(["var01", "var02", "var03", "var04", "var05", "var06"] as const).slice(0, numVars).map(k => { const av = a[k] || ""; const pal = av ? COR_PALETTE[av] : null; return (<td key={k} className="px-1 py-1"><select value={av} onChange={e => ua(i, k, e.target.value)} className="w-full text-[11px] rounded-md px-1.5 py-1 outline-none border font-bold" style={pal ? { background: pal.bg, color: pal.text, borderColor: pal.bg } : { borderColor: "var(--separator-opaque)", color: "var(--label-quaternary)" }}><option value="">—</option>{(a.cores_disponiveis?.length ? a.cores_disponiveis : corOpts).map((c:string) => <option key={c} value={c}>{c}</option>)}</select></td>); })}
               </tr>
-            ))}{avi.length > 0 && <tr className="border-t border-[var(--separator-opaque)]"><td /><td colSpan={4} className="px-4 py-2.5 font-bold">Total</td><td className="text-right tabnum font-bold py-2.5">R$ {avT.toFixed(2)}</td><td colSpan={numVars + 1} /></tr>}</tbody></table></div>
+            ))}{avi.length > 0 && <tr className="border-t border-[var(--separator-opaque)]"><td /><td colSpan={4} className="px-4 py-2.5 font-bold">{tr("Total")}</td><td className="text-right tabnum font-bold py-2.5">R$ {avT.toFixed(2)}</td><td colSpan={numVars + 1} /></tr>}</tbody></table></div>
 
             {/* ── Galeria de imagens dos aviamentos ──
                  Itens com foto por cor (cores_disponiveis > 1) mostram só as
@@ -1101,7 +1128,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                  todas as cores disponíveis no cadastro. */}
             {avi.some((a: any) => fotosParaExibir(a, numVars).length > 0) && (
               <div className="apple-card p-4 mb-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mb-3">Referência Visual</div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mb-3">{tr("Referência Visual")}</div>
                 <div className="flex flex-wrap gap-4">
                   {avi.flatMap((a: any, i: number) => fotosParaExibir(a, numVars).map(f => (
                     <div key={`${i}-${f.key}`} className="flex flex-col items-center gap-1.5" style={{ width: "280px" }}>
@@ -1132,26 +1159,26 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
 
           {/* ── Custo Detalhado ── */}
           <div className="apple-card p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-tertiary)] mb-3">Detalhamento de Custo</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-tertiary)] mb-3">{tr("Detalhamento de Custo")}</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--label-secondary)] mb-2">Mão de Obra</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--label-secondary)] mb-2">{tr("Mão de Obra")}</div>
                 <table className="w-full text-[12px]">
                   <tbody>
                     <tr className="border-b border-[var(--separator)]">
-                      <td className="py-1.5 text-[var(--label-secondary)]">M.P.</td>
+                      <td className="py-1.5 text-[var(--label-secondary)]">{tr("M.P.")}</td>
                       <td className="py-1.5 text-right"><input type="text" value={custoDet.mp} onChange={e => setCustoDet(p => ({ ...p, mp: e.target.value }))} placeholder="R$ —" className="w-24 text-right text-[12px] tabnum border border-[var(--separator-opaque)] rounded-lg px-2 py-1 outline-none focus:border-[var(--system-blue)]" /></td>
                     </tr>
                     <tr className="border-b border-[var(--separator)]">
-                      <td className="py-1.5 text-[var(--label-secondary)]">M.O.</td>
+                      <td className="py-1.5 text-[var(--label-secondary)]">{tr("M.O.")}</td>
                       <td className="py-1.5 text-right"><input type="text" value={custoDet.mo} onChange={e => setCustoDet(p => ({ ...p, mo: e.target.value }))} placeholder="R$ —" className="w-24 text-right text-[12px] tabnum border border-[var(--separator-opaque)] rounded-lg px-2 py-1 outline-none focus:border-[var(--system-blue)]" /></td>
                     </tr>
                     <tr className="border-b border-[var(--separator)]">
-                      <td className="py-1.5 text-[var(--label-secondary)]">Avios.</td>
+                      <td className="py-1.5 text-[var(--label-secondary)]">{tr("Avios.")}</td>
                       <td className="py-1.5 text-right tabnum text-[var(--label-secondary)]">R$ {avT.toFixed(2)}</td>
                     </tr>
                     <tr>
-                      <td className="py-1.5 font-bold">Total M.O.</td>
+                      <td className="py-1.5 font-bold">{tr("Total M.O.")}</td>
                       <td className="py-1.5 text-right tabnum font-bold">
                         {(() => { const mp = parseFloat(custoDet.mp.replace(",",".")) || 0; const mo = parseFloat(custoDet.mo.replace(",",".")) || 0; return `R$ ${(mp + mo + avT).toFixed(2)}`; })()}
                       </td>
@@ -1160,19 +1187,19 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                 </table>
               </div>
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--label-secondary)] mb-2">Produto Acabado</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--label-secondary)] mb-2">{tr("Produto Acabado")}</div>
                 <table className="w-full text-[12px]">
                   <tbody>
                     <tr className="border-b border-[var(--separator)]">
-                      <td className="py-1.5 text-[var(--label-secondary)]">Custo Forn.</td>
+                      <td className="py-1.5 text-[var(--label-secondary)]">{tr("Custo Forn.")}</td>
                       <td className="py-1.5 text-right tabnum text-[var(--label-secondary)]">{row.custo_forn ? `R$ ${Number(row.custo_forn).toFixed(2)}` : "—"}</td>
                     </tr>
                     <tr className="border-b border-[var(--separator)]">
-                      <td className="py-1.5 text-[var(--label-secondary)]">Avios.</td>
+                      <td className="py-1.5 text-[var(--label-secondary)]">{tr("Avios.")}</td>
                       <td className="py-1.5 text-right tabnum text-[var(--label-secondary)]">R$ {avT.toFixed(2)}</td>
                     </tr>
                     <tr>
-                      <td className="py-1.5 font-bold">Total P.A.</td>
+                      <td className="py-1.5 font-bold">{tr("Total P.A.")}</td>
                       <td className="py-1.5 text-right tabnum font-bold">
                         {row.custo_forn ? `R$ ${(Number(row.custo_forn) + avT).toFixed(2)}` : "—"}
                       </td>
@@ -1182,13 +1209,13 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               </div>
             </div>
             <div className="mt-4">
-              <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--label-secondary)] mb-1.5">Observações de fechamento de custo</div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--label-secondary)] mb-1.5">{tr("Observações de fechamento de custo")}</div>
               <textarea value={obsCusto} onChange={e => setObsCusto(e.target.value)} placeholder="Observações sobre o fechamento de custo..." rows={2} className="apple-input w-full resize-none text-[12px]" />
             </div>
           </div>
 
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-2">Observações</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-2">{tr("Observações")}</div>
             <textarea value={obs} onChange={e => setObs(e.target.value)} placeholder="Observações técnicas, instruções especiais..." rows={3} className="apple-input w-full resize-none" />
           </div>
         </div>)}
@@ -1209,12 +1236,12 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               </select>
             </span>
             <span className="text-[11px] font-semibold bg-white/15 px-3 py-0.5 rounded-full whitespace-nowrap">{(s => s.includes("REPILOTANDO") ? "REPILOTANDO PRODUÇÃO" : s.includes("PRODUÇÃO") || s.includes("PRODUCAO") ? "PRODUÇÃO" : s.includes("MOSTRUÁRIO") || s.includes("MOSTRUARIO") ? "MOSTRUÁRIO" : s.includes("CANCELADO") ? "CANCELADO" : "DESENVOLVIMENTO")((row.status || "").toUpperCase())}</span>
-            <span className="text-[12px]"><span className="text-white/50">Coleção</span> <span className="font-semibold ml-1">{row.colecao}</span></span>
+            <span className="text-[12px]"><span className="text-white/50">{tr("Coleção")}</span> <span className="font-semibold ml-1">{row.colecao}</span></span>
           </div>
 
           {/* Product info */}
           <div className="apple-card">
-            <div className="grid grid-cols-1 sm:grid-cols-2">{([["Referência", row.ref], ["Descrição", row.desc], ["Operação", row.operacao], ["Fornecedor", row.fornecedor], ["Estilista", row.estilista], ["Grade", row.grade], ["Drop", row.drop], ["Tecido", row.tecido]] as [string, any][]).map(([l, v]) => <F key={l} l={l} v={v} />)}</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2">{([["Referência", row.ref], ["Descrição", row.desc], ["Operação", row.operacao], ["Fornecedor", row.fornecedor], ["Estilista", row.estilista], ["Grade", row.grade], ["Drop", row.drop], ["Tecido", row.tecido]] as [string, any][]).map(([l, v]) => <F key={l} l={tr(l)} v={v} />)}</div>
           </div>
 
           {/* Artes: a posição de cada uma é escolhida (frente, costas, lateral, tagless) */}
@@ -1222,7 +1249,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             {(estamparia.artes || []).map((a: any, i: number) => ({ arte: a, ai: i })).filter((x: any) => x.arte.posicao !== "TAGLESS").map(({ arte, ai }: any) => (
               <div key={ai} className="space-y-2.5">
                 <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-2">
-                  <span className="text-[12px] font-bold tracking-wide">ARTE</span>
+                  <span className="text-[12px] font-bold tracking-wide">{tr("ARTE")}</span>
                   <select value={arte.posicao || ""} onChange={e => updArte(ai, "posicao", e.target.value)} className="bg-white text-[var(--label-primary)] text-[12px] font-bold rounded-lg pl-2.5 pr-1.5 py-1 outline-none cursor-pointer shadow-sm" title="Posição desta arte — muda o título no PDF">
                     {POSICOES_ARTE.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                   </select>
@@ -1254,7 +1281,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
           {(() => { const tgi = (estamparia.artes || []).findIndex((a: any) => a.posicao === "TAGLESS"); if (tgi < 0) return null; const tg = estamparia.artes[tgi]; return (
             <div className="space-y-2.5">
               <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-2">
-                <span className="text-[12px] font-bold tracking-wide">ARTE</span>
+                <span className="text-[12px] font-bold tracking-wide">{tr("ARTE")}</span>
                 <select value={tg.posicao || ""} onChange={e => updArte(tgi, "posicao", e.target.value)} className="bg-white text-[var(--label-primary)] text-[12px] font-bold rounded-lg pl-2.5 pr-1.5 py-1 outline-none cursor-pointer shadow-sm" title="Posição desta arte — muda o título no PDF">
                   {POSICOES_ARTE.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                 </select>
@@ -1270,7 +1297,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                 </div>
                 <div className="space-y-2">
                   <input type="text" value={tg.largura} onChange={e => updArte(tgi, "largura", e.target.value)} placeholder="Ex: 5,5CM" className="apple-input w-full text-[12px]" />
-                  <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 text-center"><span className="text-[12px] font-bold tracking-wide">LOCALIZAÇÃO ARTE TAGLESS</span></div>
+                  <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 text-center"><span className="text-[12px] font-bold tracking-wide">{tr("LOCALIZAÇÃO ARTE TAGLESS")}</span></div>
                   <div className={`apple-card bg-[var(--bg-secondary)] aspect-[3/2] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `local-${tgi}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
                     onClick={() => triggerEstImg("arteLocal", String(tgi))}
                     onDragOver={e => { e.preventDefault(); setDragOver(`local-${tgi}`); }}
@@ -1287,12 +1314,12 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
 
           {/* Técnicas de Estamparia */}
           <div style={{ borderTop: `2px solid ${fichaColor}` }} className="pt-5">
-            <div style={{ background: fichaColor }} className="text-white rounded-xl px-5 py-3 flex items-center justify-between mb-4"><span className="text-[13px] font-bold">TÉCNICA DE ESTAMPARIA</span></div>
+            <div style={{ background: fichaColor }} className="text-white rounded-xl px-5 py-3 flex items-center justify-between mb-4"><span className="text-[13px] font-bold">{tr("TÉCNICA DE ESTAMPARIA")}</span></div>
             <div className="apple-card overflow-x-auto">
               <table className="plm-table">
                 <thead><tr>
                   <th className="text-center w-10">#</th>
-                  <th className="min-w-[180px]">Técnica de Estamparia</th>
+                  <th className="min-w-[180px]">{tr("Técnica de Estamparia")}</th>
                   {Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} className="text-center w-[110px]">Variante {String(i+1).padStart(2,"0")}{cor ? <div className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold" style={pal ? { background: pal.bg, color: pal.text } : { background: "var(--bg-tertiary)", color: "var(--label-secondary)" }}>{cor}</div> : null}</th>); })}
                   <th className="w-8"></th>
                 </tr></thead>
@@ -1313,7 +1340,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
 
           {/* Simulações e Fotos por Variante */}
           <div style={{ borderTop: `2px solid ${fichaColor}` }} className="pt-5">
-            <div style={{ background: fichaColor }} className="text-white rounded-xl px-5 py-3 flex items-center justify-between mb-4"><span className="text-[13px] font-bold">SIMULAÇÕES E FOTOS</span></div>
+            <div style={{ background: fichaColor }} className="text-white rounded-xl px-5 py-3 flex items-center justify-between mb-4"><span className="text-[13px] font-bold">{tr("SIMULAÇÕES E FOTOS")}</span></div>
             <div className="space-y-5">
               {(["var01", "var02", "var03", "var04", "var05", "var06"] as const).slice(0, numVars).map((vk, vi) => {
                 const corName = tec[0]?.cores?.[vi] || "";
@@ -1339,7 +1366,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Simulação</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">{tr("Simulação")}</div>
                         <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `sim-${vk}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
                           onClick={() => triggerEstImg("sim", vk)}
                           onDragOver={e => { e.preventDefault(); setDragOver(`sim-${vk}`); }}
@@ -1350,7 +1377,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Foto</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">{tr("Foto")}</div>
                         <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `foto-${vk}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
                           onClick={() => triggerEstImg("foto", vk)}
                           onDragOver={e => { e.preventDefault(); setDragOver(`foto-${vk}`); }}
@@ -1369,7 +1396,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
 
           {/* Observações */}
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-2">Observações</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-2">{tr("Observações")}</div>
             <textarea value={estamparia.observacoes || ""} onChange={e => setEstamparia((prev: any) => ({ ...prev, observacoes: e.target.value }))} placeholder="Observações de estamparia..." rows={3} className="apple-input w-full resize-none" />
           </div>
 
@@ -1379,12 +1406,12 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
 
         {/* ═══ LIBERAÇÃO ═══ */}
         {tab === "liberacao" && (<div className="px-3 sm:px-6 py-4 sm:py-6 space-y-5">
-          <div style={{ background: modelagemColor }} className="text-white rounded-xl px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2"><span className="text-[13px] font-bold">TABELA DE MEDIDAS — LIBERAÇÃO DE {_s.includes('PRODUÇÃO') || _s.includes('PRODUCAO') ? 'PRODUÇÃO' : _s.includes('MOSTRUÁRIO') || _s.includes('MOSTRUARIO') ? 'MOSTRUÁRIO' : 'DESENVOLVIMENTO'}</span><span className="text-[12px]"><span className="text-white/50">Coleção</span> <span className="font-semibold ml-1">{row.colecao}</span></span></div>
-          <div className="apple-card"><div className="grid grid-cols-1 sm:grid-cols-2">{([["Referência", row.ref], ["Descrição", row.desc], ["Tabela base", tm], ["Tamanho", gradBase || "—"], ["Tecido", row.tecido], ["Fornecedor", row.fornecedor], ["Estilista", row.estilista], ["Grade", row.grade]] as [string, any][]).map(([l, v]) => <F key={l} l={l} v={v} />)}</div></div>
+          <div style={{ background: modelagemColor }} className="text-white rounded-xl px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2"><span className="text-[13px] font-bold">TABELA DE MEDIDAS — LIBERAÇÃO DE {_s.includes('PRODUÇÃO') || _s.includes('PRODUCAO') ? 'PRODUÇÃO' : _s.includes('MOSTRUÁRIO') || _s.includes('MOSTRUARIO') ? 'MOSTRUÁRIO' : 'DESENVOLVIMENTO'}</span><span className="text-[12px]"><span className="text-white/50">{tr("Coleção")}</span> <span className="font-semibold ml-1">{row.colecao}</span></span></div>
+          <div className="apple-card"><div className="grid grid-cols-1 sm:grid-cols-2">{([["Referência", row.ref], ["Descrição", row.desc], ["Tabela base", tm], ["Tamanho", gradBase || "—"], ["Tecido", row.tecido], ["Fornecedor", row.fornecedor], ["Estilista", row.estilista], ["Grade", row.grade]] as [string, any][]).map(([l, v]) => <F key={l} l={tr(l)} v={v} />)}</div></div>
 
           {/* Foto do produto — frente e costas lado a lado */}
           <div className="apple-card p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-3">Foto do produto</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-3">{tr("Foto do produto")}</div>
             <input ref={frenteRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_frente", setImgFrente, imgFrente)} />
             <input ref={costasRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_costas", setImgCostas, imgCostas)} />
             <div className="grid grid-cols-2 gap-4">
@@ -1403,7 +1430,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
           </div>
 
           <div className="apple-card px-4 sm:px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Status da liberação</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">{tr("Status da liberação")}</span>
             <div className="flex flex-wrap gap-2">
               {([
                 ["AGUARDANDO PROVA",       "Aguardando prova",    "bg-[rgba(68,100,175,0.12)] text-[#4464AF] border-[rgba(68,100,175,0.3)]"],
@@ -1424,8 +1451,8 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             {/* Toggle tabela especial */}
             <div className="apple-card px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-3">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Tabela de medidas</span>
-                {tEsp && <span className="text-[10px] font-bold uppercase tracking-[0.06em] px-2.5 py-0.5 rounded-full bg-[rgba(255,159,10,0.14)] text-[#c77c00]">Especial</span>}
+                <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">{tr("Tabela de medidas")}</span>
+                {tEsp && <span className="text-[10px] font-bold uppercase tracking-[0.06em] px-2.5 py-0.5 rounded-full bg-[rgba(255,159,10,0.14)] text-[#c77c00]">{tr("Especial")}</span>}
               </div>
               <button onClick={toggleEsp} className={`px-3.5 py-1 rounded-full text-[12px] font-semibold border transition-all ${tEsp ? "bg-[rgba(255,159,10,0.14)] text-[#c77c00] border-[rgba(255,159,10,0.3)]" : "border-[var(--separator-opaque)] text-[var(--label-tertiary)] hover:border-[var(--label-secondary)]"}`}>
                 {tEsp ? "Desativar especial" : "Ativar tabela especial"}
@@ -1447,7 +1474,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                   return (
                     <th key={pk} colSpan={2} className={`border-b border-l border-[var(--separator-opaque)] py-0 !font-semibold text-[11px] tracking-[0.06em] uppercase ${isBlue ? "!text-[var(--system-blue)] !bg-[rgba(0,122,255,0.04)] border-blue-100" : "text-[var(--label-secondary)]"}`}>
                       <div className="flex flex-col items-center gap-1.5 px-3 py-2.5">
-                        <span className="text-[11px] font-bold tracking-[0.08em]">Prova {pi + 1}</span>
+                        <span className="text-[11px] font-bold tracking-[0.08em]">{rotuloProva(tr, pi + 1)}</span>
                         <input
                           type="text"
                           value={dataProvaDraft[pk] ?? (info.data ? info.data.split('-').reverse().join('/') : "")}
@@ -1503,14 +1530,14 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               </tr>
               {/* Linha 2: sub-cabeçalhos de coluna */}
               <tr>
-                <th className="text-center w-12">Cód</th>
-                <th>Descrição</th>
+                <th className="text-center w-12">{tr("Cód")}</th>
+                <th>{tr("Descrição")}</th>
                 <th className="text-center w-16">{tEsp ? <span className="text-[var(--system-orange)]">Tabela{gradBase ? ` (tam. ${gradBase})` : ""}</span> : `Tabela${gradBase ? ` (tam. ${gradBase})` : ""}`}</th>
-                <th className="text-center w-24 !bg-[rgba(0,122,255,0.04)] !text-[var(--system-blue)] border-l border-[var(--separator-opaque)]">Medida</th>
-                <th className="text-center w-24 !bg-[rgba(0,122,255,0.04)] !text-[var(--system-blue)]">Diferença</th>
-                <th className="text-center w-24 border-l border-[var(--separator-opaque)]">Medida</th><th className="text-center w-24">Diferença</th>
-                <th className="text-center w-24 border-l border-[var(--separator-opaque)]">Medida</th><th className="text-center w-24">Diferença</th>
-                <th className="text-center w-28 border-l border-[var(--separator-opaque)]">Tolerância</th>
+                <th className="text-center w-24 !bg-[rgba(0,122,255,0.04)] !text-[var(--system-blue)] border-l border-[var(--separator-opaque)]">{tr("Medida")}</th>
+                <th className="text-center w-24 !bg-[rgba(0,122,255,0.04)] !text-[var(--system-blue)]">{tr("Diferença")}</th>
+                <th className="text-center w-24 border-l border-[var(--separator-opaque)]">{tr("Medida")}</th><th className="text-center w-24">{tr("Diferença")}</th>
+                <th className="text-center w-24 border-l border-[var(--separator-opaque)]">{tr("Medida")}</th><th className="text-center w-24">{tr("Diferença")}</th>
+                <th className="text-center w-28 border-l border-[var(--separator-opaque)]">{tr("Tolerância")}</th>
               </tr>
             </thead><tbody>{ptsAtivo.map((p: any, pi: number) => { const v = pv[p.cod] || { p1: "", p2: "", p3: "" }; return (<tr key={p.cod}>
               <td className="text-center font-bold text-[var(--label-secondary)] px-3">{p.cod}</td>
@@ -1533,11 +1560,11 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                 <div className="apple-card overflow-hidden overflow-x-auto">
                   <table className="plm-table">
                     <thead><tr>
-                      <th>Descrição</th>
+                      <th>{tr("Descrição")}</th>
                       {gradTamanhos.map(t => (
                         <th key={t} className={`text-center w-16 ${t === gradBase ? "!bg-[rgba(0,122,255,0.06)] !text-[var(--system-blue)]" : ""}`}>{t}</th>
                       ))}
-                      <th className="text-center w-24">Tolerância</th>
+                      <th className="text-center w-24">{tr("Tolerância")}</th>
                     </tr></thead>
                     <tbody>{gradAtivo.map((g: any, i: number) => (
                       <tr key={i}>
@@ -1569,7 +1596,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               ];
               return (
                 <div className="apple-card p-4 space-y-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Fotos das Provas</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">{tr("Fotos das Provas")}</div>
                   {(["p1","p2","p3"] as const).map((pk, pi) => {
                     const info = provaInfo[pk] || {};
                     const hasAny = (info as any).fotoFrente || (info as any).fotoLado || (info as any).fotoCostas;
@@ -1663,21 +1690,21 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                   <div className="grid grid-cols-2 gap-3">
                     {/* Frente */}
                     <div className="space-y-1">
-                      <div className="text-[10px] font-semibold text-center text-[var(--label-tertiary)] uppercase tracking-[0.05em]">Frente</div>
+                      <div className="text-[10px] font-semibold text-center text-[var(--label-tertiary)] uppercase tracking-[0.05em]">{tr("Frente")}</div>
                       <div className="apple-card bg-[var(--bg-secondary)] aspect-[3/4] flex items-center justify-center overflow-hidden">
                         {frenteAuto
                           ? <img src={frenteAuto} alt="Modelo Frente" className="w-full h-full object-contain p-1" />
-                          : <div className="text-center"><svg className="mx-auto mb-1 text-[var(--label-quaternary)]" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><p className="text-[10px] text-[var(--label-quaternary)]">Sem foto</p></div>
+                          : <div className="text-center"><svg className="mx-auto mb-1 text-[var(--label-quaternary)]" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><p className="text-[10px] text-[var(--label-quaternary)]">{tr("Sem foto")}</p></div>
                         }
                       </div>
                     </div>
                     {/* Costas */}
                     <div className="space-y-1">
-                      <div className="text-[10px] font-semibold text-center text-[var(--label-tertiary)] uppercase tracking-[0.05em]">Costas</div>
+                      <div className="text-[10px] font-semibold text-center text-[var(--label-tertiary)] uppercase tracking-[0.05em]">{tr("Costas")}</div>
                       <div className="apple-card bg-[var(--bg-secondary)] aspect-[3/4] flex items-center justify-center overflow-hidden">
                         {costasAuto
                           ? <img src={costasAuto} alt="Modelo Costas" className="w-full h-full object-contain p-1" />
-                          : <div className="text-center"><svg className="mx-auto mb-1 text-[var(--label-quaternary)]" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><p className="text-[10px] text-[var(--label-quaternary)]">Sem foto</p></div>
+                          : <div className="text-center"><svg className="mx-auto mb-1 text-[var(--label-quaternary)]" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><p className="text-[10px] text-[var(--label-quaternary)]">{tr("Sem foto")}</p></div>
                         }
                       </div>
                     </div>
@@ -1734,15 +1761,15 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                   {/* Campos de pilotagem */}
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <div className="text-[10px] text-[var(--label-tertiary)] mb-1 uppercase tracking-wide">Nº Lacre</div>
+                      <div className="text-[10px] text-[var(--label-tertiary)] mb-1 uppercase tracking-wide">{tr("Nº Lacre")}</div>
                       <input type="text" value={pilRow.lacre || ""} onChange={e => setPil(prev => prev.map((r, i) => i === n - 1 ? { ...r, lacre: e.target.value } : r))} className="apple-input w-full text-[12px]" placeholder="—" />
                     </div>
                     <div>
-                      <div className="text-[10px] text-[var(--label-tertiary)] mb-1 uppercase tracking-wide">Data de Prova</div>
+                      <div className="text-[10px] text-[var(--label-tertiary)] mb-1 uppercase tracking-wide">{tr("Data de Prova")}</div>
                       <div className="apple-input w-full text-[12px] text-[var(--label-secondary)]">{provaInfo[k]?.data ? provaInfo[k].data.split('-').reverse().join('/') : "—"}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-[var(--label-tertiary)] mb-1 uppercase tracking-wide">Status</div>
+                      <div className="text-[10px] text-[var(--label-tertiary)] mb-1 uppercase tracking-wide">{tr("Status")}</div>
                       <div className={`apple-input w-full text-[12px] font-semibold ${statusColor}`}>{piStatus || "—"}</div>
                     </div>
                   </div>
@@ -1772,9 +1799,9 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
           <div className="px-3 sm:px-6 py-4 sm:py-6 space-y-5">
             {/* Header */}
             <div style={{ background: gradColor }} className="text-white rounded-xl px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[13px] font-bold tracking-[0.04em]">GRADUAÇÃO DE PRODUÇÃO</span>
+              <span className="text-[13px] font-bold tracking-[0.04em]">{tr("GRADUAÇÃO DE PRODUÇÃO")}</span>
               <span className="text-[11px] font-semibold bg-white/15 px-3 py-0.5 rounded-full">{statusLib}</span>
-              <span className="text-[12px]"><span className="text-white/60">Coleção</span> <span className="font-semibold ml-1">{row.colecao}</span></span>
+              <span className="text-[12px]"><span className="text-white/60">{tr("Coleção")}</span> <span className="font-semibold ml-1">{row.colecao}</span></span>
             </div>
 
             {/* Info */}
@@ -1792,7 +1819,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                   ["Tamanho", gradBase || "—"],
                   ["Tecido", row.tecido],
                   ["Composição", row.composicao],
-                ] as [string, any][]).map(([l, v]) => <F key={l} l={l} v={v} />)}
+                ] as [string, any][]).map(([l, v]) => <F key={l} l={tr(l)} v={v} />)}
               </div>
             </div>
 
@@ -1804,9 +1831,9 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                 <table className="plm-table">
                   <thead>
                     <tr>
-                      <th rowSpan={2} className="text-left min-w-[180px]">Descrição</th>
-                      <th colSpan={gradTamanhos.length} className="text-center bg-[rgba(45,181,100,0.08)] text-[#2a7a4a]" style={{ borderBottom: "2px solid #2DB56444" }}>GRADUAÇÃO</th>
-                      <th rowSpan={2} className="text-center w-24">Tolerância</th>
+                      <th rowSpan={2} className="text-left min-w-[180px]">{tr("Descrição")}</th>
+                      <th colSpan={gradTamanhos.length} className="text-center bg-[rgba(45,181,100,0.08)] text-[#2a7a4a]" style={{ borderBottom: "2px solid #2DB56444" }}>{tr("GRADUAÇÃO")}</th>
+                      <th rowSpan={2} className="text-center w-24">{tr("Tolerância")}</th>
                     </tr>
                     <tr>
                       {gradTamanhos.map(t => (

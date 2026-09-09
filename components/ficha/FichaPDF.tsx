@@ -4,6 +4,7 @@ import { valorNoTamanho, calcularDaBase, num as tamNum } from "@/lib/tamanhos";
 import type { ResultadoPeso } from "@/lib/peso";
 import { fotosParaExibir } from "@/lib/aviamento-fotos";
 import { custoAviamentosPorPeca } from "@/lib/etiquetas-tamanho";
+import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva } from "@/lib/ficha-i18n";
 
 type Props = {
   row: any; tec: any[]; avi: any[]; pil: any[]; pts: any[]; grad: any[];
@@ -19,6 +20,8 @@ type Props = {
   vcCompras?: Record<string, any>;
   provaInfo?: Record<string, { data: string; status: string; link: string; fotoFrente: string; fotoLado: string; fotoCostas: string; tipo: string }>;
   gradTamanhos?: string[]; gradBase?: string; tabTamanhos?: string[];
+  // Ficha de fornecedor importado: imprime os rótulos em inglês.
+  importado?: boolean;
 };
 
 /* ── Design tokens ── */
@@ -34,8 +37,10 @@ const warn = "#D97706";
 const danger = "#DC2626";
 const white = "#FFFFFF";
 
-export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [] }: Props) {
+export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [], importado = false }: Props) {
   const sec = sections || { ficha: true, estamparia: true, liberacao: true, graduacao: true };
+  // "t" já nomeia o tecido em vários map deste arquivo — o tradutor é "tr".
+  const tr = criarTradutor(importado);
   const compOf = (nome: string) => (tecCad || []).find((t: any) => t.nome === nome)?.comp || "";
   // Foto do tecido (Cadastros › Tecidos) — impressa junto do desenho técnico
   const imgTecOf = (nome: string) => (tecCad || []).find((t: any) => t.nome === nome)?.imagem || "";
@@ -61,7 +66,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   const modelagemColor = statusLib === 'REPROVADO' ? '#EA2F46' : (statusLib === 'APROVADO' || statusLib === 'APROVADO COM RESTRIÇÃO') ? '#2DB564' : '#4464AF';
   // Tipo da seção: estamparia, bordado ou aplique (escolhido na ficha).
   const tipoEst = String(estamparia?.tipo || "ESTAMPARIA").trim().toUpperCase() || "ESTAMPARIA";
-  const tipoEstTitulo = tipoEst.charAt(0) + tipoEst.slice(1).toLowerCase();
+  const tipoEstTitulo = tr(tipoEst.charAt(0) + tipoEst.slice(1).toLowerCase());
   // Colunas de variante das páginas da ficha (cores, pantone, aviamentos):
   // mínimo de 4, como sempre foi — reduzir aqui esconderia dado preenchido.
   const numVars = Math.max(4, Math.min(6, estamparia?.numVariantes || tec[0]?.cores?.filter(Boolean).length || 4));
@@ -90,7 +95,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         {sub && <div style={{ fontSize: "7.5px", opacity: 0.7, marginTop: "2px" }}>{sub}</div>}
       </div>
       <div style={{ textAlign: "right" }}>
-        <div style={{ fontSize: "8px", opacity: 0.7, lineHeight: 1.6 }}>Coleção <strong style={{ opacity: 1 }}>{row.colecao}</strong></div>
+        <div style={{ fontSize: "8px", opacity: 0.7, lineHeight: 1.6 }}>{tr("Coleção")} <strong style={{ opacity: 1 }}>{row.colecao}</strong></div>
         <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "-0.01em" }}>{row.ref}</div>
         <div style={{ fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "3px", background: "rgba(255,255,255,0.18)", padding: "2px 8px", borderRadius: "3px", display: "inline-block" }}>{headerLabel}</div>
       </div>
@@ -112,12 +117,12 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   const ResumoAviObs = () => (
     <div style={{ display: "flex", gap: "8px", marginTop: "12px", pageBreakInside: "avoid" }}>
       <div style={{ width: "130px", background: headerBg, borderRadius: "6px", padding: "8px 12px", color: white }}>
-        <div style={{ fontSize: "6.5px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.7, marginBottom: "3px" }}>Total Aviamentos</div>
+        <div style={{ fontSize: "6.5px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.7, marginBottom: "3px" }}>{tr("Total Aviamentos")}</div>
         <div style={{ fontSize: "14px", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>R$ {avT.toFixed(2)}</div>
       </div>
       <div style={{ flex: 1, background: bg, borderRadius: "6px", padding: "8px 12px", border: `1px solid ${line}` }}>
-        <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "2px" }}>Observações</div>
-        <div style={{ fontSize: "8px", color: obs ? navy : light, whiteSpace: "pre-wrap", lineHeight: 1.4 }}>{obs || "Nenhuma observação."}</div>
+        <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "2px" }}>{tr("Observações")}</div>
+        <div style={{ fontSize: "8px", color: obs ? navy : light, whiteSpace: "pre-wrap", lineHeight: 1.4 }}>{obs || tr("Nenhuma observação.")}</div>
       </div>
     </div>
   );
@@ -132,9 +137,9 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
           {/* Cabeçalho colorido — igual à modal */}
           <div style={{ background: headerBg, color: white, borderRadius: "5px", padding: "5px 12px", marginBottom: "5px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "10px", fontWeight: 800, letterSpacing: "0.04em" }}>FICHA TÉCNICA</span>
+            <span style={{ fontSize: "10px", fontWeight: 800, letterSpacing: "0.04em" }}>{tr("FICHA TÉCNICA")}</span>
             <span style={{ fontSize: "7.5px", fontWeight: 700, background: "rgba(255,255,255,0.18)", padding: "2px 9px", borderRadius: "20px" }}>{headerLabel}</span>
-            <span style={{ fontSize: "7.5px", opacity: 0.8 }}>Coleção <strong style={{ opacity: 1 }}>{row.colecao}</strong></span>
+            <span style={{ fontSize: "7.5px", opacity: 0.8 }}>{tr("Coleção")} <strong style={{ opacity: 1 }}>{row.colecao}</strong></span>
           </div>
 
           {/* Campos — grid 2 colunas com borda, igual à modal */}
@@ -142,35 +147,35 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
             {/* Referência + Descrição em destaque */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: `1px solid ${line}` }}>
               <div style={{ padding: "4px 10px", borderRight: `0.5px solid ${line}`, background: `${headerBg}80` }}>
-                <div style={{ fontSize: "5.5px", fontWeight: 700, color: navy, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "1px", opacity: 0.65 }}>Referência</div>
+                <div style={{ fontSize: "5.5px", fontWeight: 700, color: navy, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "1px", opacity: 0.65 }}>{tr("Referência")}</div>
                 <div style={{ fontSize: "13px", fontWeight: 800, color: navy, fontFamily: "monospace", letterSpacing: "0.02em" }}>{row.ref || "—"}</div>
               </div>
               <div style={{ padding: "4px 10px", background: `${headerBg}40` }}>
-                <div style={{ fontSize: "5.5px", fontWeight: 700, color: navy, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "1px", opacity: 0.65 }}>Descrição</div>
+                <div style={{ fontSize: "5.5px", fontWeight: 700, color: navy, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "1px", opacity: 0.65 }}>{tr("Descrição")}</div>
                 <div style={{ fontSize: "9.5px", fontWeight: 600, color: navy }}>{row.desc || "—"}</div>
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-              {([["Tecido", row.tecido, false], ["Forn. Tecido", row.forn_tecido, false], ["Composição", row.composicao || compOf(row.tecido), false], ["Operação", row.operacao, false], ["Fornecedor", row.fornecedor, false], ["Estilista", row.estilista, false], ["Tab. Medidas", row.tab_medidas, false], ["NCM", ncm || "", true], ["Peso Estimado", peso?.pesoG != null ? `${peso.pesoG.toLocaleString("pt-BR")} g` : "", false]] as [string, string, boolean][]).map(([l, v, mono], i) => (
+              {([["Tecido", row.tecido, false], ["Forn. Tecido", row.forn_tecido, false], ["Composição", row.composicao || compOf(row.tecido), false], ["Operação", row.operacao, false], ["Fornecedor", row.fornecedor, false], ["Estilista", row.estilista, false], ["Tab. Medidas", row.tab_medidas, false], ["NCM", ncm || "", true], ["Peso Estimado", peso?.pesoG != null ? `${peso.pesoG.toLocaleString("pt-BR")} g` : "", false]] as [string, string, boolean][]).map(([lPt, v, mono], i) => { const l = tr(lPt); return (
                 <div key={l} style={{ padding: "2px 10px", borderBottom: `0.5px solid ${line}`, borderRight: i % 2 === 0 ? `0.5px solid ${line}` : "none" }}>
                   <div style={{ fontSize: "5.5px", fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>{l}</div>
                   <div style={{ fontSize: "8px", fontWeight: 700, color: navy, ...(mono ? { fontFamily: "monospace" } : {}) }}>{v || "—"}</div>
                 </div>
-              ))}
+              ); })}
             </div>
             <div style={{ padding: "3px 10px", display: "flex", gap: "4px", flexWrap: "wrap", background: bg, borderTop: `0.5px solid ${line}` }}>
-              {([["Drop", row.drop], ["Grade", row.grade], ["Tipo", row.tipo], ["Linha", row.linha], ["Grupo", row.grupo], ["Subgrupo", row.subgrupo], ["Categoria", row.categoria]] as [string, string][]).map(([l, v]) => v ? (
+              {([["Drop", row.drop], ["Grade", row.grade], ["Tipo", row.tipo], ["Linha", row.linha], ["Grupo", row.grupo], ["Subgrupo", row.subgrupo], ["Categoria", row.categoria]] as [string, string][]).map(([lPt, v]) => { const l = tr(lPt); return v ? (
                 <span key={l} style={{ fontSize: "7px", fontWeight: 700, background: white, border: `0.5px solid ${lineDark}`, borderRadius: "3px", padding: "1px 6px", color: navy }}>
                   <span style={{ color: muted, fontWeight: 600, marginRight: "2px" }}>{l}</span>{v}
                 </span>
-              ) : null)}
+              ) : null; })}
             </div>
           </div>
 
           {/* Desenho — grande, na página 1 */}
           {img && (
             <div style={{ border: `1px solid ${line}`, borderRadius: "6px", overflow: "hidden", marginBottom: "7px", background: white, textAlign: "center" }}>
-              <div style={{ background: headerBg, color: white, padding: "4px 10px", fontSize: "6.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", textAlign: "left" }}>Desenho Técnico</div>
+              <div style={{ background: headerBg, color: white, padding: "4px 10px", fontSize: "6.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", textAlign: "left" }}>{tr("Desenho Técnico")}</div>
               <div style={{ padding: "6px 10px" }}>
                 <img src={img} alt="Desenho técnico" style={{ maxHeight: "515px", width: "100%", objectFit: "contain" }} />
               </div>
@@ -193,10 +198,10 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           {/* Tecidos & Variantes */}
           {tec.length > 0 && (
             <div style={{ marginBottom: "7px" }}>
-              <div style={{ background: headerBg, color: white, padding: "4px 10px", borderRadius: "4px 4px 0 0", fontSize: "6.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>Tecidos & Variantes</div>
+              <div style={{ background: headerBg, color: white, padding: "4px 10px", borderRadius: "4px 4px 0 0", fontSize: "6.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>{tr("Tecidos & Variantes")}</div>
               <table style={{ ...tbl }}>
                 <thead><tr style={{ ...headRow, background: bg }}>
-                  <th style={th}>Artigo</th><th style={{ ...th, width: "55px" }}>Forn.</th><th style={{ ...th, width: "75px" }}>Composição</th><th style={{ ...th, textAlign: "right", width: "38px" }}>Preço</th>
+                  <th style={th}>{tr("Artigo")}</th><th style={{ ...th, width: "55px" }}>{tr("Forn.")}</th><th style={{ ...th, width: "75px" }}>{tr("Composição")}</th><th style={{ ...th, textAlign: "right", width: "38px" }}>{tr("Preço")}</th>
                   {Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} style={{ ...th, textAlign: "center", width: "55px" }}><div>Var {String(i + 1).padStart(2, "0")}</div>{cor && <div style={{ marginTop: "3px", display: "inline-block", padding: "1px 5px", borderRadius: "3px", fontSize: "7px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333" }}>{cor}</div>}</th>); })}
                 </tr></thead>
                 <tbody>{tec.map((t, i) => { const cs = t.cores || []; return (
@@ -215,7 +220,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                     valores não caíam sob a cor correspondente. */}
                 {pantones && (pantones.var01 || pantones.var02 || pantones.var03 || pantones.var04) && (
                   <tr style={{ background: bg }}>
-                    <td colSpan={4} style={{ ...td, fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>Pantone</td>
+                    <td colSpan={4} style={{ ...td, fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Pantone")}</td>
                     {(["var01", "var02", "var03", "var04", "var05", "var06"] as const).slice(0, numVars).map(k => (
                       <td key={k} style={{ ...td, textAlign: "center", fontFamily: "monospace", fontSize: "7px", fontWeight: 700, color: navy, padding: "3px 2px" }}>{(pantones as any)[k] || "—"}</td>
                     ))}
@@ -224,7 +229,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 {fichaType === 'producao' && (["qtd", "pedido"] as const).map(campo => (
                   <tr key={campo} style={{ background: "#E8F0FE" }}>
                     <td colSpan={4} style={{ ...td, fontSize: "6.5px", fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {campo === "qtd" ? "Qtd. Compra 1" : "Nº Pedido 1"}
+                      {campo === "qtd" ? tr("Qtd. Compra 1") : tr("Nº Pedido 1")}
                     </td>
                     {Array.from({ length: numVars }, (_, i) => {
                       const cor = tec[0]?.cores?.[i];
@@ -270,12 +275,12 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           const alturaLinha = denso === 2 ? 18 : denso === 1 ? 23 : 31;
           return (
           <div className="print-page" style={pb()}>
-            <PageHead title="Aviamentação" />
+            <PageHead title={tr("Aviamentação")} />
             <table style={{ ...tbl, tableLayout: "fixed", pageBreakInside: "avoid" }}>
               <thead><tr style={headRow}>
                 <th style={{ ...thAvi, textAlign: "center", width: "18px" }}>#</th>
-                <th style={{ ...thAvi, width: "58px" }}>Código</th><th style={thAvi}>Matéria prima</th><th style={{ ...thAvi, width: "62px" }}>Fornecedor</th><th style={{ ...thAvi, width: "52px" }}>Cód. forn.</th><th style={{ ...thAvi, textAlign: "center", width: "22px" }}>Qtd</th>
-                <th style={{ ...thAvi, textAlign: "right", width: "38px" }}>Valor</th><th style={{ ...thAvi, width: "120px" }}>Localização</th>
+                <th style={{ ...thAvi, width: "58px" }}>{tr("Código")}</th><th style={thAvi}>{tr("Matéria prima")}</th><th style={{ ...thAvi, width: "62px" }}>{tr("Fornecedor")}</th><th style={{ ...thAvi, width: "52px" }}>{tr("Cód. forn.")}</th><th style={{ ...thAvi, textAlign: "center", width: "22px" }}>{tr("Qtd")}</th>
+                <th style={{ ...thAvi, textAlign: "right", width: "38px" }}>{tr("Valor")}</th><th style={{ ...thAvi, width: "120px" }}>{tr("Localização")}</th>
                 {/* Mesmo cabeçalho de "Tecidos & Variantes": o nº da variante
                     com o chip da cor correspondente logo abaixo. */}
                 {Array.from({length: numVars}, (_, i) => {
@@ -305,7 +310,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 ))}
               </tbody>
               <tfoot><tr>
-                <td colSpan={5} style={{ ...tdAvi, fontWeight: 800, borderTop: `2px solid ${headerBg}`, fontSize: "9px", paddingTop: "5px" }}>Total</td>
+                <td colSpan={5} style={{ ...tdAvi, fontWeight: 800, borderTop: `2px solid ${headerBg}`, fontSize: "9px", paddingTop: "5px" }}>{tr("Total")}</td>
                 <td style={{ ...tdAvi, textAlign: "right", fontWeight: 800, borderTop: `2px solid ${headerBg}`, fontSize: "9px", fontVariantNumeric: "tabular-nums", paddingTop: "5px" }}>R$ {avT.toFixed(2)}</td>
                 <td colSpan={numVars + 1} style={{ ...tdAvi, borderTop: `2px solid ${headerBg}` }} />
               </tr></tfoot>
@@ -341,7 +346,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               if (lado < 40) return null; // sem espaço util: omite a galeria em vez de estourar a folha
               return (
               <div style={{ marginTop: "12px", pageBreakInside: "avoid" }}>
-                <div style={{ background: headerBg, color: "white", fontSize: "8px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", padding: "4px 8px", borderRadius: "4px", marginBottom: "8px" }}>Referência Visual</div>
+                <div style={{ background: headerBg, color: "white", fontSize: "8px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", padding: "4px 8px", borderRadius: "4px", marginBottom: "8px" }}>{tr("Referência Visual")}</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                   {fotos.map(f => (
                     <div key={`${f.i}-${f.key}`} style={{ width: `${lado}px`, textAlign: "center", position: "relative" }}>
@@ -374,17 +379,17 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
             {artes.filter((a: any) => a.posicao !== "TAGLESS").map((arte: any, ai: number) => (
               <div key={`${arte.posicao}-${ai}`} style={{ flex: 1, border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                 {/* Arte header */}
-                <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>Arte {arte.posicao}</div>
+                <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>{tr("Arte")} {arte.posicao}</div>
                 {/* Arte image */}
                 <div style={{ padding: "6px", textAlign: "center", background: white, display: "flex", alignItems: "center", justifyContent: "center", flex: 1.3, minHeight: "40px", maxHeight: "300px", overflow: "hidden" }}>
-                  {arte.imagem ? <img src={arte.imagem} alt={arte.posicao} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>Sem imagem</span>}
+                  {arte.imagem ? <img src={arte.imagem} alt={arte.posicao} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>{tr("Sem imagem")}</span>}
                 </div>
                 {/* Largura */}
                 {arte.largura && <div style={{ textAlign: "center", fontSize: "8px", fontWeight: 700, color: accent, padding: "3px 0", background: bg, borderTop: `0.5px solid ${line}` }}>{arte.largura}</div>}
                 {/* Localização */}
                 {(arte.imagemLocal || arte.localizacao) && (
                   <div style={{ background: bg, borderTop: `0.5px solid ${line}`, padding: "5px 8px", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-                    <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>Localização Arte {arte.posicao}</div>
+                    <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>{tr("Localização")} {tr("Arte")} {arte.posicao}</div>
                     {arte.imagemLocal && <div style={{ textAlign: "center", marginBottom: arte.localizacao ? "4px" : 0, flex: 1, minHeight: "30px", maxHeight: "230px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><img src={arte.imagemLocal} alt={`Localização ${arte.posicao}`} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /></div>}
                     {arte.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4 }}>{arte.localizacao}</div>}
                   </div>
@@ -398,15 +403,15 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
             <div key={`tagless-${tgi}`} style={{ display: "flex", gap: "0", marginBottom: "10px", border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden" }}>
               {/* Arte TAGLESS */}
               <div style={{ flex: "0 0 28%", borderRight: `0.5px solid ${line}` }}>
-                <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>Tagless</div>
+                <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>{tr("Tagless")}</div>
                 <div style={{ padding: "6px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "90px", background: white }}>
-                  {tg.imagem ? <img src={tg.imagem} alt="Tagless" style={{ maxHeight: "130px", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>Sem imagem</span>}
+                  {tg.imagem ? <img src={tg.imagem} alt="Tagless" style={{ maxHeight: "130px", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>{tr("Sem imagem")}</span>}
                 </div>
                 {tg.largura && <div style={{ textAlign: "center", fontSize: "8px", fontWeight: 700, color: accent, padding: "3px 0", background: bg, borderTop: `0.5px solid ${line}` }}>{tg.largura}</div>}
               </div>
               {/* Localização TAGLESS */}
               <div style={{ flex: 1, padding: "5px 8px", background: bg }}>
-                <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>Localização Arte Tagless</div>
+                <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>{tr("Localização Arte Tagless")}</div>
                 {tg.imagemLocal && <div style={{ textAlign: "center", marginBottom: "4px" }}><img src={tg.imagemLocal} alt="Localização TAGLESS" style={{ maxHeight: "130px", maxWidth: "100%", objectFit: "contain" }} /></div>}
                 {tg.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4 }}>{tg.localizacao}</div>}
               </div>
@@ -416,11 +421,11 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           {/* Técnicas */}
           {tecnicas.length > 0 && (
             <div>
-              <div style={secTitle}>Técnicas de {tipoEstTitulo}</div>
+              <div style={secTitle}>{tr.importado ? `${tipoEstTitulo} Techniques` : `Técnicas de ${tipoEstTitulo}`}</div>
               <table style={tbl}>
                 <thead><tr style={headRow}>
                   <th style={{ ...th, textAlign: "center", width: "26px" }}>#</th>
-                  <th style={th}>Técnica</th>
+                  <th style={th}>{tr("Técnica")}</th>
                   {Array.from({length: numVarsEst}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} style={{ ...th, textAlign: "center", width: "70px" }}><div>Var {String(i + 1).padStart(2, "0")}</div>{cor && <div style={{ marginTop: "3px", display: "inline-block", padding: "1px 5px", borderRadius: "3px", fontSize: "7px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333" }}>{cor}</div>}</th>); })}
                 </tr></thead>
                 <tbody>{tecnicas.map((t: any, i: number) => (
@@ -436,7 +441,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
           {estamparia?.observacoes && (
             <div style={{ marginTop: "10px", background: bg, borderRadius: "6px", padding: "10px 14px", border: `0.5px solid ${line}` }}>
-              <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "3px" }}>Observações</div>
+              <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "3px" }}>{tr("Observações")}</div>
               <div style={{ fontSize: "8.5px", color: muted, whiteSpace: "pre-wrap" }}>{estamparia.observacoes}</div>
             </div>
           )}
@@ -445,7 +450,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         {/* Simulações — 2 variantes por página */}
         {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVarsEst).reduce<string[][]>((acc, vk, i) => { if (i % 2 === 0) acc.push([vk]); else acc[acc.length - 1].push(vk); return acc; }, []).map((pair, pageIdx) => (
           <div key={pageIdx} className="print-page fit-page" style={pb()}>
-            <PageHead title={`Simulações e Fotos — Variante${pair.length > 1 ? "s" : ""} ${pair.map((_, vi) => String(pageIdx * 2 + vi + 1).padStart(2, "0")).join(" e ")}`} sub={`${row.operacao} · ${row.fornecedor}`} />
+            <PageHead title={`${tr.importado ? "Mock-ups & Photos" : "Simulações e Fotos"} — ${tr("Variante")}${pair.length > 1 ? "s" : ""} ${pair.map((_, vi) => String(pageIdx * 2 + vi + 1).padStart(2, "0")).join(tr.importado ? " & " : " e ")}`} sub={`${row.operacao} · ${row.fornecedor}`} />
             <div style={{ display: "flex", gap: "14px", flex: 1, minHeight: 0 }}>
               {pair.map((vk, vi) => {
                 const sim = sims[vk] || {};
@@ -459,7 +464,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                     {/* Variant header */}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: bg, borderRadius: "6px", border: `0.5px solid ${line}` }}>
                       <div>
-                        <div style={{ fontSize: "11px", fontWeight: 800, color: navy }}>Variante {String(corIdx + 1).padStart(2, "0")}</div>
+                        <div style={{ fontSize: "11px", fontWeight: 800, color: navy }}>{tr("Variante")} {String(corIdx + 1).padStart(2, "0")}</div>
                         {corName && <div style={{ marginTop: "3px", display: "inline-block", padding: "2px 8px", borderRadius: "4px", fontSize: "8px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333" }}>{corName}</div>}
                       </div>
                       {st && <Badge text={st} color={stColor} />}
@@ -467,17 +472,17 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
                     {/* Simulação */}
                     <div style={{ flex: 1.35, display: "flex", flexDirection: "column", minHeight: 0 }}>
-                      <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px" }}>Simulação</div>
+                      <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px" }}>{tr("Simulação")}</div>
                       <div style={{ flex: 1, background: bg, borderRadius: "6px", border: `0.5px solid ${line}`, padding: "8px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "120px", overflow: "hidden" }}>
-                        {sim.imgSim ? <img src={sim.imgSim} alt="Simulação" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "9px" }}>Sem imagem</span>}
+                        {sim.imgSim ? <img src={sim.imgSim} alt="Simulação" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "9px" }}>{tr("Sem imagem")}</span>}
                       </div>
                     </div>
 
                     {/* Foto */}
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-                      <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px" }}>Foto</div>
+                      <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px" }}>{tr("Foto")}</div>
                       <div style={{ flex: 1, background: bg, borderRadius: "6px", border: `0.5px solid ${line}`, padding: "8px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "120px", overflow: "hidden" }}>
-                        {sim.imgFoto ? <img src={sim.imgFoto} alt="Foto" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "9px" }}>Sem imagem</span>}
+                        {sim.imgFoto ? <img src={sim.imgFoto} alt="Foto" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "9px" }}>{tr("Sem imagem")}</span>}
                       </div>
                     </div>
                   </div>
@@ -491,19 +496,19 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
       {/* ══════════ LIBERAÇÃO — Foto do produto (frente | costas) ══════════ */}
       {sec.liberacao && (imgFrente || imgCostas) && (
         <div className="print-page fit-page" style={pb()}>
-          <PageHead title="FOTO DO PRODUTO" sub={statusLib || "Pendente"} bg={modelagemColor} />
+          <PageHead title={tr("FOTO DO PRODUTO")} sub={statusLib || tr("Pendente")} bg={modelagemColor} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0 16px", marginBottom: "10px" }}>
-            <Field label="Referência" value={row.ref} />
-            <Field label="Descrição" value={row.desc} />
-            <Field label="Coleção" value={row.colecao} />
-            <Field label="Grade" value={row.grade} />
+            <Field label={tr("Referência")} value={row.ref} />
+            <Field label={tr("Descrição")} value={row.desc} />
+            <Field label={tr("Coleção")} value={row.colecao} />
+            <Field label={tr("Grade")} value={row.grade} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", flex: 1, minHeight: 0 }}>
-            {([["Frente", imgFrente], ["Costas", imgCostas]] as [string, string | null | undefined][]).map(([lbl, url]) => (
+            {([[tr("Frente"), imgFrente], [tr("Costas"), imgCostas]] as [string, string | null | undefined][]).map(([lbl, url]) => (
               <div key={lbl} style={{ border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                 <div style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: muted, padding: "5px 8px", borderBottom: `0.5px solid ${line}`, background: bg }}>{lbl}</div>
                 <div style={{ flex: 1, minHeight: "240px", display: "flex", alignItems: "center", justifyContent: "center", background: white, overflow: "hidden" }}>
-                  {url ? <img src={url} alt={lbl} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: "9px", color: light }}>Sem foto</span>}
+                  {url ? <img src={url} alt={lbl} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: "9px", color: light }}>{tr("Sem foto")}</span>}
                 </div>
               </div>
             ))}
@@ -513,7 +518,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
       {/* ══════════ LIBERAÇÃO — Pág 1: Tabela de Medidas + Fotos ══════════ */}
       {sec.liberacao && tm && pts.length > 0 && (() => {
-        const libTitle = fichaType === 'producao' ? 'TABELA DE PRODUÇÃO' : fichaType === 'mostruario' ? 'TABELA DE MOSTRUÁRIO' : 'TABELA DE DESENVOLVIMENTO';
+        const libTitle = tr(fichaType === 'producao' ? 'TABELA DE PRODUÇÃO' : fichaType === 'mostruario' ? 'TABELA DE MOSTRUÁRIO' : 'TABELA DE DESENVOLVIMENTO');
         const provaTitles = ["PROVA 1", "PROVA 2", "PROVA 3"] as const;
         const provaKeys = ["p1", "p2", "p3"] as const;
         const piColor = (st: string) => {
@@ -540,42 +545,42 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         const latestProvaIdx = latestPhotoProva ? parseInt(latestPhotoProva.slice(1)) : null;
         return (
         <div className="print-page" style={pb()}>
-          <PageHead title={libTitle} sub={statusLib || "Pendente"} bg={modelagemColor} />
+          <PageHead title={libTitle} sub={statusLib || tr("Pendente")} bg={modelagemColor} />
 
           {/* Aviso de Restrição */}
           {statusLib === "APROVADO COM RESTRIÇÃO" && (
             <div style={{ background: "#FFFBEB", border: `1px solid ${warn}`, borderRadius: "6px", padding: "8px 14px", marginBottom: "10px" }}>
               <div style={{ fontSize: "8px", fontWeight: 800, color: "#92400E", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                ⚠ ATENÇÃO: SE AS ALTERAÇÕES SOLICITADAS NÃO FOREM FEITAS, A PEÇA PODE SER DEVOLVIDA
+                {tr("⚠ ATENÇÃO: SE AS ALTERAÇÕES SOLICITADAS NÃO FOREM FEITAS, A PEÇA PODE SER DEVOLVIDA")}
               </div>
             </div>
           )}
           {statusLib === "REPROVADO" && (
             <div style={{ background: "#FEF2F2", border: `1px solid ${danger}`, borderRadius: "6px", padding: "8px 14px", marginBottom: "10px" }}>
               <div style={{ fontSize: "8px", fontWeight: 800, color: danger, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                ✗ PEÇA REPROVADA — FAVOR CORRIGIR CONFORME ANOTAÇÕES DE PROVA
+                {tr("✗ PEÇA REPROVADA — FAVOR CORRIGIR CONFORME ANOTAÇÕES DE PROVA")}
               </div>
             </div>
           )}
 
           {/* Info */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0 16px", marginBottom: "8px" }}>
-            <Field label="Referência" value={row.ref} />
-            <Field label="Descrição" value={row.desc} />
-            <Field label="Operação" value={row.operacao} />
-            <Field label="Estilista" value={row.estilista} />
-            <Field label="Fornecedor" value={row.fornecedor} />
-            <Field label="Drop" value={row.drop} />
-            <Field label="Coleção" value={row.colecao} />
-            <Field label="Grade" value={row.grade} />
+            <Field label={tr("Referência")} value={row.ref} />
+            <Field label={tr("Descrição")} value={row.desc} />
+            <Field label={tr("Operação")} value={row.operacao} />
+            <Field label={tr("Estilista")} value={row.estilista} />
+            <Field label={tr("Fornecedor")} value={row.fornecedor} />
+            <Field label={tr("Drop")} value={row.drop} />
+            <Field label={tr("Coleção")} value={row.colecao} />
+            <Field label={tr("Grade")} value={row.grade} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "0 16px", marginBottom: "10px", borderTop: `0.5px solid ${line}`, paddingTop: "6px" }}>
-            <Field label="Grupo" value={row.grupo} />
-            <Field label="Tabela Base" value={tm} />
-            <Field label="Padrão" value={gradBase || "—"} />
-            <Field label="Tamanho" value={gradBase || "—"} />
-            <Field label="Tecido" value={row.tecido} />
-            <Field label="Composição" value={compOf(row.tecido)} />
+            <Field label={tr("Grupo")} value={row.grupo} />
+            <Field label={tr("Tabela Base")} value={tm} />
+            <Field label={tr("Padrão")} value={gradBase || "—"} />
+            <Field label={tr("Tamanho")} value={gradBase || "—"} />
+            <Field label={tr("Tecido")} value={row.tecido} />
+            <Field label={tr("Composição")} value={compOf(row.tecido)} />
           </div>
 
           {/* Tabela de Medidas — apenas prova mais recente */}
@@ -598,20 +603,20 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               <table style={tbl}>
                 <thead>
                   <tr>
-                    <th style={{ ...th, textAlign: "center", width: "26px" }} rowSpan={2}>Cód</th>
-                    <th style={{ ...th }} rowSpan={2}>Descrição</th>
-                    <th style={{ ...th, textAlign: "center", width: "40px", fontWeight: 800 }} rowSpan={2}>{gradBase ? `Tab. (${gradBase})` : "Tab."}</th>
+                    <th style={{ ...th, textAlign: "center", width: "26px" }} rowSpan={2}>{tr("Cód")}</th>
+                    <th style={{ ...th }} rowSpan={2}>{tr("Descrição")}</th>
+                    <th style={{ ...th, textAlign: "center", width: "40px", fontWeight: 800 }} rowSpan={2}>{gradBase ? `${tr("Tab.")} (${gradBase})` : tr("Tab.")}</th>
                     <th colSpan={2} style={{ ...th, textAlign: "center", background: `${col}18`, borderBottom: `2px solid ${col}`, padding: "3px 4px" }}>
-                      <div style={{ fontWeight: 800, color: col, fontSize: "7.5px", letterSpacing: "0.06em" }}>PROVA {latestN}</div>
+                      <div style={{ fontWeight: 800, color: col, fontSize: "7.5px", letterSpacing: "0.06em" }}>{rotuloProva(tr, latestN)}</div>
                       {pi?.tipo && <div style={{ fontSize: "7px", color: col, fontWeight: 700, textTransform: "uppercase" }}>{pi.tipo}</div>}
                       {st && <div style={{ fontSize: "7px", color: col, fontWeight: 600 }}>{st}</div>}
                       {pi?.data && <div style={{ fontSize: "6.5px", color: muted, fontWeight: 500 }}>{pi.data}</div>}
                     </th>
-                    <th style={{ ...th, textAlign: "center", width: "42px", fontSize: "7px" }} rowSpan={2}>Tol.</th>
+                    <th style={{ ...th, textAlign: "center", width: "42px", fontSize: "7px" }} rowSpan={2}>{tr("Tol.")}</th>
                   </tr>
                   <tr style={headRow}>
-                    <th style={{ ...th, textAlign: "center", width: "42px", fontSize: "7px" }}>MED.</th>
-                    <th style={{ ...th, textAlign: "center", width: "34px", fontSize: "7px" }}>DIF</th>
+                    <th style={{ ...th, textAlign: "center", width: "42px", fontSize: "7px" }}>{tr("MED.")}</th>
+                    <th style={{ ...th, textAlign: "center", width: "34px", fontSize: "7px" }}>{tr("DIF")}</th>
                   </tr>
                 </thead>
                 <tbody>{pts.map((p: any, pi2: number) => {
@@ -640,13 +645,13 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
             <div style={{ display: "flex", gap: "14px", marginTop: "14px", alignItems: "flex-start" }}>
               {imgModoMedir && (
                 <div style={{ flex: 1, textAlign: "center" }}>
-                  <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "5px" }}>Modo de Medir</div>
+                  <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "5px" }}>{tr("Modo de Medir")}</div>
                   <img src={imgModoMedir} alt="Modo de Medir" style={{ width: "100%", maxHeight: "320px", objectFit: "contain", border: `0.5px solid ${line}`, borderRadius: "4px" }} />
                 </div>
               )}
               {(modeloFrenteUrl || modeloCostasUrl) && (
                 <div style={{ flex: 1, textAlign: "center" }}>
-                  <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "5px" }}>Modelo</div>
+                  <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "5px" }}>{tr("Modelo")}</div>
                   <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
                     {modeloFrenteUrl && <img src={modeloFrenteUrl} alt="Frente" style={{ maxHeight: "320px", maxWidth: "48%", objectFit: "contain", borderRadius: "4px" }} />}
                     {modeloCostasUrl && <img src={modeloCostasUrl} alt="Costas" style={{ maxHeight: "320px", maxWidth: "48%", objectFit: "contain", borderRadius: "4px" }} />}
@@ -686,25 +691,25 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         const piSt = pi?.status || "";
         const piCol = piSt.includes("REPROV") ? danger : piSt.includes("RESTR") ? warn : piSt.includes("APROV") || piSt.includes("LIBER") ? success : muted;
         const fotos = [
-          { label: "FRENTE", url: pi?.fotoFrente },
-          { label: "LADO", url: pi?.fotoLado },
-          { label: "COSTAS", url: pi?.fotoCostas },
+          { label: tr("FRENTE"), url: pi?.fotoFrente },
+          { label: tr("LADO"), url: pi?.fotoLado },
+          { label: tr("COSTAS"), url: pi?.fotoCostas },
         ].filter(f => f.url);
         return (
         <div className="print-page" style={pb()}>
-          <PageHead title="COMENTÁRIOS DE PROVA" sub={statusLib || "Pendente"} bg={modelagemColor} />
+          <PageHead title={tr("COMENTÁRIOS DE PROVA")} sub={statusLib || tr("Pendente")} bg={modelagemColor} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0 16px", marginBottom: "10px" }}>
-            <Field label="Referência" value={row.ref} />
-            <Field label="Descrição" value={row.desc} />
-            <Field label="Estilista" value={row.estilista} />
-            <Field label="Fornecedor" value={row.fornecedor} />
+            <Field label={tr("Referência")} value={row.ref} />
+            <Field label={tr("Descrição")} value={row.desc} />
+            <Field label={tr("Estilista")} value={row.estilista} />
+            <Field label={tr("Fornecedor")} value={row.fornecedor} />
           </div>
 
           {/* Fotos da prova mais recente — primeiro */}
           {fotos.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
               <div style={{ fontSize: "7px", fontWeight: 800, color: navy, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "8px", borderBottom: `1px solid ${lineDark}`, paddingBottom: "3px" }}>
-                Fotos da Prova {latestN}{pi?.tipo ? ` — ${pi.tipo}` : ""}
+                {rotuloFotosProva(tr, latestN)}{pi?.tipo ? ` — ${pi.tipo}` : ""}
               </div>
               <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
                 {fotos.map(f => (
@@ -721,7 +726,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           <div style={{ border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden" }}>
             <div style={{ background: `${piCol}18`, borderBottom: `1px solid ${piCol}44`, padding: "6px 12px", display: "flex", alignItems: "center", gap: "10px" }}>
               <div style={{ fontSize: "8px", fontWeight: 800, color: piCol, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                Anotações da Prova {latestN}{pilRow?.num ? ` — ${pilRow.num}` : pi?.tipo ? ` — ${pi.tipo}` : ""}
+                {rotuloAnotacoesProva(tr, latestN)}{pilRow?.num ? ` — ${pilRow.num}` : pi?.tipo ? ` — ${pi.tipo}` : ""}
               </div>
               {piSt && <div style={{ fontSize: "7.5px", color: piCol, fontWeight: 700 }}>— {piSt}</div>}
               {pi?.data && <div style={{ fontSize: "7px", color: muted, marginLeft: "auto" }}>{pi.data}</div>}
@@ -740,7 +745,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               )}
               {(a?.video || pi?.link) && (
                 <div style={{ fontSize: "8px", color: accent, marginBottom: "8px" }}>
-                  <span style={{ fontWeight: 700, color: muted, marginRight: "4px" }}>LINK DO VÍDEO:</span>
+                  <span style={{ fontWeight: 700, color: muted, marginRight: "4px" }}>{tr("LINK DO VÍDEO:")}</span>
                   {a?.video || pi?.link}
                 </div>
               )}
@@ -748,10 +753,10 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               {pilRow && (pilRow.num || pilRow.lacre || pilRow.prova) && (
                 <table style={{ ...tbl, marginTop: 0 }}>
                   <thead><tr style={headRow}>
-                    <th style={th}>Tipo</th>
-                    <th style={th}>Nº Lacre</th>
-                    <th style={th}>Data de Prova</th>
-                    <th style={th}>Status</th>
+                    <th style={th}>{tr("Tipo")}</th>
+                    <th style={th}>{tr("Nº Lacre")}</th>
+                    <th style={th}>{tr("Data de Prova")}</th>
+                    <th style={th}>{tr("Status")}</th>
                   </tr></thead>
                   <tbody>
                     <tr>
@@ -789,37 +794,37 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         const wTam = gradTamanhos.length > 6 ? "28px" : "34px";
         return (
         <div className="print-page" style={pb()}>
-          <PageHead title="GRADUAÇÃO DE PRODUÇÃO" sub={statusLib} bg={gradColor} />
+          <PageHead title={tr("GRADUAÇÃO DE PRODUÇÃO")} sub={statusLib} bg={gradColor} />
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0 16px", marginBottom: "12px" }}>
-            <Field label="Referência" value={row.ref} />
-            <Field label="Descrição" value={row.desc} />
-            <Field label="Fornecedor" value={row.fornecedor} />
-            <Field label="Estilista" value={row.estilista} />
-            <Field label="Grupo" value={row.grupo} />
-            <Field label="Tabela Base" value={row.tab_medidas} />
-            <Field label="Grade" value={row.grade} />
-            <Field label="Tamanho" value={gradBase || "—"} />
-            <Field label="Tecido" value={row.tecido} />
-            <Field label="Composição" value={row.composicao} />
-            <Field label="Coleção" value={row.colecao} />
-            <Field label="Operação" value={row.operacao} />
+            <Field label={tr("Referência")} value={row.ref} />
+            <Field label={tr("Descrição")} value={row.desc} />
+            <Field label={tr("Fornecedor")} value={row.fornecedor} />
+            <Field label={tr("Estilista")} value={row.estilista} />
+            <Field label={tr("Grupo")} value={row.grupo} />
+            <Field label={tr("Tabela Base")} value={row.tab_medidas} />
+            <Field label={tr("Grade")} value={row.grade} />
+            <Field label={tr("Tamanho")} value={gradBase || "—"} />
+            <Field label={tr("Tecido")} value={row.tecido} />
+            <Field label={tr("Composição")} value={row.composicao} />
+            <Field label={tr("Coleção")} value={row.colecao} />
+            <Field label={tr("Operação")} value={row.operacao} />
           </div>
 
           <table style={tbl}>
             <thead>
               <tr>
-                <th style={{ ...th, background: "#1a3a2a", color: white }} colSpan={gradTamanhos.length + 1}>GRADUAÇÃO</th>
-                <th style={{ ...th }}>Tolerância</th>
+                <th style={{ ...th, background: "#1a3a2a", color: white }} colSpan={gradTamanhos.length + 1}>{tr("GRADUAÇÃO")}</th>
+                <th style={{ ...th }}>{tr("Tolerância")}</th>
               </tr>
               <tr style={headRow}>
-                <th style={th}>Descrição</th>
+                <th style={th}>{tr("Descrição")}</th>
                 {gradTamanhos.map(t => (
                   <th key={t} style={t === gradBase
                     ? { ...th, textAlign: "center", width: wTam, background: "#FEFCE8", color: warn, fontWeight: 800 }
                     : { ...th, textAlign: "center", width: wTam, background: "#e6f4ed", color: success }}>{t}</th>
                 ))}
-                <th style={{ ...th, textAlign: "center", width: "44px" }}>Tol.</th>
+                <th style={{ ...th, textAlign: "center", width: "44px" }}>{tr("Tol.")}</th>
               </tr>
             </thead>
             <tbody>
@@ -844,8 +849,8 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
           {statusLib === "APROVADO COM RESTRIÇÃO" && (
             <div style={{ marginTop: "10px", background: "#FFF7ED", border: `0.5px solid ${warn}`, borderRadius: "6px", padding: "8px 12px" }}>
-              <div style={{ fontSize: "8px", color: warn, fontWeight: 700 }}>ATENÇÃO — Liberado com Restrição</div>
-              <div style={{ fontSize: "8px", color: navy, marginTop: "2px" }}>Valores em vermelho excedem a tolerância. Verificar antes de iniciar a produção completa.</div>
+              <div style={{ fontSize: "8px", color: warn, fontWeight: 700 }}>{tr("ATENÇÃO — Liberado com Restrição")}</div>
+              <div style={{ fontSize: "8px", color: navy, marginTop: "2px" }}>{tr("Valores em vermelho excedem a tolerância. Verificar antes de iniciar a produção completa.")}</div>
             </div>
           )}
         </div>
@@ -868,7 +873,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
              folga pro navegador/iOS aplicar margem própria sem estourar página. */
           .print-page { position: relative; padding-bottom: 24px; min-height: 250mm; box-sizing: border-box; }
           .print-page::after {
-            content: "Austral® · Confidencial";
+            content: "${tr("Austral® · Confidencial")}";
             position: absolute; bottom: 4px; left: 0; right: 0;
             text-align: center;
             font-size: 6.5px; color: ${lineDark}; letter-spacing: 0.08em;

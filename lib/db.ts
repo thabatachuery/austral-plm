@@ -446,6 +446,7 @@ export async function fetchFicha(ref: string, colecao?: string | null) {
     provas: Object.fromEntries((prv.data || []).map((p: any) => [p.ponto_cod, { p1: p.prova1, p2: p.prova2, p3: p.prova3 }])),
     anotacoes: Object.fromEntries((ant.data || []).map((a: any) => [`p${a.prova_num}`, { texto: a.anotacao || "", video: a.video_link || "" }])),
     estamparia: data.estamparia && Object.keys(data.estamparia).length > 0 ? data.estamparia : { artes: [{ posicao: "FRENTE", imagem: "", largura: "", localizacao: "" }, { posicao: "COSTAS", imagem: "", largura: "", localizacao: "" }, { posicao: "TAGLESS", imagem: "", largura: "", localizacao: "" }], tecnicas: [], simulacoes: { var01: { nome: "", imgSim: "", imgFoto: "", status: "" }, var02: { nome: "", imgSim: "", imgFoto: "", status: "" }, var03: { nome: "", imgSim: "", imgFoto: "", status: "" }, var04: { nome: "", imgSim: "", imgFoto: "", status: "" } }, observacoes: "" },
+    importado: data.importado || false,
     tabelaEspecialAtiva: data.tabela_especial_ativa || false,
     pontosEspeciais: [] as any[],
     gradEspecial: [] as any[],
@@ -588,6 +589,13 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
       console.error(`Erro ao salvar ${tableName}:`, result.error.message);
     }
   });
+  // Ficha de importado (rótulos em inglês) — gravado à parte de propósito: se
+  // ainda não rodaram a migration 030, só este campo se perde, em vez de o
+  // salvamento inteiro cair no retry sem os campos extras.
+  if (f.importado !== undefined) {
+    const { error } = await sb().from("fichas_tecnicas").update({ importado: !!f.importado }).eq("id", fid);
+    if (error) console.error("upsertFicha/importado (falta a migration 030?):", error.message);
+  }
   // Tabela especial
   if (f.tabelaEspecialAtiva !== undefined) await sb().from("fichas_tecnicas").update({ tabela_especial_ativa: f.tabelaEspecialAtiva }).eq("id", fid);
   if (f.tabelaEspecialAtiva && f.pontosEspeciais) {
