@@ -221,7 +221,7 @@ export async function fetchProdutos() {
 }
 export async function insertProduto(p: any): Promise<{ data: any; error: string | null }> {
   const { data, error } = await sb().from("produtos").insert({
-    ref: p.ref || "", descricao: p.desc || "", tecido: p.tecido || "",
+    ref: String(p.ref ?? "").trim(), descricao: p.desc || "", tecido: p.tecido || "",
     forn_tecido: p.forn_tecido || "", status: p.status || "DESENVOLVIMENTO",
     piloto_most: p.piloto_most || "", colecao: p.colecao || "",
     grupo: p.grupo || "", subgrupo: p.subgrupo || "",
@@ -309,7 +309,11 @@ export async function updateProdutoField(id: number, field: string, value: any):
 export async function updateProdutoFields(id: number, patch: Record<string, any>): Promise<string | null> {
   const m: Record<string, string> = { desc: "descricao", drop: "drop_num" };
   const upd: Record<string, any> = {};
-  for (const [k, v] of Object.entries(patch)) upd[m[k] || k] = v;
+  // Apara espaço nas pontas de todo texto. A referência é o que dói: ela é a
+  // chave que fichas_tecnicas e controle_fluxo guardam, e um " 23090002 " colado
+  // de outra planilha vira uma ref que não casa com nada — a ficha salva sob
+  // ela some para o script do Illustrator e para qualquer busca por igualdade.
+  for (const [k, v] of Object.entries(patch)) upd[m[k] || k] = typeof v === "string" ? v.trim() : v;
   if (!Object.keys(upd).length) return null;
 
   // O select devolve a linha já gravada — é dela que saem a referência e o par

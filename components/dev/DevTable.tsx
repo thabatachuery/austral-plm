@@ -230,6 +230,10 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
   };
 
   const upd = async (id:number, k:string, v:string|number) => {
+    // Apara aqui também (o db.ts já apara ao gravar): sem isso a checagem de
+    // duplicata abaixo compara " 23090002 " com "23090002" e deixa passar, e a
+    // tela fica mostrando o valor com espaço até recarregar.
+    if (typeof v === "string") v = v.trim();
     // Validate unique ref
     if (k === "ref" && v) {
       const dup = rows.find((r:any) => r.ref === v && r.id !== id);
