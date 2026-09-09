@@ -56,6 +56,35 @@ const EN: Record<string, string> = {
   "REPILOTANDO PRODUÇÃO": "PRODUCTION RE-SAMPLING",
   "CANCELADO": "CANCELLED",
 
+  // ── Status: liberação, prova e simulação ──
+  // Listas fechadas, escolhidas em botão/seletor — não são cadastro livre como
+  // cor e fornecedor. Cada uma entra duas vezes: o valor gravado (em caixa
+  // alta, que é o que sai impresso) e o rótulo do botão (em caixa mista).
+  "AGUARDANDO PROVA": "PENDING FITTING",
+  "Aguardando prova": "Pending fitting",
+  "APROVADO": "APPROVED",
+  "Aprovado": "Approved",
+  "REPROVADO": "REJECTED",
+  "Reprovado": "Rejected",
+  "APROVADO COM RESTRIÇÃO": "APPROVED WITH RESTRICTIONS",
+  "Aprov. c/ restrição": "Appr. w/ restr.",
+  "LIBERADO": "APPROVED",
+  "Liberado": "Approved",
+  "LIBERADO C/ RESTRIÇÃO": "APPROVED W/ RESTRICTIONS",
+  "Liberado c/ restrição": "Appr. w/ restr.",
+  "APROVADA IDEM PILOTO": "APPROVED SAME AS PROTO",
+  "Aprov. Idem Piloto": "Appr. same as proto",
+  "LIBERADA DIRETO MOSTRUÁRIO": "RELEASED DIRECT TO SMS",
+  "Liberada Direto": "Released direct",
+  "APROVADA IDEM MOSTRUÁRIO": "APPROVED SAME AS SMS",
+  "Aprov. Idem Mostr.": "Appr. same as SMS",
+  "COR NOVA - ENVIAR BANDEIRA": "NEW COLOR - SEND STRIKE-OFF",
+  "Cor Nova": "New color",
+  "REPROVADA - ENVIAR BANDEIRA CORRIGIDA": "REJECTED - SEND CORRECTED STRIKE-OFF",
+  "Reprovada": "Rejected",
+  "Liberado com restrição — verificar pontos em vermelho antes de produção.":
+    "Approved with restrictions — check the points in red before production.",
+
   // ── Seções e cabeçalhos de página ──
   "FICHA TÉCNICA": "TECH PACK",
   "Ficha Técnica": "Tech Pack",

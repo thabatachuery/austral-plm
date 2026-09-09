@@ -1361,7 +1361,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                           ["COR NOVA - ENVIAR BANDEIRA",       "Cor Nova",            "bg-[rgba(255,149,0,0.15)] text-[#9a5000] border-[rgba(255,149,0,0.35)]"],
                           ["REPROVADA - ENVIAR BANDEIRA CORRIGIDA", "Reprovada",      "bg-[rgba(255,59,48,0.12)] text-[#d70015] border-[rgba(255,59,48,0.25)]"],
                         ] as [string, string, string][]).map(([val, label, cls]) => (
-                          <button key={val} onClick={() => updSim(vk, "status", sim.status === val ? "" : val)} className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all ${sim.status === val ? cls : "border-[var(--separator-opaque)] text-[var(--label-quaternary)] bg-transparent hover:border-[var(--label-tertiary)]"}`}>{label}</button>
+                          <button key={val} onClick={() => updSim(vk, "status", sim.status === val ? "" : val)} className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all ${sim.status === val ? cls : "border-[var(--separator-opaque)] text-[var(--label-quaternary)] bg-transparent hover:border-[var(--label-tertiary)]"}`}>{tr(label)}</button>
                         ))}
                       </div>
                     </div>
@@ -1441,7 +1441,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               ] as [string, string, string][]).map(([val, label, cls]) => (
                 <button key={val} onClick={() => setStatusLib(prev => prev === val ? "" : val)}
                   className={`px-3.5 py-1 rounded-full text-[12px] font-semibold border transition-all ${statusLib === val ? cls : "border-[var(--separator-opaque)] text-[var(--label-quaternary)] bg-transparent hover:border-[var(--label-tertiary)]"}`}>
-                  {label}
+                  {tr(label)}
                 </button>
               ))}
             </div>
@@ -1502,10 +1502,10 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                           className="w-full text-[11px] font-semibold rounded-lg px-2 py-1.5 outline-none border cursor-pointer"
                         >
                           <option value="">Status...</option>
-                          <option value="AGUARDANDO PROVA">Aguardando prova</option>
-                          <option value="LIBERADO">Liberado</option>
-                          <option value="LIBERADO C/ RESTRIÇÃO">Liberado c/ restrição</option>
-                          <option value="REPROVADO">Reprovado</option>
+                          <option value="AGUARDANDO PROVA">{tr("Aguardando prova")}</option>
+                          <option value="LIBERADO">{tr("Liberado")}</option>
+                          <option value="LIBERADO C/ RESTRIÇÃO">{tr("Liberado c/ restrição")}</option>
+                          <option value="REPROVADO">{tr("Reprovado")}</option>
                         </select>
                         <select
                           value={(info as any).tipo || ""}
@@ -1801,7 +1801,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             {/* Header */}
             <div style={{ background: gradColor }} className="text-white rounded-xl px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
               <span className="text-[13px] font-bold tracking-[0.04em]">{tr("GRADUAÇÃO DE PRODUÇÃO")}</span>
-              <span className="text-[11px] font-semibold bg-white/15 px-3 py-0.5 rounded-full">{statusLib}</span>
+              <span className="text-[11px] font-semibold bg-white/15 px-3 py-0.5 rounded-full">{tr(statusLib)}</span>
               <span className="text-[12px]"><span className="text-white/60">{tr("Coleção")}</span> <span className="font-semibold ml-1">{row.colecao}</span></span>
             </div>
 
@@ -1866,7 +1866,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
 
             <p className="text-[11px] text-[var(--label-tertiary)]">
               Coluna {gradBase} = medida da tabela base. Demais tamanhos calculados a partir dela somando as ampliações.
-              {statusLib === "APROVADO COM RESTRIÇÃO" && <span className="ml-1 text-orange-500 font-semibold">Liberado com restrição — verificar pontos em vermelho antes de produção.</span>}
+              {statusLib === "APROVADO COM RESTRIÇÃO" && <span className="ml-1 text-orange-500 font-semibold">{tr("Liberado com restrição — verificar pontos em vermelho antes de produção.")}</span>}
             </p>
           </div>
           );

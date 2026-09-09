@@ -467,7 +467,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                         <div style={{ fontSize: "11px", fontWeight: 800, color: navy }}>{tr("Variante")} {String(corIdx + 1).padStart(2, "0")}</div>
                         {corName && <div style={{ marginTop: "3px", display: "inline-block", padding: "2px 8px", borderRadius: "4px", fontSize: "8px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333" }}>{corName}</div>}
                       </div>
-                      {st && <Badge text={st} color={stColor} />}
+                      {st && <Badge text={tr(st)} color={stColor} />}
                     </div>
 
                     {/* Simulação */}
@@ -496,7 +496,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
       {/* ══════════ LIBERAÇÃO — Foto do produto (frente | costas) ══════════ */}
       {sec.liberacao && (imgFrente || imgCostas) && (
         <div className="print-page fit-page" style={pb()}>
-          <PageHead title={tr("FOTO DO PRODUTO")} sub={statusLib || tr("Pendente")} bg={modelagemColor} />
+          <PageHead title={tr("FOTO DO PRODUTO")} sub={tr(statusLib || "") || tr("Pendente")} bg={modelagemColor} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0 16px", marginBottom: "10px" }}>
             <Field label={tr("Referência")} value={row.ref} />
             <Field label={tr("Descrição")} value={row.desc} />
@@ -545,7 +545,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         const latestProvaIdx = latestPhotoProva ? parseInt(latestPhotoProva.slice(1)) : null;
         return (
         <div className="print-page" style={pb()}>
-          <PageHead title={libTitle} sub={statusLib || tr("Pendente")} bg={modelagemColor} />
+          <PageHead title={libTitle} sub={tr(statusLib || "") || tr("Pendente")} bg={modelagemColor} />
 
           {/* Aviso de Restrição */}
           {statusLib === "APROVADO COM RESTRIÇÃO" && (
@@ -609,7 +609,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                     <th colSpan={2} style={{ ...th, textAlign: "center", background: `${col}18`, borderBottom: `2px solid ${col}`, padding: "3px 4px" }}>
                       <div style={{ fontWeight: 800, color: col, fontSize: "7.5px", letterSpacing: "0.06em" }}>{rotuloProva(tr, latestN)}</div>
                       {pi?.tipo && <div style={{ fontSize: "7px", color: col, fontWeight: 700, textTransform: "uppercase" }}>{pi.tipo}</div>}
-                      {st && <div style={{ fontSize: "7px", color: col, fontWeight: 600 }}>{st}</div>}
+                      {st && <div style={{ fontSize: "7px", color: col, fontWeight: 600 }}>{tr(st)}</div>}
                       {pi?.data && <div style={{ fontSize: "6.5px", color: muted, fontWeight: 500 }}>{pi.data}</div>}
                     </th>
                     <th style={{ ...th, textAlign: "center", width: "42px", fontSize: "7px" }} rowSpan={2}>{tr("Tol.")}</th>
@@ -697,7 +697,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         ].filter(f => f.url);
         return (
         <div className="print-page" style={pb()}>
-          <PageHead title={tr("COMENTÁRIOS DE PROVA")} sub={statusLib || tr("Pendente")} bg={modelagemColor} />
+          <PageHead title={tr("COMENTÁRIOS DE PROVA")} sub={tr(statusLib || "") || tr("Pendente")} bg={modelagemColor} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0 16px", marginBottom: "10px" }}>
             <Field label={tr("Referência")} value={row.ref} />
             <Field label={tr("Descrição")} value={row.desc} />
@@ -728,7 +728,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               <div style={{ fontSize: "8px", fontWeight: 800, color: piCol, textTransform: "uppercase", letterSpacing: "0.08em" }}>
                 {rotuloAnotacoesProva(tr, latestN)}{pilRow?.num ? ` — ${pilRow.num}` : pi?.tipo ? ` — ${pi.tipo}` : ""}
               </div>
-              {piSt && <div style={{ fontSize: "7.5px", color: piCol, fontWeight: 700 }}>— {piSt}</div>}
+              {piSt && <div style={{ fontSize: "7.5px", color: piCol, fontWeight: 700 }}>— {tr(piSt)}</div>}
               {pi?.data && <div style={{ fontSize: "7px", color: muted, marginLeft: "auto" }}>{pi.data}</div>}
             </div>
             <div style={{ padding: "8px 12px" }}>
@@ -763,7 +763,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                       <td style={td}>{pilRow.num || "—"}</td>
                       <td style={td}>{pilRow.lacre || "—"}</td>
                       <td style={td}>{pilRow.prova || "—"}</td>
-                      <td style={{ ...td, fontWeight: 700, color: piCol }}>{piSt || "—"}</td>
+                      <td style={{ ...td, fontWeight: 700, color: piCol }}>{tr(piSt) || "—"}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -794,7 +794,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         const wTam = gradTamanhos.length > 6 ? "28px" : "34px";
         return (
         <div className="print-page" style={pb()}>
-          <PageHead title={tr("GRADUAÇÃO DE PRODUÇÃO")} sub={statusLib} bg={gradColor} />
+          <PageHead title={tr("GRADUAÇÃO DE PRODUÇÃO")} sub={tr(statusLib || "")} bg={gradColor} />
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0 16px", marginBottom: "12px" }}>
             <Field label={tr("Referência")} value={row.ref} />
