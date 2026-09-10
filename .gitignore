@@ -13,3 +13,6 @@ next-env.d.ts
 
 # gerado pelo Instalar-PLM.ps1 — carrega a chave anon do Supabase
 illustrator/plm-config.json
+
+# backups locais do banco (gerados por scripts/backup.mjs)
+backup/

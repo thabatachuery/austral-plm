@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:types": "npx supabase gen types typescript --project-id YOUR_PROJECT_ID > lib/database.types.ts"
+    "db:types": "npx supabase gen types typescript --project-id YOUR_PROJECT_ID > lib/database.types.ts",
+    "db:backup": "node scripts/backup.mjs",
+    "db:restaurar": "node scripts/restaurar.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",
