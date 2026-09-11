@@ -182,7 +182,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-              {([["Tecido", row.tecido, false], ["Forn. Tecido", row.forn_tecido, false], ["Composição", row.composicao || compOf(row.tecido), false], ["Operação", row.operacao, false], ["Fornecedor", row.fornecedor, false], ["Estilista", row.estilista, false], ["Tab. Medidas", row.tab_medidas, false], ["NCM", ncm || "", true], ["Peso Estimado", peso?.pesoG != null ? `${peso.pesoG.toLocaleString("pt-BR")} g` : "", false]] as [string, string, boolean][]).map(([lPt, v, mono], i) => { const l = tr(lPt); return (
+              {([["Tecido", row.tecido, false], ["Forn. Tecido", row.forn_tecido, false], ["Composição", row.composicao || compOf(row.tecido), false], ["Operação", row.operacao, false], ["Fornecedor", row.fornecedor, false], ["Estilista", row.estilista, false], ["Tabela de Medidas", row.tab_medidas, false], ["NCM", ncm || "", true], ["Peso Estimado", peso?.pesoG != null ? `${peso.pesoG.toLocaleString("pt-BR")} g` : "", false]] as [string, string, boolean][]).map(([lPt, v, mono], i) => { const l = tr(lPt); return (
                 <div key={l} style={{ padding: "2px 10px", borderBottom: `0.5px solid ${line}`, borderRight: i % 2 === 0 ? `0.5px solid ${line}` : "none" }}>
                   <div style={{ fontSize: "5.5px", fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>{l}</div>
                   <div style={{ fontSize: "8px", fontWeight: 700, color: navy, ...(mono ? { fontFamily: "monospace" } : {}) }}>{v || "—"}</div>
@@ -190,7 +190,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               ); })}
             </div>
             <div style={{ padding: "3px 10px", display: "flex", gap: "4px", flexWrap: "wrap", background: bg, borderTop: `0.5px solid ${line}` }}>
-              {([["Drop", row.drop], ["Grade", row.grade], ["Tipo", row.tipo], ["Linha", row.linha], ["Grupo", row.grupo], ["Subgrupo", row.subgrupo], ["Categoria", row.categoria]] as [string, string][]).map(([lPt, v]) => { const l = tr(lPt); return v ? (
+              {([["Drop", row.drop], ["Grade", row.grade], ["Tipo", row.tipo], ["Linha", row.linha], ["Grupo", row.grupo], ["Subgrupo", row.subgrupo], ["Categoria", row.categoria], ["Subcategoria", row.subcategoria]] as [string, string][]).map(([lPt, v]) => { const l = tr(lPt); return v ? (
                 <span key={l} style={{ fontSize: "7px", fontWeight: 700, background: white, border: `0.5px solid ${lineDark}`, borderRadius: "3px", padding: "1px 6px", color: navy }}>
                   <span style={{ color: muted, fontWeight: 600, marginRight: "2px" }}>{l}</span>{v}
                 </span>

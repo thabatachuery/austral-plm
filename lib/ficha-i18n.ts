@@ -29,7 +29,7 @@ const EN: Record<string, string> = {
   "Forn.": "Supplier",
   "Estilista": "Designer",
   "Tab. medidas": "Size chart",
-  "Tab. Medidas": "Size Chart",
+  "Tabela de Medidas": "Size Chart",
   "Tabela base": "Base chart",
   "Tabela Base": "Base Chart",
   "Tabela de medidas": "Measurement chart",
