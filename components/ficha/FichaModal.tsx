@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 import { uploadImage, deleteImage } from "@/lib/storage";
-import { fetchFicha, fetchFichasColecoes, reorderFichaColecoes, deleteFichaColecao, upsertFicha, saveFichaImagem, imagemUsadaEmOutraFicha, updateProdutoField, fetchPontosByTabelaNome, fetchGraduacoesByTabelaNome, fetchCadastros, fetchAviamentos, fetchTecidos, fetchVarianteCompras, fetchTabelasMedidas, criarAlerta } from "@/lib/db";
+import { fetchFicha, fetchFichasColecoes, reorderFichaColecoes, deleteFichaColecao, upsertFicha, saveFichaImagem, imagemUsadaEmOutraFicha, updateProdutoField, fetchPontosByTabelaNome, fetchGraduacoesByTabelaNome, fetchCadastros, fetchAviamentos, fetchTecidos, fetchVarianteCompras, fetchTabelasMedidas, criarAlertas, novoGrupoAlerta, type NovoAlerta } from "@/lib/db";
 import { classificarNCM } from "@/lib/ncm";
 import { calcularPesoPeca, type ResultadoPeso } from "@/lib/peso";
 import { fotosParaExibir } from "@/lib/aviamento-fotos";
@@ -361,11 +361,17 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     return null;
   };
 
-  // Popup de alerta pros outros usuários: compara o estado atual de tecidos/
-  // aviamentos com o baseline (última versão salva/carregada) e dispara um
-  // alerta por diferença encontrada, só quando o SKU já está liberado/repilotando.
-  const alertarFichaAlterada = () => {
-    if (!user || !STATUS_ALERTA.includes(row.status)) return;
+  // Compara o estado atual de tecidos/aviamentos com o baseline — que agora é
+  // o da ABERTURA da ficha, não o do último save — e devolve uma diferença por
+  // campo alterado, só quando o SKU já está liberado/repilotando.
+  //
+  // O baseline não anda mais a cada save de propósito: o auto-save roda 1,5s
+  // depois de cada tecla parada, e comparar contra ele fazia uma sessão de
+  // edição virar uma rajada de alertas (14 num minuto só, no pior caso real).
+  // Comparando contra a abertura, ida e volta se cancela: quem digita um
+  // código errado e corrige não avisa ninguém de nada.
+  const coletarAlteracoes = (): NovoAlerta[] => {
+    if (!user || !STATUS_ALERTA.includes(row.status)) return [];
     const baseline = baselineRef.current;
     const alertas: { categoria: "COR" | "TECIDO" | "AVIAMENTO"; campo: string; de: string; para: string }[] = [];
 
@@ -392,7 +398,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       if ((before.local || "") !== (after.local || "")) alertas.push({ categoria: "AVIAMENTO", campo: `Aviamento ${label} — localização`, de: before.local || "", para: after.local || "" });
     }
 
-    alertas.forEach(a => criarAlerta({
+    return alertas.map(a => ({
       produtoRef: row.ref,
       categoria: a.categoria,
       campo: a.campo,
@@ -402,6 +408,27 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       alteradoPorNome: nomeUsuario(user),
       alteradoPorUserId: user.id,
     }));
+  };
+
+  // Alertas que não saem da comparação de tecido/aviamento (hoje, a troca
+  // automática de status) e que esperam o fim da edição para ir junto.
+  const pendentesRef = useRef<NovoAlerta[]>([]);
+
+  // Fecha a sessão de edição: tudo que mudou desde que a ficha abriu vira UM
+  // aviso, com a mesma marca de grupo, e a tela de quem recebe mostra um popup
+  // só listando as alterações.
+  //
+  // Sai no fechamento da ficha, e não a cada save, porque é aí que a edição
+  // terminou — o estado avisado é o final, não um passo intermediário. Em
+  // troca, fechar o navegador com a ficha aberta não avisa ninguém; o save dos
+  // dados já aconteceu, só o aviso se perde.
+  const enviarAlertasDaSessao = async () => {
+    const alertas = [...pendentesRef.current, ...coletarAlteracoes()];
+    pendentesRef.current = [];
+    if (!alertas.length) return;
+    baselineRef.current = { tec, avi };
+    const grupoId = novoGrupoAlerta();
+    await criarAlertas(alertas.map(a => ({ ...a, grupoId })));
   };
 
   const save = async (confirmed = false) => {
@@ -419,14 +446,16 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       const newId = await upsertFicha(row.ref, fichaData, isClassic ? selectedColecao : null);
       if (!newId) throw new Error("Falha ao salvar a ficha técnica.");
       setFichaId(newId);
-      alertarFichaAlterada();
-      baselineRef.current = { tec, avi };
+      // O aviso não sai daqui: o save roda a cada 1,5s de digitação, e avisar
+      // no save era o que enchia a tela de todo mundo. Sai no fechamento da
+      // ficha, por enviarAlertasDaSessao().
+      //
       // Só mexe no status (e só avisa) se ele realmente muda. Sem isso, abrir a
       // ficha já disparava o auto-save e gerava um alerta "X → X" para todo
       // mundo, mesmo sem ninguém ter alterado nada.
       if (autoStatus && autoStatus !== row.status) {
         if (user && STATUS_ALERTA.includes(row.status)) {
-          criarAlerta({
+          pendentesRef.current.push({
             produtoRef: row.ref, categoria: "STATUS", campo: "Status atual",
             valorAnterior: row.status, valorNovo: autoStatus, statusProduto: row.status,
             alteradoPorNome: nomeUsuario(user), alteradoPorUserId: user.id,
@@ -672,6 +701,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       });
       if (!confirmed) return;
     }
+    await enviarAlertasDaSessao();
     onClose();
   };
 

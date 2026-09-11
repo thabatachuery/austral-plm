@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import DevTable from "@/components/dev/DevTable";
 import VariantesTable from "@/components/dev/VariantesTable";
 import CadView from "@/components/cadastros/CadView";
@@ -18,7 +18,7 @@ import MapaColecaoView from "@/components/dev/MapaColecaoView";
 import MapaEntregasView from "@/components/dev/MapaEntregasView";
 import EtiquetasLineView from "@/components/dev/EtiquetasLineView";
 import CalendarioView from "@/components/calendario/CalendarioView";
-import { fetchProdutos, fetchAllVariantes, fetchVariantesPorColecao, fetchAlertasPendentes, marcarAlertaCiente, mapProduto } from "@/lib/db";
+import { fetchProdutos, fetchAllVariantes, fetchVariantesPorColecao, fetchAlertasPendentes, marcarAlertasCiente, mapProduto } from "@/lib/db";
 import { COMPRAS_STATUS_ALLOW } from "@/lib/constants";
 import { subscribeRealtime } from "@/lib/realtime";
 import { nomeUsuario } from "@/lib/utils";
@@ -82,11 +82,37 @@ export default function Home() {
     fetchAlertasPendentes(user.id).then(setAlertaFila);
   }, [user]);
 
-  const alertaAtual = alertaFila[0];
+  /* As alterações de uma mesma edição chegam com o mesmo grupo_id e viram um
+     aviso só. Alerta antigo (anterior à coluna grupo_id) tem grupo nulo e vale
+     por si, como sempre valeu. */
+  const gruposAlerta = useMemo(() => {
+    // Objeto + lista de ordem em vez de Map: o projeto compila para ES5 e
+    // iterar Map exige downlevelIteration.
+    const porGrupo: Record<string, Alerta[]> = {};
+    const ordem: string[] = [];
+    for (const a of alertaFila) {
+      const chave = a.grupo_id || `id:${a.id}`;
+      if (!porGrupo[chave]) { porGrupo[chave] = []; ordem.push(chave); }
+      porGrupo[chave].push(a);
+    }
+    return ordem.map(chave => porGrupo[chave]);
+  }, [alertaFila]);
+
+  const grupoAtual = gruposAlerta[0];
   const handleAlertaCiente = async () => {
-    if (!user || !alertaAtual) return;
-    await marcarAlertaCiente(alertaAtual.id, user.id);
-    setAlertaFila(prev => prev.slice(1));
+    if (!user || !grupoAtual) return;
+    const ids = grupoAtual.map((a: Alerta) => a.id);
+    const noGrupo = new Set(ids);
+    await marcarAlertasCiente(ids, user.id);
+    setAlertaFila(prev => prev.filter(a => !noGrupo.has(a.id)));
+  };
+
+  /* Válvula para quem volta de férias com a fila cheia: sem isso, era clicar
+     "OK, CIENTE" uma vez por aviso até o fim. */
+  const handleAlertaCienteTodos = async () => {
+    if (!user || !alertaFila.length) return;
+    await marcarAlertasCiente(alertaFila.map(a => a.id), user.id);
+    setAlertaFila([]);
   };
 
   /* ── Realtime: sincroniza produtos e variantes entre usuários ── */
@@ -365,7 +391,7 @@ export default function Home() {
       {fichaRow && <FichaModal row={fichaRow} onClose={() => setFichaRow(null)} onSave={handleFichaSave} />}
       {laudoRow && <LaudoPPPedidosModal row={laudoRow} onClose={() => setLaudoRow(null)} />}
       {showUsers && <UsersModal onClose={() => setShowUsers(false)} />}
-      {alertaAtual && <AlertaFichaModal alerta={alertaAtual} total={alertaFila.length} onCiente={handleAlertaCiente} />}
+      {grupoAtual && <AlertaFichaModal grupo={grupoAtual} avisosPendentes={gruposAlerta.length} alteracoesPendentes={alertaFila.length} onCiente={handleAlertaCiente} onCienteTodos={handleAlertaCienteTodos} />}
     </div>
   );
 }

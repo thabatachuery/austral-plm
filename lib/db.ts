@@ -1019,10 +1019,18 @@ export type NovoAlerta = {
   statusProduto: string;
   alteradoPorNome: string;
   alteradoPorUserId: string;
+  grupoId?: string;
 };
 
-export async function criarAlerta(a: NovoAlerta) {
-  const { error } = await sb().from("alertas").insert({
+// Marca que junta as alterações de uma mesma edição: a tela mostra um aviso
+// só para o grupo inteiro, em vez de um popup por campo alterado.
+export function novoGrupoAlerta(): string {
+  try { return crypto.randomUUID(); }
+  catch { return `g${Date.now()}-${Math.random().toString(36).slice(2, 10)}`; }
+}
+
+function linhaAlerta(a: NovoAlerta) {
+  return {
     produto_ref: a.produtoRef,
     categoria: a.categoria,
     campo: a.campo,
@@ -1031,8 +1039,22 @@ export async function criarAlerta(a: NovoAlerta) {
     status_produto: a.statusProduto,
     alterado_por_nome: a.alteradoPorNome,
     alterado_por_user_id: a.alteradoPorUserId,
-  });
+    grupo_id: a.grupoId ?? null,
+  };
+}
+
+export async function criarAlerta(a: NovoAlerta) {
+  const { error } = await sb().from("alertas").insert(linhaAlerta(a));
   if (error) console.error("criarAlerta:", error);
+}
+
+// Insere a leva toda de uma vez: além de uma ida só ao servidor, as linhas
+// chegam juntas no realtime, então o aviso já aparece completo do outro lado
+// em vez de crescer na tela de quem está recebendo.
+export async function criarAlertas(lista: NovoAlerta[]) {
+  if (!lista.length) return;
+  const { error } = await sb().from("alertas").insert(lista.map(linhaAlerta));
+  if (error) console.error("criarAlertas:", error);
 }
 
 export async function fetchAlertasPendentes(userId: string): Promise<any[]> {
@@ -1049,4 +1071,14 @@ export async function fetchAlertasPendentes(userId: string): Promise<any[]> {
 export async function marcarAlertaCiente(alertaId: number, userId: string) {
   const { error } = await sb().from("alerta_ciente").insert({ alerta_id: alertaId, user_id: userId });
   if (error) console.error("marcarAlertaCiente:", error);
+}
+
+// Dá ciência em vários de uma vez — o grupo inteiro de uma edição, ou a fila
+// toda pelo "ciente de todos". upsert porque o mesmo alerta pode já constar
+// (duas abas abertas, por exemplo) e a chave é (alerta_id, user_id).
+export async function marcarAlertasCiente(alertaIds: number[], userId: string) {
+  if (!alertaIds.length) return;
+  const linhas = alertaIds.map(id => ({ alerta_id: id, user_id: userId }));
+  const { error } = await sb().from("alerta_ciente").upsert(linhas, { onConflict: "alerta_id,user_id", ignoreDuplicates: true });
+  if (error) console.error("marcarAlertasCiente:", error);
 }

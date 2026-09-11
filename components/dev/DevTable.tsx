@@ -4,7 +4,7 @@ import InlineCell from "@/components/ui/InlineCell";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import COLUMNS from "@/lib/columns";
-import { fetchCadastros, fetchTecidos, fetchNomesTabelasMedidas, updateProdutoFields, insertProduto, deleteProduto, cloneProduto, bulkUpdateStatus, criarAlerta } from "@/lib/db";
+import { fetchCadastros, fetchTecidos, fetchNomesTabelasMedidas, updateProdutoFields, insertProduto, deleteProduto, cloneProduto, bulkUpdateStatus, criarAlerta, novoGrupoAlerta } from "@/lib/db";
 import { useAuth } from "@/lib/auth-context";
 import { exportToExcel, fmtExcelDate } from "@/lib/export-excel";
 import { STATUS_ESTILO, STATUS_COMPRAS_OPTS } from "@/lib/constants";
@@ -212,6 +212,23 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     return [...rows.filter((x: any) => novos.has(x.id)), ...r];
   }, [rows, fl, q, sort, colecaoAtiva, novos]);
 
+  // Edições seguidas na mesma linha são uma coisa só na cabeça de quem faz —
+  // ajustar preço, depois fornecedor, depois data é UMA mexida no SKU. Dentro
+  // da janela abaixo elas compartilham o grupo, e quem recebe vê um aviso só
+  // com a lista, em vez de um popup por célula.
+  const JANELA_GRUPO_MS = 30_000;
+  const grupoRef = useRef<{ ref: string; id: string; ts: number } | null>(null);
+  const grupoPara = (ref: string) => {
+    const agora = Date.now();
+    const atual = grupoRef.current;
+    if (atual && atual.ref === ref && agora - atual.ts < JANELA_GRUPO_MS) {
+      atual.ts = agora;
+      return atual.id;
+    }
+    grupoRef.current = { ref, id: novoGrupoAlerta(), ts: agora };
+    return grupoRef.current.id;
+  };
+
   // Popup de alerta pros outros usuários quando um SKU já liberado/repilotando tem campo alterado.
   const alertarCampoAlterado = (prevRow: any, campoKey: string, valorAnterior: any, valorNovo: any) => {
     if (!prevRow || !user || !STATUS_ALERTA.includes(prevRow.status)) return;
@@ -226,6 +243,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       statusProduto: prevRow.status,
       alteradoPorNome: nomeUsuario(user),
       alteradoPorUserId: user.id,
+      grupoId: grupoPara(prevRow.ref),
     });
   };
 
