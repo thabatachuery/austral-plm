@@ -34,6 +34,8 @@ const lineDark = "#CBD5E1";
 const bg = "#F8FAFC";
 const success = "#059669";
 const warn = "#D97706";
+// Âmbar escuro: o warn puro em corpo 6,5px sobre fundo claro fica fraco no papel.
+const warnDark = "#7A4A06";
 const danger = "#DC2626";
 const white = "#FFFFFF";
 
@@ -70,6 +72,12 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   // Colunas de variante das páginas da ficha (cores, pantone, aviamentos):
   // mínimo de 4, como sempre foi — reduzir aqui esconderia dado preenchido.
   const numVars = Math.max(4, Math.min(6, estamparia?.numVariantes || tec[0]?.cores?.filter(Boolean).length || 4));
+
+  // A ficha desenha no mínimo 4 colunas de variante, tenha a peça 4 ou não. A
+  // cor do aviamento só vale para a variante que existe de verdade — ou seja, a
+  // que tem cor escolhida no tecido. Sem isso, um aviamento com var03/var04
+  // gravados de uma versão anterior imprimia cor sob variante inexistente.
+  const varAtiva = (i: number) => !!tec[0]?.cores?.[i];
   // Já nas técnicas e nas simulações só entram as variantes que existem de
   // verdade: as que têm cor, mais qualquer uma com técnica ou simulação
   // preenchida (pra não esconder nada informado). Antes o mínimo era 4 e saíam
@@ -113,12 +121,30 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
     <span style={{ display: "inline-block", fontSize: "7px", fontWeight: 700, color: white, background: color, padding: "2px 8px", borderRadius: "3px", letterSpacing: "0.04em", textTransform: "uppercase" }}>{text}</span>
   );
 
-  // Fecha a seção de aviamentos: o valor total em destaque e as observações.
+  // Fecha a seção de aviamentos: o valor total em destaque, o aviso de que o
+  // preço é referência, e as observações.
   const ResumoAviObs = () => (
     <div style={{ display: "flex", gap: "8px", marginTop: "12px", pageBreakInside: "avoid" }}>
       <div style={{ width: "130px", background: headerBg, borderRadius: "6px", padding: "8px 12px", color: white }}>
         <div style={{ fontSize: "6.5px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.7, marginBottom: "3px" }}>{tr("Total Aviamentos")}</div>
         <div style={{ fontSize: "14px", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>R$ {avT.toFixed(2)}</div>
+      </div>
+
+      {/* Colado no total de propósito: o número ao lado é base de cálculo, não
+          preço fechado, e quem lê a ficha impressa precisa ver as duas coisas
+          juntas. Âmbar em vez de vermelho — vermelho na ficha lê como erro. */}
+      <div style={{ width: "205px", background: "#fff6de", border: `1px solid ${warn}`, borderRadius: "6px", padding: "7px 9px", display: "flex", gap: "5px", alignItems: "flex-start" }}>
+        <span style={{ fontSize: "10px", lineHeight: 1.1 }}>⚠️</span>
+        <div>
+          <div style={{ fontSize: "6.5px", fontWeight: 800, color: warnDark, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "2px" }}>{tr("Atenção")}</div>
+          {/* O *...* marca o trecho enfatizado e atravessa a tradução: o texto
+              em inglês carrega os mesmos asteriscos, na posição da frase dele. */}
+          <div style={{ fontSize: "6.5px", fontWeight: 700, color: warnDark, lineHeight: 1.3, textTransform: "uppercase" }}>
+            {tr("Preço dos aviamentos como base — pode ter atualizações. *Sempre* confirmar com o fornecedor de cada aviamento.")
+              .split("*")
+              .map((parte, i) => i % 2 ? <u key={i}>{parte}</u> : <span key={i}>{parte}</span>)}
+          </div>
+        </div>
       </div>
       <div style={{ flex: 1, background: bg, borderRadius: "6px", padding: "8px 12px", border: `1px solid ${line}` }}>
         <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "2px" }}>{tr("Observações")}</div>
@@ -305,7 +331,10 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                     <td style={{ ...tdAvi, textAlign: "center" }}>{a.qtd}</td>
                     <td style={{ ...tdAvi, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{a.valor > 0 ? a.valor.toFixed(2) : "—"}</td>
                     <td style={{ ...tdAvi, fontSize: fSec, color: muted }}>{a.local || "—"}</td>
-                    {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVars).map(k => <td key={k} style={{ ...tdAvi, textAlign: "center", fontSize: fSec }}>{a[k] || "—"}</td>)}
+                    {/* Variante sem cor escolhida fica em branco, não com "—":
+                        o traço diz "esta variante não usa este aviamento", e
+                        aqui a variante é que não existe. */}
+                    {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVars).map((k, i) => <td key={k} style={{ ...tdAvi, textAlign: "center", fontSize: fSec }}>{varAtiva(i) ? (a[k] || "—") : ""}</td>)}
                   </tr>
                 ))}
               </tbody>
@@ -325,7 +354,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               // Itens com foto por cor (cores_disponiveis > 1) entram uma vez
               // por cor realmente escolhida nas variantes — não uma vez por
               // item — para não exibir cores do cadastro que a peça não usa.
-              const fotos = avi.flatMap((a, i) => fotosParaExibir(a, numVars).map(f => ({ ...f, i, item: a.item, cod: a.cod })));
+              const fotos = avi.flatMap((a, i) => fotosParaExibir(a, numVars, varAtiva).map(f => ({ ...f, i, item: a.item, cod: a.cod })));
               if (!fotos.length) return null;
               // Sobra da folha (≈1030px úteis) depois do cabeçalho, da tabela
               // (~31px por linha, medido) e do título da galeria.
@@ -351,7 +380,12 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                   {fotos.map(f => (
                     <div key={`${f.i}-${f.key}`} style={{ width: `${lado}px`, textAlign: "center", position: "relative" }}>
                       <div style={{ position: "relative" }}>
-                        <span style={{ position: "absolute", top: "-5px", left: "-5px", width: "16px", height: "16px", borderRadius: "50%", background: headerBg, color: "white", fontSize: "7px", fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>{String(f.i+1).padStart(2,"0")}</span>
+                        {/* Dentro do card, não pendurado pra fora: a página é
+                            .fit-page (overflow hidden), então o que passava da
+                            borda esquerda era cortado — o número da primeira
+                            foto de cada linha aparecia pela metade. Cabe no
+                            padding de 10px da imagem, sem cobrir a foto. */}
+                        <span style={{ position: "absolute", top: "1px", left: "1px", width: "16px", height: "16px", borderRadius: "50%", background: headerBg, color: "white", fontSize: "7px", fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>{String(f.i+1).padStart(2,"0")}</span>
                         <img src={f.url} alt={f.item} style={{ width: `${lado}px`, height: `${lado}px`, objectFit: "contain", borderRadius: "6px", border: `1px solid ${headerBg}44`, background: "white", display: "block", padding: "10px", boxSizing: "border-box" }}/>
                       </div>
                       <p style={{ fontSize: "8px", fontFamily: "monospace", fontWeight: 800, color: navy, marginTop: "2px", lineHeight: "1.25" }}>{f.cod}</p>

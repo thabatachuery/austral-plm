@@ -95,6 +95,11 @@ const EN: Record<string, string> = {
   "Referência Visual": "Visual Reference",
   "Total Aviamentos": "Trims Total",
   "Observações": "Remarks",
+  "Atenção": "Warning",
+  // Os asteriscos marcam a ênfase e têm de sobreviver à tradução — o FichaPDF
+  // parte a frase neles para sublinhar o trecho de dentro.
+  "Preço dos aviamentos como base — pode ter atualizações. *Sempre* confirmar com o fornecedor de cada aviamento.":
+    "Trim prices are a baseline and may change. *Always* confirm with the supplier of each trim.",
   "Nenhuma observação.": "No remarks.",
   "Liberação": "Approval",
   "Graduação de Produção": "Production Grading",

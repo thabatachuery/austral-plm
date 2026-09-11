@@ -69,6 +69,10 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   // português — vêm dos cadastros. Ver lib/ficha-i18n.ts.
   const [importado, setImportado] = useState(false);
   const [numVars, setNumVars] = useState(4);
+  // Variante que existe de verdade é a que tem cor escolhida no tecido. A ficha
+  // desenha no mínimo 4 colunas, então sem esse filtro a cor de um aviamento
+  // aparecia sob variante inexistente. Mesma regra da ficha impressa.
+  const varAtiva = (i: number) => !!tec[0]?.cores?.[i];
   const [pendingSave, setPendingSave] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -1156,11 +1160,11 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                  Itens com foto por cor (cores_disponiveis > 1) mostram só as
                  cores realmente escolhidas nas variantes desta ficha — não
                  todas as cores disponíveis no cadastro. */}
-            {avi.some((a: any) => fotosParaExibir(a, numVars).length > 0) && (
+            {avi.some((a: any) => fotosParaExibir(a, numVars, varAtiva).length > 0) && (
               <div className="apple-card p-4 mb-3">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mb-3">{tr("Referência Visual")}</div>
                 <div className="flex flex-wrap gap-4">
-                  {avi.flatMap((a: any, i: number) => fotosParaExibir(a, numVars).map(f => (
+                  {avi.flatMap((a: any, i: number) => fotosParaExibir(a, numVars, varAtiva).map(f => (
                     <div key={`${i}-${f.key}`} className="flex flex-col items-center gap-1.5" style={{ width: "280px" }}>
                       <div className="relative w-full">
                         <span className="absolute -top-2 -left-2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm" style={{ background: fichaColor }}>{String(i+1).padStart(2,"0")}</span>
