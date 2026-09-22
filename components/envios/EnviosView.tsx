@@ -7,6 +7,11 @@ import { nomeUsuario } from "@/lib/utils";
 
 const ESTAGIOS = ["DESENVOLVIMENTO", "MOSTRUÁRIO", "PRODUÇÃO"];
 
+// Domínio público do PLM. Sai daqui e não da janela porque o link é entregue a
+// terceiros — ver linkDe(). Dá para sobrescrever por NEXT_PUBLIC_SITE_URL sem
+// mexer no código, caso o endereço mude.
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://plm.austral.com.br").replace(/\/+$/, "");
+
 // Os PDFs do lote saem como "23090002 - 22-09-2026", então a referência está
 // no começo do nome. Ler dali poupa digitação e é o que faz o histórico
 // responder por SKU — sem isso, sobraria só "o que foi para tal fornecedor".
@@ -88,7 +93,11 @@ export default function EnviosView() {
     await carregar();
   };
 
-  const linkDe = (e: Envio) => `${typeof window !== "undefined" ? window.location.origin : ""}/envio/${e.token}`;
+  // O link vai para fora, então não pode depender de por onde a pessoa entrou:
+  // quem acessa pelo endereço interno da Vercel copiaria um link "vercel.app"
+  // para mandar ao fornecedor. Fixa o domínio próprio, com o endereço da janela
+  // como último recurso.
+  const linkDe = (e: Envio) => `${SITE_URL || (typeof window !== "undefined" ? window.location.origin : "")}/envio/${e.token}`;
   const copiar = async (e: Envio) => {
     try { await navigator.clipboard.writeText(linkDe(e)); setMsg({ tipo: "ok", texto: "Link copiado." }); }
     catch { setMsg({ tipo: "erro", texto: "Não foi possível copiar — selecione o endereço na tela." }); }
