@@ -75,7 +75,7 @@ export async function fetchTecidos() {
     // Dados técnicos (podem estar vazios até alguém preencher no cadastro)
     gramatura: t.gramatura ?? "", oz: t.oz ?? "", largura: t.largura ?? "",
     enc_largura: t.encolhimento_largura ?? "", enc_altura: t.encolhimento_altura ?? "",
-    rendimento: t.rendimento ?? "", imagem: t.imagem ?? "",
+    rendimento: t.rendimento ?? "", imagem: t.imagem ?? "", ficha_pdf: t.ficha_pdf ?? "",
   }));
   toCache("tecidos", result);
   return result;
@@ -104,12 +104,12 @@ export async function addTecido(t: { nome: string; forn: string; comp: string; p
 }
 
 // Atualiza campos do tecido pelo nome (chave única). Só envia o que veio.
-export async function updateTecido(nome: string, patch: { forn?: string; comp?: string; preco?: any; imagem?: string } & TecidoTecnico) {
+export async function updateTecido(nome: string, patch: { forn?: string; comp?: string; preco?: any; imagem?: string; ficha_pdf?: string } & TecidoTecnico) {
   const mapa: Record<string, string> = {
     forn: "fornecedor", comp: "composicao", preco: "preco",
     gramatura: "gramatura", oz: "oz", largura: "largura",
     enc_largura: "encolhimento_largura", enc_altura: "encolhimento_altura",
-    rendimento: "rendimento", imagem: "imagem",
+    rendimento: "rendimento", imagem: "imagem", ficha_pdf: "ficha_pdf",
   };
   const numericos = new Set(["preco", "gramatura", "oz", "largura", "enc_largura", "enc_altura", "rendimento"]);
   const upd: Record<string, any> = {};

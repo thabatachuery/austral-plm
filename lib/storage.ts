@@ -71,6 +71,31 @@ export async function uploadImage(file: File, path: string): Promise<string | nu
   return data.publicUrl;
 }
 
+// Upload sem passar pelo canvas: PDF (e qualquer arquivo que não seja foto)
+// tem de subir byte a byte. O uploadImage acima rasteriza tudo em JPEG — um
+// PDF sairia de lá com a extensão .jpg e o conteúdo quebrado.
+//
+// Mantém a extensão e o tipo do original para o navegador abrir direto em vez
+// de baixar como binário desconhecido.
+export async function uploadArquivo(file: File, path: string): Promise<string | null> {
+  const supabase = getSupabase();
+
+  const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const filename = `${sanitizePath(path)}/${Date.now()}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(filename, file, { upsert: true, contentType: file.type || "application/octet-stream" });
+
+  if (error) {
+    console.error("uploadArquivo:", error);
+    return null;
+  }
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(filename);
+  return data.publicUrl;
+}
+
 export async function deleteImage(url: string): Promise<string | null> {
   const supabase = getSupabase();
   const parts = url.split(`${BUCKET}/`);

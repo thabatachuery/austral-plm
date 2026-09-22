@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { fetchCadastros, addCadastro, removeCadastro, addCadastrosBulk, fetchTecidos, addTecido, removeTecido, updateTecido, renameTecido, fetchAviamentos, addAviamento, addAviamentosBulk, removeAviamento, updateAviamento } from "@/lib/db";
 import { ozParaGramatura } from "@/lib/peso";
-import { uploadImage, deleteImage } from "@/lib/storage";
+import { uploadImage, uploadArquivo, deleteImage } from "@/lib/storage";
 import { subscribeRealtime } from "@/lib/realtime";
 
 const TABS=[{k:"grupo",l:"Grupo"},{k:"subgrupo",l:"Subgrupo"},{k:"categoria",l:"Categoria"},{k:"subcategoria",l:"Subcategoria"},{k:"linha",l:"Linha"},{k:"grade",l:"Grade"},{k:"operacao",l:"Operação"},{k:"tipo",l:"Tipo"},{k:"fornecedor",l:"Fornecedor"},{k:"drop",l:"Drop"},{k:"colecao",l:"Coleção"},{k:"status",l:"Status"},{k:"piloto_most",l:"Piloto / mostr."},{k:"estilista",l:"Estilista"},{k:"cor",l:"Cores"},{k:"tingimento",l:"Tipo de Tingimento"},{k:"aviamento",l:"Aviamentos"},{k:"tecido",l:"Tecidos"}];
@@ -39,6 +39,9 @@ export default function CadView(){
   const [tecImgUploading,setTecImgUploading]=useState<string|null>(null);
   const tecImgRef=useRef<HTMLInputElement>(null);
   const [tecImgTarget,setTecImgTarget]=useState<string|null>(null);
+  const [tecPdfUploading,setTecPdfUploading]=useState<string|null>(null);
+  const tecPdfRef=useRef<HTMLInputElement>(null);
+  const [tecPdfTarget,setTecPdfTarget]=useState<string|null>(null);
   const [newTecImg,setNewTecImg]=useState<string>("");
   const [newTecImgUp,setNewTecImgUp]=useState(false);
   const newTecImgRef=useRef<HTMLInputElement>(null);
@@ -177,6 +180,24 @@ export default function CadView(){
     if(tecImgRef.current)tecImgRef.current.value="";
   };
   const remTecImg=async(nome:string,url:string)=>{await deleteImage(url);await saveTec(nome,{imagem:""});};
+
+  // ── Ficha técnica do tecido em PDF ──
+  // Sobe pelo uploadArquivo (sem compressão) para o arquivo chegar íntegro;
+  // o uploadImage rasteriza em JPEG e destruiria o PDF.
+  const handleTecPdf=async(e:React.ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0];
+    if(!file||!tecPdfTarget)return;
+    if(file.type!=="application/pdf"){alert("A ficha técnica precisa ser um arquivo PDF.");if(tecPdfRef.current)tecPdfRef.current.value="";setTecPdfTarget(null);return;}
+    setTecPdfUploading(tecPdfTarget);
+    const url=await uploadArquivo(file,`tecidos/${tecPdfTarget}/ficha`);
+    if(url)await saveTec(tecPdfTarget,{ficha_pdf:url});
+    else alert("Não foi possível enviar o PDF. Tente de novo.");
+    setTecPdfUploading(null);
+    setTecPdfTarget(null);
+    if(tecPdfRef.current)tecPdfRef.current.value="";
+  };
+  const triggerTecPdf=(nome:string)=>{setTecPdfTarget(nome);setTimeout(()=>tecPdfRef.current?.click(),0);};
+  const remTecPdf=async(nome:string,url:string)=>{await deleteImage(url);await saveTec(nome,{ficha_pdf:""});};
   // No formulário a foto sobe antes do tecido existir — usa o nome digitado como pasta
   const handleNewTecImg=async(e:React.ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];
@@ -456,6 +477,7 @@ export default function CadView(){
             {m==="tecido"&&(<>
               <input type="file" accept="image/*" ref={tecImgRef} className="hidden" onChange={handleTecImg}/>
               <input type="file" accept="image/*" ref={newTecImgRef} className="hidden" onChange={handleNewTecImg}/>
+              <input type="file" accept="application/pdf" ref={tecPdfRef} className="hidden" onChange={handleTecPdf}/>
               <div className="flex gap-2 mb-2 flex-wrap items-start">
                 {/* Foto do novo tecido */}
                 {newTecImgUp
@@ -499,6 +521,7 @@ export default function CadView(){
                   <th className="text-center w-28" title="Encolhimento na largura (sentido da trama), em %">Enc. larg./trama (%)</th>
                   <th className="text-center w-28" title="Encolhimento na altura (sentido do urdume), em %">Enc. alt./urdume (%)</th>
                   <th className="text-center w-24" title="Rendimento em metros por quilo">Rend. (m/kg)</th>
+                  <th className="text-center w-16" title="Ficha técnica do tecido em PDF, enviada pelo fornecedor">Ficha</th>
                   <th className="w-10"></th>
                 </tr></thead>
                 <tbody>{ft.map((t:any,i:number)=>{
@@ -573,6 +596,22 @@ export default function CadView(){
                     {campoNum("enc_largura","Encolhimento na largura (sentido da trama), em %")}
                     {campoNum("enc_altura","Encolhimento na altura (sentido do urdume), em %")}
                     {campoNum("rendimento","Rendimento (m/kg)")}
+                    {/* ── Ficha técnica do tecido (PDF) ── */}
+                    <td className="text-center px-2 py-1.5">
+                      {tecPdfUploading===t.nome
+                        ? <span className="text-[10px] text-[var(--label-tertiary)]">...</span>
+                        : t.ficha_pdf
+                          ? <div className="relative inline-block group">
+                              <a href={t.ficha_pdf} target="_blank" rel="noopener noreferrer" title="Abrir a ficha técnica do tecido"
+                                 className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--system-blue)] hover:underline">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                                PDF
+                              </a>
+                              <button onClick={()=>remTecPdf(t.nome,t.ficha_pdf)} className="absolute -top-2 -right-2.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remover a ficha">×</button>
+                            </div>
+                          : <button onClick={()=>triggerTecPdf(t.nome)} title="Anexar a ficha técnica do tecido (PDF)"
+                              className="text-[10px] font-medium text-[var(--label-quaternary)] hover:text-[var(--system-blue)] border border-dashed border-[var(--separator-opaque)] hover:border-[var(--system-blue)] rounded-lg px-2 py-1 transition-colors">anexar</button>}
+                    </td>
                     <td className="text-center"><button onClick={()=>remT(t.nome)} className="text-[var(--label-quaternary)] hover:text-[var(--system-red)] transition-colors">×</button></td>
                   </tr>
                 );})}</tbody></table>
