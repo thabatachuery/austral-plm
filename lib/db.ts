@@ -1143,3 +1143,41 @@ export async function removeEnvio(id: number) {
   const { error } = await sb().from("envios").delete().eq("id", id);
   if (error) console.error("removeEnvio:", error);
 }
+
+// ══ REGRAS AUTOMÁTICAS DO CONTROLE DE FLUXO ══
+// Os dois status do fluxo andavam a mão, repetindo o que já tinha sido
+// decidido em Desenvolvimento. Aqui eles acompanham sozinhos.
+export const FLUXO_MOSTRUARIO_LIBERADO = "MOSTRUÁRIO LIBERADO";
+export const FLUXO_AGUARDANDO_MOSTRUARIO = "AGUARDANDO MOSTRUÁRIO";
+
+export async function upsertControleFluxoCampos(produto_ref: string, patch: Record<string, string | null>): Promise<string | null> {
+  const { error } = await sb()
+    .from("controle_fluxo")
+    .upsert({ produto_ref, ...patch, updated_at: new Date().toISOString() }, { onConflict: "produto_ref" });
+  if (error) { console.error("upsertControleFluxoCampos:", error); return error.message || "Erro ao salvar"; }
+  return null;
+}
+
+/**
+ * Liberou o SKU para mostruário em Desenvolvimento → o fluxo acompanha:
+ *   1. Status Mostruário vira "MOSTRUÁRIO LIBERADO"
+ *   2. Status Produção vira "AGUARDANDO MOSTRUÁRIO"
+ *
+ * A regra 2 só preenche quando o campo está VAZIO. Sobrescrever levaria um SKU
+ * que já está em "PRODUÇÃO LIBERADA" de volta para "AGUARDANDO MOSTRUÁRIO" —
+ * o automático andaria para trás, apagando trabalho feito.
+ *
+ * Devolve os campos que realmente mudaram, para a tela atualizar sem recarregar.
+ */
+export async function aplicarMostruarioLiberadoNoFluxo(produtoRef: string): Promise<Record<string, string>> {
+  const { data } = await sb().from("controle_fluxo")
+    .select("status_mostruario, status_producao").eq("produto_ref", produtoRef).maybeSingle();
+
+  const patch: Record<string, string> = {};
+  if (data?.status_mostruario !== FLUXO_MOSTRUARIO_LIBERADO) patch.status_mostruario = FLUXO_MOSTRUARIO_LIBERADO;
+  if (!data?.status_producao) patch.status_producao = FLUXO_AGUARDANDO_MOSTRUARIO;
+
+  if (!Object.keys(patch).length) return {};
+  const err = await upsertControleFluxoCampos(produtoRef, patch);
+  return err ? {} : patch;
+}

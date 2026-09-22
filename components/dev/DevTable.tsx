@@ -4,7 +4,7 @@ import InlineCell from "@/components/ui/InlineCell";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import COLUMNS from "@/lib/columns";
-import { fetchCadastros, fetchTecidos, fetchNomesTabelasMedidas, updateProdutoFields, insertProduto, deleteProduto, cloneProduto, bulkUpdateStatus, criarAlerta, novoGrupoAlerta } from "@/lib/db";
+import { fetchCadastros, fetchTecidos, fetchNomesTabelasMedidas, updateProdutoFields, insertProduto, deleteProduto, cloneProduto, bulkUpdateStatus, criarAlerta, novoGrupoAlerta, aplicarMostruarioLiberadoNoFluxo } from "@/lib/db";
 import { useAuth } from "@/lib/auth-context";
 import { exportToExcel, fmtExcelDate } from "@/lib/export-excel";
 import { STATUS_ESTILO, STATUS_COMPRAS_OPTS } from "@/lib/constants";
@@ -291,6 +291,11 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       return;
     }
     alertarCampoAlterado(prevRow, k, prevRow?.[k], v);
+    // Liberou para mostruário: o Controle de Fluxo acompanha sozinho, em vez de
+    // alguém repetir a mão o que já foi decidido aqui.
+    if (k === "status" && v === STATUS_ESTILO.MOSTARIO_LIBERADO && prevRow?.ref) {
+      await aplicarMostruarioLiberadoNoFluxo(prevRow.ref);
+    }
   };
 
   const { confirm, Dialog: ConfirmDialog } = useConfirm();
@@ -377,6 +382,11 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     if (error) {
       showError(`Erro: ${error}`);
     } else {
+      // Mesma regra da edição avulsa, aplicada a cada SKU da seleção.
+      if (bulkStatus === STATUS_ESTILO.MOSTARIO_LIBERADO) {
+        const refs = ids.map(id => rows.find((r:any) => r.id === id)?.ref).filter(Boolean);
+        for (const ref of refs) await aplicarMostruarioLiberadoNoFluxo(ref);
+      }
       success(`Status atualizado para ${selected.size} SKU(s)`);
     }
     setSelected(new Set());

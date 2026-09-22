@@ -473,6 +473,9 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             alteradoPorNome: nomeUsuario(user), alteradoPorUserId: user.id,
           });
         }
+        // Sem gancho para o Controle de Fluxo aqui: o autoStatusFor só devolve
+        // "PRODUÇÃO LIBERADA" ou "REPILOTANDO PRODUÇÃO". A liberação de
+        // mostruário acontece só em Desenvolvimento, e é lá que a regra mora.
         await updateProdutoField(row.id, "status", autoStatus);
       }
       // Variantes só derivam das cores dos tecidos — evita recarregar a lista

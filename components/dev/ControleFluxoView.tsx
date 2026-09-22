@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { fetchControleFluxo, upsertControleFluxo } from "@/lib/db";
+import { fetchControleFluxo, upsertControleFluxo, FLUXO_MOSTRUARIO_LIBERADO, FLUXO_AGUARDANDO_MOSTRUARIO } from "@/lib/db";
 import ScrollTable from "@/components/ui/ScrollTable";
 import { useToast } from "@/components/ui/Toast";
 
@@ -81,6 +81,18 @@ export default function ControleFluxoView({ rows }: Props) {
     if (err) {
       showError(`Erro ao salvar: ${err}`);
       setLocalData(prev => ({ ...prev, [ref]: { ...(prev[ref] || {}), [field]: prevValue } }));
+      return;
+    }
+    // Mostruário liberado puxa a produção para "aguardando mostruário" — o
+    // passo seguinte do fluxo, que antes era digitado a mão em toda linha.
+    // Só preenche quando está vazio: sobrescrever levaria um SKU já em
+    // "PRODUÇÃO LIBERADA" de volta, apagando o andamento.
+    if (field === "status_mostruario" && value === FLUXO_MOSTRUARIO_LIBERADO) {
+      const atual = val(ref, "status_producao");
+      if (!atual) {
+        const err2 = await upsertControleFluxo(ref, "status_producao", FLUXO_AGUARDANDO_MOSTRUARIO);
+        if (!err2) setLocalData(prev => ({ ...prev, [ref]: { ...(prev[ref] || {}), status_producao: FLUXO_AGUARDANDO_MOSTRUARIO } }));
+      }
     }
   };
 
