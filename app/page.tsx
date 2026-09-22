@@ -18,6 +18,7 @@ import MapaColecaoView from "@/components/dev/MapaColecaoView";
 import MapaEntregasView from "@/components/dev/MapaEntregasView";
 import EtiquetasLineView from "@/components/dev/EtiquetasLineView";
 import CalendarioView from "@/components/calendario/CalendarioView";
+import EnviosView from "@/components/envios/EnviosView";
 import { fetchProdutos, fetchAllVariantes, fetchVariantesPorColecao, fetchAlertasPendentes, marcarAlertasCiente, mapProduto } from "@/lib/db";
 import { COMPRAS_STATUS_ALLOW } from "@/lib/constants";
 import { subscribeRealtime } from "@/lib/realtime";
@@ -33,6 +34,7 @@ const TABS = [
   { id: "dev_etiquetas", label: "Etiquetas Line",    icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" },
   { id: "variantes",  label: "Variantes",       icon: "M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" },
   { id: "preprod",    label: "Pré-Produção",    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 13l2 2 4-4" },
+  { id: "envios",     label: "Envios",          icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
   { id: "cad",        label: "Cadastros",       icon: "M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" },
   { id: "medidas",    label: "Tab. medidas",    icon: "M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" },
 ] as const;
@@ -44,7 +46,7 @@ const COMPRAS_TABS = [
   { id: "compras_entregas",  label: "Mapa de Entregas", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
 ];
 
-type Tab = (typeof TABS)[number]["id"] | "compras_dev" | "compras_variantes" | "compras_explosao" | "compras_entregas" | "dev_fluxo" | "dev_mapa" | "dev_etiquetas" | "calendario";
+type Tab = (typeof TABS)[number]["id"] | "compras_dev" | "compras_variantes" | "compras_explosao" | "compras_entregas" | "dev_fluxo" | "dev_mapa" | "dev_etiquetas" | "calendario" | "envios";
 
 export default function Home() {
   const { user, loading: authLoading, signOut, passwordRecovery } = useAuth();
@@ -377,6 +379,7 @@ export default function Home() {
           {!loading && tab === "dev_fluxo" && <ControleFluxoView rows={rows} />}
           {!loading && tab === "variantes" && <VariantesTable rows={rows} variantes={variantes} variantesPorColecao={variantesPorColecao} onOpenFicha={setFichaRow} />}
           {!loading && tab === "preprod" && canSection("can_preproducao") && <PreProducaoView rows={rows} onOpenLaudo={setLaudoRow} />}
+          {!loading && tab === "envios" && <EnviosView />}
           {!loading && tab === "cad" && canSection("can_cadastros") && <CadView />}
           {!loading && tab === "medidas" && canSection("can_medidas") && <MedidasView />}
           {!loading && tab === "compras_dev" && <DevTable rows={comprasRows} setRows={setRows} onOpenFicha={setFichaRow} userEmail={user.email!} permPrefix="compras_" hiddenColumns={["piloto_most","tab_medidas"]} />}

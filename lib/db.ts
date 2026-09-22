@@ -1082,3 +1082,64 @@ export async function marcarAlertasCiente(alertaIds: number[], userId: string) {
   const { error } = await sb().from("alerta_ciente").upsert(linhas, { onConflict: "alerta_id,user_id", ignoreDuplicates: true });
   if (error) console.error("marcarAlertasCiente:", error);
 }
+
+// ══ ENVIOS PARA FORNECEDOR ══
+// Um envio é um pacote (coleção + estágio + fornecedor) com N arquivos. O
+// token é a credencial do link público em /envio/<token> — quem tem o
+// endereço abre sem login, como um link de pasta compartilhada.
+export type Envio = {
+  id: number; token: string; colecao: string; estagio: string; fornecedor: string;
+  observacao: string; ativo: boolean; criado_por_nome: string; created_at: string;
+  arquivos?: EnvioArquivo[];
+};
+export type EnvioArquivo = { id: number; envio_id: number; nome: string; url: string; tamanho: number; refs: string[] };
+
+// 32 caracteres aleatórios: o link não pode ser adivinhável, é o que separa
+// "compartilhado com o fornecedor" de "público na internet".
+export function novoTokenEnvio(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => b.toString(36).padStart(2, "0")).join("").slice(0, 32);
+}
+
+export async function criarEnvio(e: { colecao: string; estagio: string; fornecedor: string; observacao?: string; criadoPorNome: string; criadoPorUserId?: string | null }): Promise<Envio | null> {
+  const { data, error } = await sb().from("envios").insert({
+    token: novoTokenEnvio(),
+    colecao: e.colecao, estagio: e.estagio, fornecedor: e.fornecedor,
+    observacao: e.observacao || "",
+    criado_por_nome: e.criadoPorNome,
+    criado_por_user_id: e.criadoPorUserId || null,
+  }).select().single();
+  if (error) { console.error("criarEnvio:", error); return null; }
+  return data as Envio;
+}
+
+export async function addEnvioArquivos(envioId: number, arquivos: { nome: string; url: string; tamanho: number; refs: string[] }[]) {
+  if (!arquivos.length) return null;
+  const { error } = await sb().from("envio_arquivos").insert(arquivos.map(a => ({ envio_id: envioId, ...a })));
+  if (error) { console.error("addEnvioArquivos:", error); return error.message; }
+  return null;
+}
+
+export async function fetchEnvios(): Promise<Envio[]> {
+  const { data: envios, error } = await sb().from("envios").select("*").order("created_at", { ascending: false });
+  if (error) { console.error("fetchEnvios:", error); return []; }
+  const ids = (envios || []).map((e: any) => e.id);
+  if (!ids.length) return [];
+  const { data: arqs } = await sb().from("envio_arquivos").select("*").in("envio_id", ids).order("nome");
+  const porEnvio: Record<number, any[]> = {};
+  for (const a of arqs || []) (porEnvio[a.envio_id] = porEnvio[a.envio_id] || []).push(a);
+  return (envios || []).map((e: any) => ({ ...e, arquivos: porEnvio[e.id] || [] }));
+}
+
+export async function setEnvioAtivo(id: number, ativo: boolean) {
+  const { error } = await sb().from("envios").update({ ativo }).eq("id", id);
+  if (error) console.error("setEnvioAtivo:", error);
+}
+
+// Apaga o pacote inteiro. Os arquivos saem por cascata no banco; o Storage é
+// limpo por quem chama (precisa do deleteImage, que é client-side).
+export async function removeEnvio(id: number) {
+  const { error } = await sb().from("envios").delete().eq("id", id);
+  if (error) console.error("removeEnvio:", error);
+}
