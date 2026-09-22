@@ -24,6 +24,8 @@ function fmtData(iso: string) {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
+const ehVideo = (nome: string) => /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(nome);
+
 async function buscarEnvio(token: string) {
   const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!URL_BASE || !chave) return null;
@@ -85,9 +87,12 @@ export default async function PaginaEnvio({ params }: { params: Promise<{ token:
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {arquivos.map((a: any) => (
-            <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer" download
+            // Vídeo sem "download": o fornecedor costuma querer só assistir, e
+            // o navegador toca mp4/mov direto na aba. Para PDF o download é o
+            // que ele espera.
+            <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer" download={ehVideo(a.nome) ? undefined : true}
                style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px", textDecoration: "none", color: "#0C1D2E", background: "#fff" }}>
-              <span style={{ fontSize: 18 }}>📄</span>
+              <span style={{ fontSize: 18 }}>{ehVideo(a.nome) ? "🎬" : "📄"}</span>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 14, fontWeight: 600, wordBreak: "break-word" }}>{a.nome}</span>
                 {(a.refs?.length || a.tamanho) ? (
@@ -96,7 +101,7 @@ export default async function PaginaEnvio({ params }: { params: Promise<{ token:
                   </span>
                 ) : null}
               </span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#4464AF", whiteSpace: "nowrap" }}>Baixar</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#4464AF", whiteSpace: "nowrap" }}>{ehVideo(a.nome) ? "Assistir" : "Baixar"}</span>
             </a>
           ))}
         </div>

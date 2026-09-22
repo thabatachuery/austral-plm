@@ -15,6 +15,12 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://plm.austral.com.b
 // Os PDFs do lote saem como "23090002 - 22-09-2026", então a referência está
 // no começo do nome. Ler dali poupa digitação e é o que faz o histórico
 // responder por SKU — sem isso, sobraria só "o que foi para tal fornecedor".
+// Vídeo é ordem de grandeza maior que PDF: uma ficha tem ~1 MB, um vídeo de
+// celular passa de 100 MB com facilidade. Avisar antes é melhor do que deixar
+// o upload correr por minutos e falhar no limite do Storage.
+const LIMITE_AVISO_MB = 50;
+const ehVideo = (nome: string) => /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(nome);
+
 function refsDoNome(nome: string): string[] {
   const m = nome.match(/(\d{8})/g);
   return m ? Array.from(new Set(m)) : [];
@@ -62,7 +68,7 @@ export default function EnviosView() {
 
   const criar = async () => {
     if (!nColecao || !nFornecedor) { setMsg({ tipo: "erro", texto: "Escolha a coleção e o fornecedor." }); return; }
-    if (!nArquivos.length) { setMsg({ tipo: "erro", texto: "Anexe pelo menos um PDF." }); return; }
+    if (!nArquivos.length) { setMsg({ tipo: "erro", texto: "Anexe pelo menos um PDF ou vídeo." }); return; }
     setEnviando(true); setProgresso(0); setMsg(null);
 
     const envio = await criarEnvio({
@@ -157,13 +163,26 @@ export default function EnviosView() {
             </select>
           </div>
           <input className={`${inp} w-full mb-3`} value={nObs} onChange={e => setNObs(e.target.value)} placeholder="Observação para o fornecedor (opcional) — aparece na página do link" />
-          <input type="file" accept="application/pdf" multiple className="text-[13px] mb-3 block"
-            onChange={e => setNArquivos(Array.from(e.target.files || []).filter(f => f.type === "application/pdf"))} />
-          {nArquivos.length > 0 && (
-            <p className="text-[12px] text-[var(--label-tertiary)] mb-3">
-              {nArquivos.length} PDF(s): {nArquivos.map(f => f.name).join(", ")}
-            </p>
-          )}
+          <input type="file" accept="application/pdf,video/*" multiple className="text-[13px] mb-3 block"
+            onChange={e => setNArquivos(Array.from(e.target.files || []).filter(f => f.type === "application/pdf" || f.type.startsWith("video/")))} />
+          {nArquivos.length > 0 && (() => {
+            const totalMB = nArquivos.reduce((s, f) => s + f.size, 0) / 1048576;
+            const grandes = nArquivos.filter(f => f.size / 1048576 > LIMITE_AVISO_MB);
+            return (
+              <>
+                <p className="text-[12px] text-[var(--label-tertiary)] mb-2">
+                  {nArquivos.length} arquivo(s), {totalMB.toFixed(1)} MB: {nArquivos.map(f => f.name).join(", ")}
+                </p>
+                {grandes.length > 0 && (
+                  <p className="text-[12px] text-[#8a5a00] bg-[#fff6de] border border-[#D97706] rounded-lg px-3 py-2 mb-3">
+                    ⚠️ {grandes.length} arquivo(s) acima de {LIMITE_AVISO_MB} MB ({grandes.map(f => f.name).join(", ")}).
+                    O envio pode demorar e, se o Storage tiver limite por arquivo menor que isso, falha.
+                    Vale comprimir o vídeo antes.
+                  </p>
+                )}
+              </>
+            );
+          })()}
           <button onClick={criar} disabled={enviando} className="apple-btn-primary disabled:opacity-40">
             {enviando ? `Enviando ${progresso}/${nArquivos.length}...` : "Criar envio"}
           </button>
@@ -207,7 +226,7 @@ export default function EnviosView() {
             <div className="flex flex-col gap-1 mb-3">
               {(e.arquivos || []).map(a => (
                 <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer" className="text-[12px] text-[var(--system-blue)] hover:underline">
-                  📄 {a.nome} {a.tamanho ? <span className="text-[var(--label-quaternary)]">· {fmtTamanho(a.tamanho)}</span> : null}
+                  {ehVideo(a.nome) ? "🎬" : "📄"} {a.nome} {a.tamanho ? <span className="text-[var(--label-quaternary)]">· {fmtTamanho(a.tamanho)}</span> : null}
                 </a>
               ))}
               {!(e.arquivos || []).length && <span className="text-[12px] text-[var(--label-quaternary)]">sem arquivos</span>}
