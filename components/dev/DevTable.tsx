@@ -13,6 +13,7 @@ import { fmtBRL, nomeUsuario } from "@/lib/utils";
 // Status em que qualquer alteração dispara o popup de alerta pros outros usuários.
 const STATUS_ALERTA = [STATUS_ESTILO.MOSTARIO_LIBERADO, STATUS_ESTILO.PRODUCAO_LIBERADA, STATUS_ESTILO.REPILOTANDO_PRODUCAO] as string[];
 import ScrollTable from "@/components/ui/ScrollTable";
+import FichaExportLote from "@/components/ficha/FichaExportLote";
 
 // "2026-03-13" -> "13/03/26" (compacto para a lista de pedidos)
 function fmtDataBR(iso?: string): string {
@@ -97,6 +98,10 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
   const [showColMenu, setShowColMenu] = useState(false);
   const colMenuRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Exportação em lote: um PDF por referência, com o nome "REF - DD-MM-AAAA".
+  const [showExportLote, setShowExportLote] = useState(false);
+  const [exportando, setExportando] = useState(false);
+  const [exportSections, setExportSections] = useState({ ficha: true, estamparia: true, liberacao: true, graduacao: true });
   // SKUs criados agora: nascem vazios, então não passariam por nenhum filtro.
   // Ficam fixados no topo da lista até sair da tela, pra dar pra preencher.
   const [novos, setNovos] = useState<Set<number>>(new Set());
@@ -521,6 +526,47 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       )}
 
       {/* Bulk action bar */}
+      {/* Escolha das seções — mesmas quatro da exportação individual, para o
+          lote sair igual ao que a pessoa já conhece. */}
+      {showExportLote && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[6px] no-print" onClick={()=>setShowExportLote(false)}>
+          <div role="dialog" aria-modal="true" className="bg-[var(--bg-primary)] rounded-2xl w-full max-w-[440px] shadow-[0_24px_80px_rgba(0,0,0,0.3)] overflow-hidden" onClick={e=>e.stopPropagation()}>
+            <div className="px-6 pt-5">
+              <h3 style={{fontSize:16,fontWeight:700,margin:0}}>Exportar {selected.size} ficha{selected.size!==1?"s":""}</h3>
+              <p className="text-[12px] text-[var(--label-secondary)] mt-1">Sai um PDF por referência, nomeado como <strong>REF - dia-mês-ano</strong>. O navegador vai pedir para salvar cada um.</p>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              {([
+                ["ficha","Ficha Técnica","Dados do produto, tecidos, aviamentos, pilotagem"],
+                ["estamparia","Estamparia","Artes, técnicas, simulações e fotos"],
+                ["liberacao","Liberação","Tabela de medidas, provas e graduação"],
+                ["graduacao","Graduação de Produção","Só sai em ficha de produção aprovada"],
+              ] as [string,string,string][]).map(([key,label,desc])=>(
+                <label key={key} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${(exportSections as any)[key]?"border-[var(--system-blue)] bg-[rgba(0,122,255,0.04)]":"border-[var(--separator-opaque)] hover:border-[var(--label-tertiary)]"}`}>
+                  <input type="checkbox" checked={(exportSections as any)[key]} onChange={e=>setExportSections(prev=>({...prev,[key]:e.target.checked}))} className="mt-0.5 w-4 h-4 accent-[var(--system-blue)]"/>
+                  <div>
+                    <div className="text-[13px] font-semibold">{label}</div>
+                    <div className="text-[11px] text-[var(--label-tertiary)]">{desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="px-6 pb-5 flex gap-2.5 justify-end">
+              <button onClick={()=>setShowExportLote(false)} className="apple-btn-secondary">Cancelar</button>
+              <button onClick={()=>{setShowExportLote(false);setExportando(true);}} disabled={!exportSections.ficha&&!exportSections.estamparia&&!exportSections.liberacao} className="apple-btn-primary disabled:opacity-40">Exportar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {exportando && (
+        <FichaExportLote
+          rows={rows.filter((r:any)=>selected.has(r.id))}
+          sections={exportSections}
+          onDone={()=>setExportando(false)}
+        />
+      )}
+
       {selected.size > 0 && !readOnly && (
         <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--system-blue)",borderRadius:10,padding:"10px 16px",marginBottom:12,flexWrap:"wrap"}}>
           <span style={{fontSize:13,fontWeight:600,color:"#fff"}}>{selected.size} SKU{selected.size!==1?"s":""} selecionado{selected.size!==1?"s":""}</span>
@@ -529,6 +575,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
             {(opts("status")||[STATUS_ESTILO.DESENVOLVIMENTO,STATUS_ESTILO.MOSTARIO_LIBERADO,STATUS_ESTILO.PRODUCAO_LIBERADA,STATUS_ESTILO.CANCELADO]).map((s:string)=><option key={s} value={s} style={{color:"#000"}}>{s}</option>)}
           </select>
           <button onClick={handleBulkStatus} disabled={!bulkStatus} style={{fontSize:12,fontWeight:600,padding:"5px 14px",borderRadius:6,background:bulkStatus?"#fff":"rgba(255,255,255,0.3)",color:bulkStatus?"var(--system-blue)":"rgba(255,255,255,0.6)",border:"none",cursor:bulkStatus?"pointer":"default"}}>Aplicar</button>
+          <button onClick={()=>setShowExportLote(true)} title="Gera um PDF por referência, com o nome já pronto" style={{fontSize:12,fontWeight:600,padding:"5px 14px",borderRadius:6,background:"rgba(255,255,255,0.2)",color:"#fff",border:"1px solid rgba(255,255,255,0.4)",cursor:"pointer"}}>Exportar fichas</button>
           <button onClick={()=>setSelected(new Set())} style={{fontSize:12,color:"rgba(255,255,255,0.8)",background:"none",border:"none",cursor:"pointer",marginLeft:"auto"}}>Cancelar</button>
         </div>
       )}
