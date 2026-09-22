@@ -42,6 +42,9 @@ export default function CadView(){
   const [tecPdfUploading,setTecPdfUploading]=useState<string|null>(null);
   const tecPdfRef=useRef<HTMLInputElement>(null);
   const [tecPdfTarget,setTecPdfTarget]=useState<string|null>(null);
+  const [newTecPdf,setNewTecPdf]=useState<string>("");
+  const [newTecPdfUp,setNewTecPdfUp]=useState(false);
+  const newTecPdfRef=useRef<HTMLInputElement>(null);
   const [newTecImg,setNewTecImg]=useState<string>("");
   const [newTecImgUp,setNewTecImgUp]=useState(false);
   const newTecImgRef=useRef<HTMLInputElement>(null);
@@ -141,12 +144,12 @@ export default function CadView(){
     // Sem gramatura digitada, mas com oz: deduz a gramatura do oz (não deixa o registro sem os dois)
     const gramaturaFinal=tg.trim()?tg:(ozParaGramatura(to)?.toString()??tg);
     const t={nome:tn.trim().toUpperCase(),forn:tf.trim(),comp:tc.trim(),preco:tp,
-      oz:to,gramatura:gramaturaFinal,largura:tl,enc_largura:tel,enc_altura:tea,rendimento:tr,imagem:newTecImg};
+      oz:to,gramatura:gramaturaFinal,largura:tl,enc_largura:tel,enc_altura:tea,rendimento:tr,imagem:newTecImg,ficha_pdf:newTecPdf};
     await addTecido(t);
     setTecidos(p=>[...p,t].sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"pt-BR")));
-    setTn("");setTf("");setTc("");setTp("");setTo("");setTg("");setTl("");setTel("");setTea("");setTr("");setNewTecImg("");
+    setTn("");setTf("");setTc("");setTp("");setTo("");setTg("");setTl("");setTel("");setTea("");setTr("");setNewTecImg("");setNewTecPdf("");
   };
-  const remT=async(n:string)=>{const t=tecidos.find((x:any)=>x.nome===n);if(t?.imagem)await deleteImage(t.imagem);await removeTecido(n);setTecidos(p=>p.filter(t=>t.nome!==n));};
+  const remT=async(n:string)=>{const t=tecidos.find((x:any)=>x.nome===n);if(t?.imagem)await deleteImage(t.imagem);if(t?.ficha_pdf)await deleteImage(t.ficha_pdf);await removeTecido(n);setTecidos(p=>p.filter(t=>t.nome!==n));};
   // Salva um campo do tecido ao sair do input (mesmo padrão dos aviamentos)
   const saveTec=async(nome:string,patch:Record<string,any>)=>{
     setTecidos(p=>p.map(t=>t.nome===nome?{...t,...patch}:t));
@@ -198,6 +201,22 @@ export default function CadView(){
   };
   const triggerTecPdf=(nome:string)=>{setTecPdfTarget(nome);setTimeout(()=>tecPdfRef.current?.click(),0);};
   const remTecPdf=async(nome:string,url:string)=>{await deleteImage(url);await saveTec(nome,{ficha_pdf:""});};
+
+  // Ficha em PDF no formulário de criar tecido. Precisa do nome antes: ele é
+  // que monta o caminho no Storage, igual à foto.
+  const handleNewTecPdf=async(e:React.ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0];
+    if(!file)return;
+    const limpar=()=>{if(newTecPdfRef.current)newTecPdfRef.current.value="";};
+    const nome=tn.trim().toUpperCase();
+    if(!nome){alert("Digite o nome do tecido antes de anexar a ficha.");limpar();return;}
+    if(file.type!=="application/pdf"){alert("A ficha técnica precisa ser um arquivo PDF.");limpar();return;}
+    setNewTecPdfUp(true);
+    const url=await uploadArquivo(file,`tecidos/${nome}/ficha`);
+    if(url)setNewTecPdf(url); else alert("Não foi possível enviar o PDF. Tente de novo.");
+    setNewTecPdfUp(false);
+    limpar();
+  };
   // No formulário a foto sobe antes do tecido existir — usa o nome digitado como pasta
   const handleNewTecImg=async(e:React.ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];
@@ -478,6 +497,7 @@ export default function CadView(){
               <input type="file" accept="image/*" ref={tecImgRef} className="hidden" onChange={handleTecImg}/>
               <input type="file" accept="image/*" ref={newTecImgRef} className="hidden" onChange={handleNewTecImg}/>
               <input type="file" accept="application/pdf" ref={tecPdfRef} className="hidden" onChange={handleTecPdf}/>
+              <input type="file" accept="application/pdf" ref={newTecPdfRef} className="hidden" onChange={handleNewTecPdf}/>
               <div className="flex gap-2 mb-2 flex-wrap items-start">
                 {/* Foto do novo tecido */}
                 {newTecImgUp
@@ -503,6 +523,19 @@ export default function CadView(){
                 <input className={`${inp} w-32`} value={tel} onChange={e=>setTel(e.target.value)} placeholder="Enc. larg./trama" title="Encolhimento na largura (sentido da trama), em %"/>
                 <input className={`${inp} w-32`} value={tea} onChange={e=>setTea(e.target.value)} placeholder="Enc. alt./urdume"  title="Encolhimento na altura (sentido do urdume), em %"/>
                 <input className={`${inp} w-28`} value={tr}  onChange={e=>setTr(e.target.value)}  placeholder="Rendimento"  title="Rendimento (m/kg)"/>
+                {/* Ficha técnica em PDF do novo tecido — mesmo fluxo da foto:
+                    sobe na hora (precisa do nome para montar o caminho) e o
+                    endereço fica guardado até o Adicionar gravar o registro. */}
+                {newTecPdfUp
+                  ? <span className="text-[11px] text-[var(--label-tertiary)] px-2">enviando...</span>
+                  : newTecPdf
+                    ? <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--system-blue)] border border-[var(--separator-opaque)] rounded-lg px-2 py-1.5">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                        ficha anexada
+                        <button onClick={()=>setNewTecPdf("")} className="text-[var(--label-quaternary)] hover:text-[var(--system-red)]" title="Remover a ficha">×</button>
+                      </span>
+                    : <button onClick={()=>newTecPdfRef.current?.click()} title="Anexar a ficha técnica em PDF (digite o nome primeiro)"
+                        className="text-[11px] font-medium text-[var(--label-quaternary)] hover:text-[var(--system-blue)] border border-dashed border-[var(--separator-opaque)] hover:border-[var(--system-blue)] rounded-lg px-2.5 py-1.5 transition-colors">+ ficha PDF</button>}
                 <button onClick={addT} className={btn}>Adicionar</button>
               </div>
 

@@ -92,12 +92,12 @@ export type TecidoTecnico = {
   gramatura?: any; oz?: any; largura?: any; enc_largura?: any; enc_altura?: any; rendimento?: any;
 };
 
-export async function addTecido(t: { nome: string; forn: string; comp: string; preco: string; imagem?: string } & TecidoTecnico) {
+export async function addTecido(t: { nome: string; forn: string; comp: string; preco: string; imagem?: string; ficha_pdf?: string } & TecidoTecnico) {
   const { error } = await sb().from("tecidos").insert({
     nome: t.nome, fornecedor: t.forn, composicao: t.comp, preco: numOuNull(t.preco),
     gramatura: numOuNull(t.gramatura), oz: numOuNull(t.oz), largura: numOuNull(t.largura),
     encolhimento_largura: numOuNull(t.enc_largura), encolhimento_altura: numOuNull(t.enc_altura),
-    rendimento: numOuNull(t.rendimento), imagem: t.imagem || "",
+    rendimento: numOuNull(t.rendimento), imagem: t.imagem || "", ficha_pdf: t.ficha_pdf || "",
   });
   if (error) console.error("addTecido:", error);
   invalidateCache("tecidos");
