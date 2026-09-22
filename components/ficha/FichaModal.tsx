@@ -261,12 +261,20 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       });
       setAvi(aviComputed);
       let tecComputed: any[] = [];
-      // Carrega imagem do modo de medir e a área média da tabela de medidas
+      // Carrega imagem do modo de medir e a área média da tabela de medidas.
+      //
+      // A tabela é a fonte preferida: o diagrama é da modelagem, então vale
+      // para toda ficha que usa aquela tabela. Só quando ela não tem diagrama
+      // entra o que foi anexado nesta ficha — sem esse fallback, uma imagem
+      // posta direto na ficha sumia ao reabrir, porque o valor salvo nunca
+      // era lido de volta.
+      let modoMedirTabela = "";
       if (row.tab_medidas && tabs) {
         const t = tabs.find((t: any) => t.nome === row.tab_medidas);
         setAreaMedia((t as any)?.area_media ?? null);
-        if (t && (t as any).imagem_modo_medir) setImgModoMedir((t as any).imagem_modo_medir);
+        modoMedirTabela = (t as any)?.imagem_modo_medir || "";
       }
+      setImgModoMedir(modoMedirTabela || ficha?.imagem_modo_medir || null);
       if (ficha) {
         setFichaId(ficha.id); setImg(ficha.imagem_url); setImgModelo(ficha.imagem_modelo);
         setImgFrente(ficha.imagem_frente || null); setImgCostas(ficha.imagem_costas || null);
