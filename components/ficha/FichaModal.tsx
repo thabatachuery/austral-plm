@@ -962,6 +962,11 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
           </div>
           <input ref={fr} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_url", setImg, img)} />
 
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-2">{tr("Observações")}</div>
+            <textarea value={obs} onChange={e => setObs(e.target.value)} placeholder="Observações técnicas, instruções especiais..." rows={3} className="apple-input w-full resize-none" />
+          </div>
+
           <div className="apple-card overflow-x-auto"><table className="plm-table"><thead><tr><th className="px-4">{tr("Artigo")}</th><th className="w-24">{tr("Fornec.")}</th><th className="w-36">{tr("Composição")}</th><th className="text-center w-16">{tr("Preço")}</th>{Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} className="text-center w-[120px]"><div>Var {String(i+1).padStart(2,"0")}</div>{cor && <div className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold" style={pal ? { background: pal.bg, color: pal.text } : { background: "var(--bg-tertiary)", color: "var(--label-secondary)" }}>{cor}</div>}</th>); })}</tr></thead><tbody>{tec.map((t: any, ti: number) => { const cs = t.cores || []; while (cs.length < numVars) cs.push(""); return (<tr key={ti}><td className="px-4"><span className="text-[var(--label-tertiary)] text-[11px] mr-1.5">Tec.{String(ti + 1).padStart(2, "0")}</span>{ti === 0 ? <span className="font-semibold" title="O tecido principal vem do SKU (coluna Tecido, em Desenvolvimento)">{t.artigo}</span> : <button type="button" onClick={() => { setTecPick(ti); setTsq(""); }} className={`text-left font-semibold underline decoration-dotted decoration-[var(--separator-opaque)] underline-offset-2 hover:decoration-[var(--system-blue)] hover:text-[var(--system-blue)] ${t.artigo ? "" : "text-[var(--system-blue)]"}`} title="Escolher tecido do cadastro">{t.artigo || "Selecionar tecido..."}</button>}</td><td>{t.forn || "—"}</td><td className="text-[12px] text-[var(--label-secondary)] px-3">{compOf(t.artigo) || "—"}</td><td className="text-center tabnum">{t.preco > 0 ? t.preco.toFixed(2) : "—"}</td>{cs.slice(0, numVars).map((c: string, ci: number) => { const pal = c ? COR_PALETTE[c] : null; return (<td key={ci} className="px-1.5 py-1.5"><select value={c} onChange={e => utc(ti, ci, e.target.value)} className="w-full text-[12px] px-2 py-1.5 rounded-lg border outline-none cursor-pointer font-bold" style={pal ? { background: pal.bg, color: pal.text, borderColor: pal.bg } : { borderColor: "var(--separator-opaque)", color: "var(--label-quaternary)" }}><option value="">Selecionar</option>{corOpts.map(x => <option key={x} value={x}>{x}</option>)}</select></td>); })}</tr>); })}</tbody><tfoot>
                 <tr className="border-t border-[var(--separator-opaque)] bg-[var(--bg-secondary)]">
                   <td colSpan={3} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] whitespace-nowrap">{tr("Pantone / Código")}</td>
@@ -1260,10 +1265,6 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             </div>
           </div>
 
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-2">{tr("Observações")}</div>
-            <textarea value={obs} onChange={e => setObs(e.target.value)} placeholder="Observações técnicas, instruções especiais..." rows={3} className="apple-input w-full resize-none" />
-          </div>
         </div>)}
 
         {/* ═══ ESTAMPARIA ═══ */}

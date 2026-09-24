@@ -221,6 +221,19 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
             </div>
           )}
 
+          {/* ── Observação da ficha, em destaque ──
+               Fica logo abaixo do desenho, na página 1, porque é aviso que
+               precisa ser lido antes de qualquer tabela — costuma dizer o que
+               foge do padrão ("mesmo modelo feito na coleção I27").
+               Só aparece quando há texto: sem isso, sobraria uma tarja amarela
+               vazia em toda ficha. */}
+          {obs && obs.trim() && (
+            <div style={{ background: "#FFF9C4", border: `1.5px solid ${warn}`, borderRadius: "5px", padding: "7px 10px", marginBottom: "7px", pageBreakInside: "avoid" }}>
+              <div style={{ fontSize: "6px", fontWeight: 800, color: warnDark, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "3px" }}>{tr("Observações")}</div>
+              <div style={{ fontSize: "9px", fontWeight: 800, color: danger, lineHeight: 1.35, whiteSpace: "pre-wrap" }}>{obs}</div>
+            </div>
+          )}
+
           {/* Tecidos & Variantes */}
           {tec.length > 0 && (
             <div style={{ marginBottom: "7px" }}>
