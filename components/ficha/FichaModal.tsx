@@ -1167,6 +1167,19 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               </tr>
             ))}{avi.length > 0 && <tr className="border-t border-[var(--separator-opaque)]"><td /><td colSpan={4} className="px-4 py-2.5 font-bold">{tr("Total")}</td><td className="text-right tabnum font-bold py-2.5">R$ {avT.toFixed(2)}</td><td colSpan={numVars + 1} /></tr>}</tbody></table></div>
 
+            {!sap ? <button onClick={() => setSap(true)} className="apple-btn-secondary mb-4">+ Adicionar aviamento</button> : (
+              <div className="apple-card p-3.5 mb-4 bg-[rgba(0,122,255,0.03)] border-[var(--system-blue)]"><div className="flex gap-2 mb-2"><input type="text" value={asq} onChange={e => setAsq(e.target.value)} placeholder="Buscar aviamento..." className="apple-input flex-1" autoFocus /><button onClick={() => { setSap(false); setAsq(""); }} className="text-[13px] text-[var(--label-secondary)] px-2">Cancelar</button></div><div className="max-h-[240px] overflow-y-auto overscroll-y-contain border border-[var(--separator-opaque)] rounded-xl bg-[var(--bg-primary)]">{fa.map((a: any) => (
+                <button key={a.cod} onClick={() => aa(a)} className="w-full text-left px-4 py-2.5 text-[13px] hover:bg-[var(--bg-secondary)] border-b border-[var(--separator)] flex items-center gap-3">
+                  {a.imagem ? <img src={a.imagem} alt={a.nome} className="w-8 h-8 object-contain rounded border border-[var(--separator)] flex-shrink-0"/> : <div className="w-8 h-8 rounded border border-dashed border-[var(--separator-opaque)] flex-shrink-0 flex items-center justify-center text-[var(--label-quaternary)]"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>}
+                  <div className="flex-1 min-w-0">
+                    <div><span className="font-mono text-[11px] text-[var(--label-tertiary)] mr-2">{a.cod}</span><span className="font-medium">{a.nome}</span></div>
+                    {a.localizacao_padrao && <div className="text-[11px] text-[var(--label-secondary)] truncate">{a.localizacao_padrao}</div>}
+                  </div>
+                  <span className="tabnum text-[var(--label-secondary)] flex-shrink-0">{a.preco > 0 ? `R$ ${a.preco.toFixed(2)}` : "—"}</span>
+                </button>
+              ))}</div></div>
+            )}
+
             {/* ── Galeria de imagens dos aviamentos ──
                  Itens com foto por cor (cores_disponiveis > 1) mostram só as
                  cores realmente escolhidas nas variantes desta ficha — não
@@ -1187,18 +1200,6 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                   )))}
                 </div>
               </div>
-            )}
-            {!sap ? <button onClick={() => setSap(true)} className="apple-btn-secondary mb-4">+ Adicionar aviamento</button> : (
-              <div className="apple-card p-3.5 mb-4 bg-[rgba(0,122,255,0.03)] border-[var(--system-blue)]"><div className="flex gap-2 mb-2"><input type="text" value={asq} onChange={e => setAsq(e.target.value)} placeholder="Buscar aviamento..." className="apple-input flex-1" autoFocus /><button onClick={() => { setSap(false); setAsq(""); }} className="text-[13px] text-[var(--label-secondary)] px-2">Cancelar</button></div><div className="max-h-[240px] overflow-y-auto overscroll-y-contain border border-[var(--separator-opaque)] rounded-xl bg-[var(--bg-primary)]">{fa.map((a: any) => (
-                <button key={a.cod} onClick={() => aa(a)} className="w-full text-left px-4 py-2.5 text-[13px] hover:bg-[var(--bg-secondary)] border-b border-[var(--separator)] flex items-center gap-3">
-                  {a.imagem ? <img src={a.imagem} alt={a.nome} className="w-8 h-8 object-contain rounded border border-[var(--separator)] flex-shrink-0"/> : <div className="w-8 h-8 rounded border border-dashed border-[var(--separator-opaque)] flex-shrink-0 flex items-center justify-center text-[var(--label-quaternary)]"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>}
-                  <div className="flex-1 min-w-0">
-                    <div><span className="font-mono text-[11px] text-[var(--label-tertiary)] mr-2">{a.cod}</span><span className="font-medium">{a.nome}</span></div>
-                    {a.localizacao_padrao && <div className="text-[11px] text-[var(--label-secondary)] truncate">{a.localizacao_padrao}</div>}
-                  </div>
-                  <span className="tabnum text-[var(--label-secondary)] flex-shrink-0">{a.preco > 0 ? `R$ ${a.preco.toFixed(2)}` : "—"}</span>
-                </button>
-              ))}</div></div>
             )}
           </div>
 
