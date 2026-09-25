@@ -19,7 +19,7 @@ type Props = {
   ncm?: string;
   peso?: ResultadoPeso | null;
   vcCompras?: Record<string, any>;
-  provaInfo?: Record<string, { data: string; status: string; link: string; fotoFrente: string; fotoLado: string; fotoCostas: string; tipo: string }>;
+  provaInfo?: Record<string, { data: string; status: string; link: string; fotoFrente: string; fotoLado: string; fotoCostas: string; tipo: string; videoArquivo?: string }>;
   gradTamanhos?: string[]; gradBase?: string; tabTamanhos?: string[];
   // Ficha de fornecedor importado: imprime os rótulos em inglês.
   importado?: boolean;
@@ -797,12 +797,19 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                   ))}
                 </div>
               )}
-              {(a?.video || pi?.link) && (
-                <div style={{ fontSize: "8px", color: accent, marginBottom: "8px" }}>
-                  <span style={{ fontWeight: 700, color: muted, marginRight: "4px" }}>{tr("LINK DO VÍDEO:")}</span>
-                  {a?.video || pi?.link}
-                </div>
-              )}
+              {/* Vídeo da prova: o gravado na ficha vem primeiro; depois o link
+                  colado à mão. Sai como <a> de verdade — num PDF aberto na
+                  tela o endereço fica clicável. No papel ele vira só texto,
+                  que é a limitação de qualquer link impresso. */}
+              {(pi?.videoArquivo || a?.video || pi?.link) && (() => {
+                const alvo = pi?.videoArquivo || a?.video || pi?.link;
+                return (
+                  <div style={{ fontSize: "8px", color: accent, marginBottom: "8px", wordBreak: "break-all" }}>
+                    <span style={{ fontWeight: 700, color: muted, marginRight: "4px" }}>{tr("LINK DO VÍDEO:")}</span>
+                    <a href={alvo} style={{ color: accent, textDecoration: "underline" }}>{alvo}</a>
+                  </div>
+                );
+              })()}
               {/* Nº Lacre / Data de Prova / Status */}
               {pilRow && (pilRow.num || pilRow.lacre || pilRow.prova) && (
                 <table style={{ ...tbl, marginTop: 0 }}>

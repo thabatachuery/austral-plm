@@ -126,7 +126,7 @@ export async function carregarFichaParaPDF(row: any): Promise<DadosFichaPDF> {
 
   // provaInfo antigo guardava "foto" única; o novo tem frente/lado/costas.
   const provaInfo = ficha?.provaInfo
-    ? { ...PROVA_INFO_PADRAO, ...Object.fromEntries(Object.entries(ficha.provaInfo).map(([k, v]: [string, any]) => [k, { data: v.data || "", status: v.status || "", link: v.link || "", fotoFrente: v.fotoFrente || v.foto || "", fotoLado: v.fotoLado || "", fotoCostas: v.fotoCostas || "", tipo: v.tipo || "" }])) }
+    ? { ...PROVA_INFO_PADRAO, ...Object.fromEntries(Object.entries(ficha.provaInfo).map(([k, v]: [string, any]) => [k, { data: v.data || "", status: v.status || "", link: v.link || "", fotoFrente: v.fotoFrente || v.foto || "", fotoLado: v.fotoLado || "", fotoCostas: v.fotoCostas || "", tipo: v.tipo || "", videoArquivo: v.videoArquivo || "" }])) }
     : PROVA_INFO_PADRAO;
 
   const tEsp = !!ficha?.tabelaEspecialAtiva;

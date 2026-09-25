@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
-import { uploadImage, deleteImage } from "@/lib/storage";
+import { uploadImage, uploadArquivo, deleteImage } from "@/lib/storage";
 import { fetchFicha, fetchFichasColecoes, reorderFichaColecoes, deleteFichaColecao, upsertFicha, saveFichaImagem, imagemUsadaEmOutraFicha, updateProdutoField, fetchPontosByTabelaNome, fetchGraduacoesByTabelaNome, fetchCadastros, fetchAviamentos, fetchTecidos, fetchVarianteCompras, fetchTabelasMedidas, criarAlertas, novoGrupoAlerta, aplicarMostruarioLiberadoNoFluxo, type NovoAlerta } from "@/lib/db";
 import { classificarNCM } from "@/lib/ncm";
 import { calcularPesoPeca, type ResultadoPeso } from "@/lib/peso";
@@ -66,6 +66,8 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const [statusLib, setStatusLib] = useState("");
   // Estagio escolhido a mao (vazio = deduz do status do SKU, como antes)
   const [estagio, setEstagio] = useState("");
+  const [videoProvaTarget, setVideoProvaTarget] = useState<"p1"|"p2"|"p3"|null>(null);
+  const videoProvaRef = useRef<HTMLInputElement>(null);
   // Ficha de fornecedor importado: troca os rótulos (campos, cabeçalhos de
   // tabela e títulos de seção) para inglês, aqui e no PDF. Os valores seguem em
   // português — vêm dos cadastros. Ver lib/ficha-i18n.ts.
@@ -101,7 +103,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const [dataProvaDraft, setDataProvaDraft] = useState<Record<string, string>>({});
   const [pv, setPv] = useState<Record<string, { p1: string; p2: string; p3: string }>>({});
   const [an, setAn] = useState<Record<string, { texto: string; video: string }>>({ p1: { texto: "", video: "" }, p2: { texto: "", video: "" }, p3: { texto: "", video: "" } });
-  const [provaInfo, setProvaInfo] = useState<Record<string, { data: string; status: string; link: string; fotoFrente: string; fotoLado: string; fotoCostas: string; tipo: string }>>({ p1: { data: "", status: "", link: "", fotoFrente: "", fotoLado: "", fotoCostas: "", tipo: "" }, p2: { data: "", status: "", link: "", fotoFrente: "", fotoLado: "", fotoCostas: "", tipo: "" }, p3: { data: "", status: "", link: "", fotoFrente: "", fotoLado: "", fotoCostas: "", tipo: "" } });
+  const [provaInfo, setProvaInfo] = useState<Record<string, { data: string; status: string; link: string; fotoFrente: string; fotoLado: string; fotoCostas: string; tipo: string; videoArquivo?: string }>>({ p1: { data: "", status: "", link: "", fotoFrente: "", fotoLado: "", fotoCostas: "", tipo: "" }, p2: { data: "", status: "", link: "", fotoFrente: "", fotoLado: "", fotoCostas: "", tipo: "" }, p3: { data: "", status: "", link: "", fotoFrente: "", fotoLado: "", fotoCostas: "", tipo: "" } });
   const [custoDet, setCustoDet] = useState({ mp: "", mo: "" });
   const [obsCusto, setObsCusto] = useState("");
   const fotoProvaRef = useRef<HTMLInputElement>(null);
@@ -298,7 +300,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         if (ficha.estagio) setEstagio(ficha.estagio);
         setImportado(!!ficha.importado);
         if (ficha.provaInfo) {
-          const migrated = Object.fromEntries(Object.entries(ficha.provaInfo).map(([k, v]: [string, any]) => [k, { data: v.data || "", status: v.status || "", link: v.link || "", fotoFrente: v.fotoFrente || v.foto || "", fotoLado: v.fotoLado || "", fotoCostas: v.fotoCostas || "", tipo: v.tipo || "" }]));
+          const migrated = Object.fromEntries(Object.entries(ficha.provaInfo).map(([k, v]: [string, any]) => [k, { data: v.data || "", status: v.status || "", link: v.link || "", fotoFrente: v.fotoFrente || v.foto || "", fotoLado: v.fotoLado || "", fotoCostas: v.fotoCostas || "", tipo: v.tipo || "", videoArquivo: v.videoArquivo || "" }]));
           setProvaInfo(prev => ({ ...prev, ...migrated }));
         }
         if (ficha.custoDet) setCustoDet(ficha.custoDet);
@@ -353,6 +355,30 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const deleteImg = async () => { if (img) await apagarImagem(img); setImg(null); if (fichaId) await saveFichaImagem(fichaId, "imagem_url", ""); };
   const deleteImgModelo = async () => { if (imgModelo) await apagarImagem(imgModelo); setImgModelo(null); if (fichaId) await saveFichaImagem(fichaId, "imagem_modelo", ""); };
   const deleteImgModoMedir = async () => { if (imgModoMedir) await apagarImagem(imgModoMedir); setImgModoMedir(null); if (fichaId) await saveFichaImagem(fichaId, "imagem_modo_medir", ""); };
+  // Vídeo da prova. Sobe pelo uploadArquivo, que não passa pelo canvas — o
+  // uploadImage rasteriza tudo em JPEG e destruiria o arquivo.
+  //
+  // Fica em campo próprio (videoArquivo), separado do "Link vídeo..." colado à
+  // mão: uma prova pode ter o vídeo gravado aqui E um link do Drive, e um não
+  // deve apagar o outro. Como provaInfo é JSON na coluna prova_info, o campo
+  // novo não precisa de migration.
+  const uploadVideoProva = async (file: File, prova: "p1"|"p2"|"p3") => {
+    if (!file.type.startsWith("video/")) { alert("Escolha um arquivo de vídeo."); return; }
+    const mb = file.size / 1048576;
+    if (mb > 100 && !window.confirm(`O vídeo tem ${mb.toFixed(0)} MB. O envio pode demorar bastante. Continuar?`)) return;
+    setUp(true);
+    const url = await uploadArquivo(file, `${row.ref}/prova_${prova}_video`);
+    if (url) setProvaInfo(prev => ({ ...prev, [prova]: { ...prev[prova], videoArquivo: url } }));
+    else alert("Não foi possível enviar o vídeo. Tente de novo.");
+    setUp(false);
+  };
+  const handleVideoProva = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (file && videoProvaTarget) await uploadVideoProva(file, videoProvaTarget);
+    setVideoProvaTarget(null);
+    if (videoProvaRef.current) videoProvaRef.current.value = "";
+  };
+
   const uploadFotoProva = async (file: File, prova: "p1"|"p2"|"p3", side: "frente"|"lado"|"costas") => {
     if (!file.type.startsWith("image/")) return;
     setUp(true);
@@ -1758,6 +1784,28 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                             );
                           })}
                         </div>
+
+                        {/* Vídeo da prova — ao lado das fotos, porque é o mesmo
+                            momento de registro. No celular o seletor abre a
+                            câmera já em modo vídeo (capture). */}
+                        <div className="mt-2">
+                          {(info as any).videoArquivo ? (
+                            <div className="flex items-center gap-2 text-[12px]">
+                              <a href={(info as any).videoArquivo} target="_blank" rel="noopener noreferrer"
+                                 className="inline-flex items-center gap-1.5 font-semibold text-[var(--system-blue)] hover:underline">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                                {tr("Vídeo da prova")}
+                              </a>
+                              <button onClick={() => setProvaInfo(prev => ({ ...prev, [pk]: { ...prev[pk], videoArquivo: "" } }))}
+                                className="text-[var(--label-quaternary)] hover:text-[var(--system-red)]" title="Remover o vídeo">×</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => { setVideoProvaTarget(pk); setTimeout(() => videoProvaRef.current?.click(), 0); }}
+                              className="text-[11px] font-medium text-[var(--label-quaternary)] hover:text-[var(--system-blue)] border border-dashed border-[var(--separator-opaque)] hover:border-[var(--system-blue)] rounded-lg px-2.5 py-1 transition-colors">
+                              + {tr("Vídeo da prova")}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1998,6 +2046,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         {/* Fica fora das tabs (sempre montado) mas dentro do diálogo: como filho
             do overlay, o .click() programático borbulharia até ele e fecharia a ficha. */}
         <input ref={fotoProvaRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFotoProva} />
+        <input ref={videoProvaRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={handleVideoProva} />
       </div>
       <ConfirmDialog />
     </div>

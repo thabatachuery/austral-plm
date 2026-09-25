@@ -194,6 +194,7 @@ const EN: Record<string, string> = {
   "Modelo": "Fit Model",
   "Fotos das Provas": "Fitting Photos",
   "LINK DO VÍDEO:": "VIDEO LINK:",
+  "Vídeo da prova": "Fitting video",
 
   // ── Custo ──
   "Mão de Obra": "Labour",
