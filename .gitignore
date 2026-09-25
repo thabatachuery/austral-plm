@@ -16,3 +16,7 @@ illustrator/plm-config.json
 
 # backups locais do banco (gerados por scripts/backup.mjs)
 backup/
+
+# planilhas de trabalho geradas por consulta — nao fazem parte do codigo
+*.xlsx
+~$*
