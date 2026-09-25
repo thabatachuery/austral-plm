@@ -79,6 +79,10 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const autoSaveTimer = useRef<any>(null);
   const isLoaded = useRef(false);
   const saveRef = useRef<(confirmed?: boolean) => Promise<void>>();
+  // Ver a trava em save(): impede que dois salvamentos se atropelem e dupliquem
+  // as linhas de tecido, aviamento e tabela especial.
+  const salvandoRef = useRef(false);
+  const salvarNovamenteRef = useRef(false);
   const lastCoresRef = useRef<string>("");
   const baselineRef = useRef<{ tec: any[]; avi: any[] }>({ tec: [], avi: [] });
   const { confirm, Dialog: ConfirmDialog } = useConfirm();
@@ -450,6 +454,22 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       setPendingSave(true);
       return;
     }
+    // Trava contra gravações sobrepostas.
+    //
+    // O upsertFicha grava tecidos, aviamentos e a tabela especial apagando e
+    // reinserindo. Duas execuções ao mesmo tempo viram "apaga A, apaga B,
+    // insere A, insere B" — e as linhas DOBRAM a cada rodada. Como o auto-save
+    // dispara a cada 1,5s e um salvamento faz várias idas ao servidor, a
+    // sobreposição era o caso comum, não a exceção.
+    //
+    // Foi assim que a ficha da 22040058 acumulou 1.000 pontos de medida: os
+    // mesmos 12 repetidos 83 vezes, um crescimento exponencial a cada save.
+    //
+    // Se chegar um pedido durante uma gravação, ele não é descartado: fica
+    // marcado e roda uma vez ao final, para não perder a última edição.
+    if (salvandoRef.current) { salvarNovamenteRef.current = true; return; }
+    salvandoRef.current = true;
+
     setSaving(true);
     setPendingSave(false);
     setAutoSaveStatus("saving");
@@ -492,6 +512,8 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       setTimeout(() => setAutoSaveStatus("idle"), 3000);
     }
     setSaving(false);
+    salvandoRef.current = false;
+    if (salvarNovamenteRef.current) { salvarNovamenteRef.current = false; saveRef.current?.(true); }
   };
 
   // Mantém saveRef sempre atualizado (evita closures stale no auto-save)
