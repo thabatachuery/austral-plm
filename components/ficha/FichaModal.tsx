@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 import { uploadImage, deleteImage } from "@/lib/storage";
-import { fetchFicha, fetchFichasColecoes, reorderFichaColecoes, deleteFichaColecao, upsertFicha, saveFichaImagem, imagemUsadaEmOutraFicha, updateProdutoField, fetchPontosByTabelaNome, fetchGraduacoesByTabelaNome, fetchCadastros, fetchAviamentos, fetchTecidos, fetchVarianteCompras, fetchTabelasMedidas, criarAlertas, novoGrupoAlerta, type NovoAlerta } from "@/lib/db";
+import { fetchFicha, fetchFichasColecoes, reorderFichaColecoes, deleteFichaColecao, upsertFicha, saveFichaImagem, imagemUsadaEmOutraFicha, updateProdutoField, fetchPontosByTabelaNome, fetchGraduacoesByTabelaNome, fetchCadastros, fetchAviamentos, fetchTecidos, fetchVarianteCompras, fetchTabelasMedidas, criarAlertas, novoGrupoAlerta, aplicarMostruarioLiberadoNoFluxo, type NovoAlerta } from "@/lib/db";
 import { classificarNCM } from "@/lib/ncm";
 import { calcularPesoPeca, type ResultadoPeso } from "@/lib/peso";
 import { fotosParaExibir } from "@/lib/aviamento-fotos";
@@ -64,6 +64,8 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const [vcCompras, setVcCompras] = useState<Record<string, any>>({});
   const [tingimentoOpts, setTingimentoOpts] = useState<string[]>([]);
   const [statusLib, setStatusLib] = useState("");
+  // Estagio escolhido a mao (vazio = deduz do status do SKU, como antes)
+  const [estagio, setEstagio] = useState("");
   // Ficha de fornecedor importado: troca os rótulos (campos, cabeçalhos de
   // tabela e títulos de seção) para inglês, aqui e no PDF. Os valores seguem em
   // português — vêm dos cadastros. Ver lib/ficha-i18n.ts.
@@ -184,7 +186,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         id: null,
         tecidos: tec.map((t: any) => ({ ...t, cores: [] })),
         aviamentos: avi.map((a: any) => ({ ...a, var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" })),
-        pilotagem: pil, provas: pv, anotacoes: an, provaInfo, statusLiberacao: statusLib, importado,
+        pilotagem: pil, provas: pv, anotacoes: an, provaInfo, statusLiberacao: statusLib, estagio, importado,
         observacoes: obs, ncm, custoDet, obsCusto, pesoCalculo: peso,
         imagem_url: img, imagem_modelo: imgModelo, imagem_modo_medir: imgModoMedir,
         imagem_frente: imgFrente, imagem_costas: imgCostas,
@@ -293,6 +295,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         if (ficha.tingimento) setVarTingimento(prev => ({ ...prev, ...ficha.tingimento }));
         if (ficha.qtdMost) setQtdMost(prev => ({ ...prev, ...ficha.qtdMost }));
         if (ficha.statusLiberacao) setStatusLib(ficha.statusLiberacao);
+        if (ficha.estagio) setEstagio(ficha.estagio);
         setImportado(!!ficha.importado);
         if (ficha.provaInfo) {
           const migrated = Object.fromEntries(Object.entries(ficha.provaInfo).map(([k, v]: [string, any]) => [k, { data: v.data || "", status: v.status || "", link: v.link || "", fotoFrente: v.fotoFrente || v.foto || "", fotoLado: v.fotoLado || "", fotoCostas: v.fotoCostas || "", tipo: v.tipo || "" }]));
@@ -371,9 +374,36 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     if (file) await uploadFotoProva(file, prova, side);
   };
 
-  const autoStatusFor = (lib: string) => {
-    if (lib === "REPROVADO") return "REPILOTANDO PRODUÇÃO";
-    if (lib === "APROVADO" || lib === "APROVADO COM RESTRIÇÃO") return "PRODUÇÃO LIBERADA";
+  // Tipo da prova mais avançada que já foi classificada (p3 → p2 → p1). É ele
+  // que diz O QUE está sendo liberado.
+  const tipoProvaVigente = () => {
+    for (const pk of ["p3", "p2", "p1"] as const) {
+      const t = String(provaInfo?.[pk]?.tipo || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+      if (t) return t;
+    }
+    return "";
+  };
+
+  /**
+   * O status do SKU depende do TIPO da prova, não só do status da liberação.
+   *
+   * Antes, aprovar qualquer prova mandava o SKU para "PRODUÇÃO LIBERADA" — e a
+   * ficha saía verde de produção mesmo quando o que se estava liberando era o
+   * mostruário, pulando a etapa amarela inteira.
+   *
+   * Reprovar uma prova de mostruário também não pode virar "REPILOTANDO
+   * PRODUÇÃO": a peça sequer chegou à produção. Nesse caso não se mexe no
+   * status, e quem decide o próximo passo é a pessoa.
+   */
+  const autoStatusFor = (lib: string): string | null => {
+    // O estágio escolhido à mão manda. Só quando ninguém escolheu é que se
+    // volta a deduzir pelo tipo da prova — que é palpite, não declaração.
+    const escolhido = String(estagio || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+    const mostruario = escolhido ? escolhido === "MOSTRUARIO" : tipoProvaVigente() === "MOSTRUARIO";
+    if (escolhido === "DESENVOLVIMENTO") return null; // ainda não libera nada
+    if (lib === "REPROVADO") return mostruario ? null : "REPILOTANDO PRODUÇÃO";
+    if (lib === "APROVADO" || lib === "APROVADO COM RESTRIÇÃO")
+      return mostruario ? STATUS_ESTILO.MOSTARIO_LIBERADO : "PRODUÇÃO LIBERADA";
     return null;
   };
 
@@ -474,7 +504,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     setPendingSave(false);
     setAutoSaveStatus("saving");
     try {
-      const fichaData = { id: fichaId, tecidos: tec, aviamentos: avi, pilotagem: pil, observacoes: obs, imagem_url: img, imagem_modelo: imgModelo, imagem_modo_medir: imgModoMedir, imagem_frente: imgFrente, imagem_costas: imgCostas, provas: pv, anotacoes: an, pantones: varCodigos, tingimento: varTingimento, qtdMost, statusLiberacao: statusLib, importado, ncm, estamparia: { ...estamparia, numVariantes: numVars }, provaInfo, custoDet, obsCusto, pesoCalculo: peso, tabelaEspecialAtiva: tEsp, pontosEspeciais: tEsp ? ptsEsp : undefined, gradEspecial: tEsp ? gradEsp : undefined };
+      const fichaData = { id: fichaId, tecidos: tec, aviamentos: avi, pilotagem: pil, observacoes: obs, imagem_url: img, imagem_modelo: imgModelo, imagem_modo_medir: imgModoMedir, imagem_frente: imgFrente, imagem_costas: imgCostas, provas: pv, anotacoes: an, pantones: varCodigos, tingimento: varTingimento, qtdMost, statusLiberacao: statusLib, estagio, importado, ncm, estamparia: { ...estamparia, numVariantes: numVars }, provaInfo, custoDet, obsCusto, pesoCalculo: peso, tabelaEspecialAtiva: tEsp, pontosEspeciais: tEsp ? ptsEsp : undefined, gradEspecial: tEsp ? gradEsp : undefined };
       const newId = await upsertFicha(row.ref, fichaData, isClassic ? selectedColecao : null);
       if (!newId) throw new Error("Falha ao salvar a ficha técnica.");
       setFichaId(newId);
@@ -493,10 +523,11 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             alteradoPorNome: nomeUsuario(user), alteradoPorUserId: user.id,
           });
         }
-        // Sem gancho para o Controle de Fluxo aqui: o autoStatusFor só devolve
-        // "PRODUÇÃO LIBERADA" ou "REPILOTANDO PRODUÇÃO". A liberação de
-        // mostruário acontece só em Desenvolvimento, e é lá que a regra mora.
         await updateProdutoField(row.id, "status", autoStatus);
+        // Desde que o autoStatusFor passou a olhar o tipo da prova, a ficha
+        // TAMBÉM libera mostruário — então o Controle de Fluxo precisa
+        // acompanhar daqui, como já acompanha de Desenvolvimento.
+        if (autoStatus === STATUS_ESTILO.MOSTARIO_LIBERADO) await aplicarMostruarioLiberadoNoFluxo(row.ref);
       }
       // Variantes só derivam das cores dos tecidos — evita recarregar a lista
       // inteira de variantes do sistema a cada auto-save (a cada 1.5s de edição)
@@ -538,7 +569,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     }, 1500);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tec, avi, pil, obs, pv, an, provaInfo, estamparia, varCodigos, varTingimento, qtdMost, statusLib, importado, ncm, numVars, custoDet, obsCusto, peso, tEsp, img, imgModelo, imgModoMedir, imgFrente, imgCostas]);
+  }, [tec, avi, pil, obs, pv, an, provaInfo, estamparia, varCodigos, varTingimento, qtdMost, statusLib, estagio, importado, ncm, numVars, custoDet, obsCusto, peso, tEsp, img, imgModelo, imgModoMedir, imgFrente, imgCostas]);
 
   const exportPDF = () => { setShowExportDlg(true); };
   const doExport = () => {
@@ -723,7 +754,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   if (showPrint) {
     return (
       <div className="print-overlay">
-        <FichaPDF row={row} tec={tec} avi={avi} pil={pil} pts={tEsp ? ptsEsp : pts} grad={tEsp ? gradEsp : grad} pv={pv} an={an} img={img} imgModelo={imgModelo} imgModoMedir={imgModoMedir} imgFrente={imgFrente} imgCostas={imgCostas} hasEstamparia={hasEstamparia} estamparia={estamparia} pantones={varCodigos} obs={obs} statusLib={statusLib} tecCad={tecCad} tabelaEspecial={tEsp} sections={exportSections} ncm={ncm} peso={peso} vcCompras={vcCompras} provaInfo={provaInfo} gradTamanhos={gradTamanhos} gradBase={gradBase} tabTamanhos={tabTamanhos} importado={importado} />
+        <FichaPDF row={row} tec={tec} avi={avi} pil={pil} pts={tEsp ? ptsEsp : pts} grad={tEsp ? gradEsp : grad} pv={pv} an={an} img={img} imgModelo={imgModelo} imgModoMedir={imgModoMedir} imgFrente={imgFrente} imgCostas={imgCostas} hasEstamparia={hasEstamparia} estamparia={estamparia} pantones={varCodigos} obs={obs} statusLib={statusLib} estagio={estagio} tecCad={tecCad} tabelaEspecial={tEsp} sections={exportSections} ncm={ncm} peso={peso} vcCompras={vcCompras} provaInfo={provaInfo} gradTamanhos={gradTamanhos} gradBase={gradBase} tabTamanhos={tabTamanhos} importado={importado} />
       </div>
     );
   }
@@ -1495,6 +1526,27 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                     {url && <button onClick={e => { e.stopPropagation(); setter(null); if (fichaId) saveFichaImagem(fichaId, field, ""); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center" title="Remover"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Estágio da ficha — escolhido à mão.
+              Antes era deduzido do status do SKU, e deduzir errava: aprovar
+              uma prova de mostruário pintava a ficha de verde de produção.
+              Aqui quem monta a ficha diz o que ela é, e a tarja do PDF e o
+              status automático da liberação seguem essa escolha. */}
+          <div className="apple-card px-4 sm:px-5 py-3.5 flex flex-wrap items-center justify-between gap-2 mb-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">{tr("Estágio da ficha")}</span>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["DESENVOLVIMENTO", "Desenvolvimento", "bg-[rgba(68,100,175,0.12)] text-[#4464AF] border-[rgba(68,100,175,0.35)]"],
+                ["MOSTRUÁRIO",      "Mostruário",      "bg-[rgba(237,202,53,0.22)] text-[#856500] border-[rgba(237,202,53,0.55)]"],
+                ["PRODUÇÃO",        "Produção",        "bg-[rgba(45,181,100,0.15)] text-[#1a7a35] border-[rgba(45,181,100,0.4)]"],
+              ] as [string, string, string][]).map(([val, label, cls]) => (
+                <button key={val} onClick={() => setEstagio(prev => prev === val ? "" : val)}
+                  className={`px-3.5 py-1 rounded-full text-[12px] font-semibold border transition-all ${estagio === val ? cls : "bg-transparent text-[var(--label-tertiary)] border-[var(--separator-opaque)] hover:border-[var(--label-tertiary)]"}`}>
+                  {tr(label)}
+                </button>
               ))}
             </div>
           </div>

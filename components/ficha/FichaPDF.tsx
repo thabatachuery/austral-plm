@@ -11,6 +11,7 @@ type Props = {
   pv: Record<string, { p1: string; p2: string; p3: string }>;
   an: Record<string, { texto: string; video: string }>;
   img: string | null; imgModelo: string | null; imgModoMedir?: string | null;
+  estagio?: string;
   imgFrente?: string | null; imgCostas?: string | null;
   hasEstamparia: boolean; estamparia?: any; pantones?: Record<string, string>;
   obs?: string; statusLib?: string; tecCad?: any[]; tabelaEspecial?: boolean;
@@ -39,7 +40,7 @@ const warnDark = "#7A4A06";
 const danger = "#DC2626";
 const white = "#FFFFFF";
 
-export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [], importado = false }: Props) {
+export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, estagio, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [], importado = false }: Props) {
   const sec = sections || { ficha: true, estamparia: true, liberacao: true, graduacao: true };
   // "t" já nomeia o tecido em vários map deste arquivo — o tradutor é "tr".
   const tr = criarTradutor(importado);
@@ -58,7 +59,13 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   const sims = estamparia?.simulacoes || {};
 
   const _ps = (row.status || "").toUpperCase();
+  // O estágio escolhido na ficha manda. Vazio = deduz do status do SKU, como
+  // sempre foi — as fichas antigas não mudam de aparência sozinhas.
+  const _est = String(estagio || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
   const fichaType =
+    _est === 'PRODUCAO' ? 'producao' :
+    _est === 'MOSTRUARIO' ? 'mostruario' :
+    _est === 'DESENVOLVIMENTO' ? 'desenvolvimento' :
     _ps.includes('CANCELADO') ? 'cancelado' :
     (_ps.includes('PRODUÇÃO') || _ps.includes('PRODUCAO') || _ps.includes('REPILOTANDO')) ? 'producao' :
     (_ps.includes('MOSTRUÁRIO') || _ps.includes('MOSTRUARIO')) ? 'mostruario' :
