@@ -3,6 +3,7 @@ import { COR_PALETTE } from "@/lib/cor-palette";
 import { valorNoTamanho, calcularDaBase, num as tamNum } from "@/lib/tamanhos";
 import type { ResultadoPeso } from "@/lib/peso";
 import { fotosParaExibir } from "@/lib/aviamento-fotos";
+import { QRCodeSVG } from "qrcode.react";
 import { custoAviamentosPorPeca } from "@/lib/etiquetas-tamanho";
 import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva, tituloFichaEstamparia, tituloTecnicas, traduzirPontoMedida } from "@/lib/ficha-i18n";
 
@@ -802,11 +803,21 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                   tela o endereço fica clicável. No papel ele vira só texto,
                   que é a limitação de qualquer link impresso. */}
               {(pi?.videoArquivo || a?.video || pi?.link) && (() => {
-                const alvo = pi?.videoArquivo || a?.video || pi?.link;
+                const alvo = String(pi?.videoArquivo || a?.video || pi?.link);
                 return (
-                  <div style={{ fontSize: "8px", color: accent, marginBottom: "8px", wordBreak: "break-all" }}>
-                    <span style={{ fontWeight: 700, color: muted, marginRight: "4px" }}>{tr("LINK DO VÍDEO:")}</span>
-                    <a href={alvo} style={{ color: accent, textDecoration: "underline" }}>{alvo}</a>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", pageBreakInside: "avoid" }}>
+                    {/* QR ao lado do link: na tela o endereço é clicável, mas a
+                        ficha vai impressa para a fábrica, e link no papel não
+                        leva a lugar nenhum. Com o QR o fornecedor aponta o
+                        celular e abre o vídeo.
+                        Nível L de correção: o endereço do Storage é longo, e
+                        menos redundância deixa o desenho mais grosso — mais
+                        fácil de ler impresso em ~22 mm. */}
+                    <QRCodeSVG value={alvo} size={92} level="L" marginSize={1} style={{ flexShrink: 0 }} />
+                    <div style={{ fontSize: "8px", color: accent, wordBreak: "break-all", minWidth: 0 }}>
+                      <span style={{ display: "block", fontWeight: 700, color: muted, marginBottom: "2px" }}>{tr("LINK DO VÍDEO:")}</span>
+                      <a href={alvo} style={{ color: accent, textDecoration: "underline" }}>{alvo}</a>
+                    </div>
                   </div>
                 );
               })()}
