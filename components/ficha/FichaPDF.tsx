@@ -382,15 +382,21 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               // 20% de folga sobre a altura estimada da tabela: textos longos
               // quebram em duas linhas e a estimativa por si só ficaria curta —
               // é preferível a foto sair menor do que a folha estourar.
-              // 62px reservados para o bloco de Total + Observações no rodapé.
-              const sobra = 1030 - 63 - (30 + avi.length * alturaLinha * 1.2) - 34 - 62;
-              const LEGENDA = 26; // código + nome sob cada foto
+              // Folha útil: 273mm (A4 menos @page) ≈ 1032px, menos os 24px de
+              // padding-bottom da marca d'água. Descontos: cabeçalho (63),
+              // tabela, margem da galeria (12), faixa "Referência Visual" (26)
+              // e o bloco Total + Atenção + Observações com a margem (84) — com
+              // 62 ele ficava de fora e caía sozinho na folha seguinte.
+              const sobra = 1008 - 63 - (30 + avi.length * alturaLinha * 1.2) - 12 - 26 - 84;
+              // Código + nome sob cada foto: o nome longo quebra em até 3 linhas.
+              const LEGENDA = 36;
+              const GAP = 8; // espaço entre as linhas de fotos
               // Escolhe o arranjo (quantas por linha) que permite a maior foto
               // cabendo na sobra: com pouco espaço, espalha mais por linha.
               let lado = 0, porLinha = fotos.length;
               for (let pl = 1; pl <= fotos.length; pl++) {
                 const linhas = Math.ceil(fotos.length / pl);
-                const cand = Math.min(150, Math.floor(700 / pl) - 8, Math.floor(sobra / linhas) - LEGENDA);
+                const cand = Math.min(150, Math.floor(700 / pl) - 8, Math.floor((sobra + GAP) / linhas) - GAP - LEGENDA);
                 if (cand > lado) { lado = cand; porLinha = pl; }
               }
               if (lado < 40) return null; // sem espaço util: omite a galeria em vez de estourar a folha
