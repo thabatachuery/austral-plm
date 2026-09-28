@@ -127,7 +127,34 @@ export default function ControleFluxoView({ rows }: Props) {
     const q = search.toLowerCase();
     filtrados = filtrados.filter((x: any) => [x.ref, x.desc, x.descricao, x.tecido, x.composicao, x.fornecedor, x.forn_tecido, x.estilista, x.tab_medidas].map(v => v || "").join(" ").toLowerCase().includes(q));
   }
-  const sorted = [...filtrados].sort((a, b) => (a.ref || "").localeCompare(b.ref || ""));
+  // Resumo: conta sobre o recorte dos filtros acima; clicar num cartão
+  // restringe a tabela àqueles SKUs (e clicar de novo solta).
+  const [resumoAtivo, setResumoAtivo] = useState<string | null>(null);
+  const tem = (ref: string, f: string) => !!val(ref, f);
+  const eh = (ref: string, f: string, ...vs: string[]) => vs.includes(val(ref, f));
+  const RESUMO: { grupo: string; cor: string; itens: { key: string; label: string; test: (ref: string) => boolean }[] }[] = [
+    { grupo: "Pilotagem", cor: "#1d4ed8", itens: [
+      { key: "dev_enviado",   label: "Desenvolvimentos enviados", test: r => tem(r, "data_desenvolvimento") },
+      { key: "ag_piloto",     label: "Aguardando piloto",         test: r => eh(r, "status_mostruario", "AGUARDANDO PILOTO") },
+      { key: "piloto_receb",  label: "Pilotos recebidos",         test: r => tem(r, "data_entrega_piloto") },
+      { key: "ag_prova",      label: "Aguardando prova",          test: r => eh(r, "status_mostruario", "PILOTO RECEBIDA - AGUARDANDO PROVA") },
+      { key: "most_lib",      label: "Mostruários liberados",     test: r => eh(r, "status_mostruario", "MOSTRUÁRIO LIBERADO", "INCLUÍDO DIRETO P/ MOSTRUÁRIO") },
+    ]},
+    { grupo: "Produção", cor: "#15803d", itens: [
+      { key: "most_receb",    label: "Mostruários recebidos",     test: r => tem(r, "data_entrega_mostruario") },
+      { key: "ag_prova_prod", label: "Aguardando prova produção", test: r => eh(r, "status_producao", "MOSTRUÁRIO RECEBIDO - AGUARDANDO PROVA DE PRODUÇÃO") },
+      { key: "prod_reprov",   label: "Reprovados / repilotagem",  test: r => eh(r, "status_producao", "PRODUÇÃO REPROVADA - AGUARDANDO REPILOTAGEM") },
+      { key: "prod_lib",      label: "Produção liberada",         test: r => eh(r, "status_producao", "PRODUÇÃO LIBERADA") },
+    ]},
+    { grupo: "Pré-produção", cor: "#7e22ce", itens: [
+      { key: "pp_enviada",    label: "Pré-produções recebidas",   test: r => tem(r, "data_entrega_pre_producao") },
+      { key: "pp_lib",        label: "Liberadas",                 test: r => eh(r, "status_pre_producao", "LIBERADA", "LIBERADA COM RESTRIÇÃO") },
+      { key: "pp_reprov",     label: "Reprovadas",                test: r => eh(r, "status_pre_producao", "REPROVADA - CORRIGIR", "REPROVADA - NEGOCIAR") },
+    ]},
+  ];
+  const testeAtivo = RESUMO.flatMap(g => g.itens).find(i => i.key === resumoAtivo)?.test;
+  const base = testeAtivo ? filtrados.filter((x: any) => testeAtivo(x.ref)) : filtrados;
+  const sorted = [...base].sort((a, b) => (a.ref || "").localeCompare(b.ref || ""));
   const allCols = [...PILOTAGEM_COLS, ...PRODUCAO_COLS, ...PRE_PRODUCAO_COLS];
 
   const stickyStyle = (left: number): React.CSSProperties => ({
@@ -210,6 +237,47 @@ export default function ControleFluxoView({ rows }: Props) {
           <button onClick={() => { setFl({}); setSearch(""); }} className="text-[12px] text-[var(--label-tertiary)] px-2 py-1">Limpar</button>
         </div>
       )}
+      {/* Dashboard do fluxo */}
+      <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+        {RESUMO.map(g => (
+          <div key={g.grupo} className="apple-card p-3" style={{ borderTop: `3px solid ${g.cor}` }}>
+            <div className="text-[11px] font-bold uppercase tracking-[0.06em] mb-2" style={{ color: g.cor }}>{g.grupo}</div>
+            <div className="flex flex-col gap-1">
+              {g.itens.map(it => {
+                const n = filtrados.filter((x: any) => it.test(x.ref)).length;
+                const pct = filtrados.length ? Math.round((n / filtrados.length) * 100) : 0;
+                const ativo = resumoAtivo === it.key;
+                return (
+                  <button key={it.key} type="button"
+                    onClick={() => setResumoAtivo(ativo ? null : it.key)}
+                    title={ativo ? "Mostrar todos" : "Filtrar a tabela por este item"}
+                    className="text-left rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--bg-secondary)]"
+                    style={ativo ? { background: g.cor + "18", boxShadow: `inset 0 0 0 1.5px ${g.cor}` } : undefined}>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[20px] font-bold tabnum tracking-[-0.02em]" style={{ color: n ? g.cor : "var(--label-quaternary)", minWidth: 34 }}>{n}</span>
+                      <span className="text-[12px] text-[var(--label-primary)] font-medium flex-1">{it.label}</span>
+                      <span className="text-[11px] text-[var(--label-tertiary)] tabnum">{pct}%</span>
+                    </div>
+                    <div className="h-[4px] rounded-full bg-[var(--bg-secondary)] overflow-hidden mt-1">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: g.cor }} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {resumoAtivo && (
+        <div className="flex items-center gap-2 mb-3 text-[12px]">
+          <span className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 font-medium">
+            <span className="text-blue-300">Resumo:</span>{RESUMO.flatMap(g => g.itens).find(i => i.key === resumoAtivo)?.label}
+            <button onClick={() => setResumoAtivo(null)} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]">×</button>
+          </span>
+          <span className="text-[var(--label-tertiary)]">{sorted.length} de {filtrados.length}</span>
+        </div>
+      )}
+
       <ScrollTable maxHeight="calc(100vh - 180px)">
       <table className="plm-table" style={{ minWidth: 2200, borderCollapse: "collapse" }}>
         <thead>
