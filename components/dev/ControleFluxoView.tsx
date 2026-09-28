@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import COLUMNS from "@/lib/columns";
 import { fetchControleFluxo, upsertControleFluxo, FLUXO_MOSTRUARIO_LIBERADO, FLUXO_AGUARDANDO_MOSTRUARIO } from "@/lib/db";
 import ScrollTable from "@/components/ui/ScrollTable";
 import { useToast } from "@/components/ui/Toast";
@@ -53,6 +54,11 @@ function fmtDate(v: string) {
   return v.includes("T") ? v.split("T")[0] : v;
 }
 
+// Mesmos filtros do Desenvolvimento: selects de cadastro (menos coleção,
+// que vira o seletor de pílulas no topo).
+const FC = COLUMNS.filter(c => c.type === "select" && c.cad && c.key !== "colecao");
+const FILTERS_KEY = "plm_filters_fluxo";
+
 interface Props { rows: any[] }
 
 export default function ControleFluxoView({ rows }: Props) {
@@ -96,14 +102,32 @@ export default function ControleFluxoView({ rows }: Props) {
     }
   };
 
-  const [search, setSearch] = useState("");
-  const sorted = [...rows]
-    .filter(r => {
-      if (!search) return true;
-      const q = search.toLowerCase();
-      return (r.ref || "").toLowerCase().includes(q) || (r.descricao || "").toLowerCase().includes(q);
-    })
-    .sort((a, b) => (a.ref || "").localeCompare(b.ref || ""));
+  const saved = (() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}"); } catch { return {}; }
+  })();
+  const [search, setSearch] = useState<string>(saved.q || "");
+  const [fl, setFl] = useState<Record<string, string>>(saved.fl || {});
+  const [colecaoAtiva, setColecaoAtiva] = useState<string | null>(saved.colecaoAtiva || null);
+  const [sf, setSf] = useState(false);
+  const ac = Object.values(fl).filter(Boolean).length;
+
+  useEffect(() => {
+    try { localStorage.setItem(FILTERS_KEY, JSON.stringify({ q: search, fl, colecaoAtiva })); } catch {}
+  }, [search, fl, colecaoAtiva]);
+
+  const colecoes = useMemo(() => Array.from(new Set(rows.map((r: any) => r.colecao).filter(Boolean))).sort((a, b) => String(b).localeCompare(String(a), "pt-BR", { numeric: true })) as string[], [rows]);
+  const uv = (k: string): string[] => Array.from(new Set(rows.map((r: any) => r[k]).filter(Boolean))).sort() as string[];
+  const sf2 = (k: string, v: string) => setFl(p => { const n = { ...p }; if (v) n[k] = v; else delete n[k]; return n; });
+
+  let filtrados = rows;
+  if (colecaoAtiva) filtrados = filtrados.filter((x: any) => x.colecao === colecaoAtiva);
+  Object.entries(fl).forEach(([k, v]) => { if (v) filtrados = filtrados.filter((x: any) => x[k] === v); });
+  if (search) {
+    const q = search.toLowerCase();
+    filtrados = filtrados.filter((x: any) => [x.ref, x.desc, x.descricao, x.tecido, x.composicao, x.fornecedor, x.forn_tecido, x.estilista, x.tab_medidas].map(v => v || "").join(" ").toLowerCase().includes(q));
+  }
+  const sorted = [...filtrados].sort((a, b) => (a.ref || "").localeCompare(b.ref || ""));
   const allCols = [...PILOTAGEM_COLS, ...PRODUCAO_COLS, ...PRE_PRODUCAO_COLS];
 
   const stickyStyle = (left: number): React.CSSProperties => ({
@@ -116,24 +140,76 @@ export default function ControleFluxoView({ rows }: Props) {
 
   return (
     <div>
-      <div style={{ padding: "0 0 12px", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ position: "relative", flexShrink: 0 }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--label-tertiary)" strokeWidth="2.2" strokeLinecap="round"
-            style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar ref ou descrição…"
-            style={{
-              fontSize: 12, padding: "5px 10px 5px 28px", borderRadius: 7,
-              border: "1px solid var(--separator)", background: "var(--bg-secondary)",
-              color: "var(--label-primary)", outline: "none", width: 220,
-            }}
-          />
+      {colecoes.length > 0 && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mr-1">Coleção</span>
+          <button
+            onClick={() => setColecaoAtiva(null)}
+            className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all border ${colecaoAtiva === null ? "bg-[var(--label-primary)] text-[var(--bg-primary)] border-[var(--label-primary)]" : "bg-transparent text-[var(--label-secondary)] border-[var(--separator)] hover:border-[var(--label-tertiary)]"}`}
+          >
+            Todas
+          </button>
+          {colecoes.map(col => (
+            <button
+              key={col}
+              onClick={() => setColecaoAtiva(col === colecaoAtiva ? null : col)}
+              className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all border ${colecaoAtiva === col ? "bg-[var(--system-blue)] text-white border-[var(--system-blue)]" : "bg-transparent text-[var(--label-secondary)] border-[var(--separator)] hover:border-[var(--system-blue)] hover:text-[var(--system-blue)]"}`}
+            >
+              {col}
+            </button>
+          ))}
         </div>
-        <span style={{ fontSize: 12, color: "var(--label-secondary)", fontWeight: 500 }}>{sorted.length} produto(s)</span>
+      )}
+
+      <div className="flex gap-2 mb-3 flex-wrap items-center">
+        <div className="relative flex-1 min-w-0 sm:min-w-[240px]">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--label-tertiary)] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Buscar referência, descrição, tecido, fornecedor..." value={search} onChange={e => setSearch(e.target.value)} className="apple-input w-full !pl-10 pr-3"/>
+        </div>
+        <button onClick={() => setSf(!sf)} className={`apple-input flex items-center gap-2 cursor-pointer transition-all ${sf || ac > 0 ? "!border-[var(--system-blue)] !bg-blue-50 text-[var(--system-blue)] font-semibold" : ""}`}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+          Filtros{ac > 0 && <span className="bg-[var(--system-blue)] text-white text-[10px] font-bold w-[18px] h-[18px] rounded-full flex items-center justify-center">{ac}</span>}
+        </button>
+        <span style={{ fontSize: 12, color: "var(--label-secondary)", fontWeight: 500 }}>
+          {sorted.length} produto(s){(ac > 0 || search || colecaoAtiva) ? ` de ${rows.length}` : ""}
+        </span>
       </div>
+
+      {sf && (
+        <div className="apple-card p-4 mb-4 bg-[var(--bg-secondary)]">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Filtrar por</span>
+            {ac > 0 && <button onClick={() => { setFl({}); setSearch(""); }} className="text-[12px] text-[var(--system-blue)] font-medium">Limpar todos</button>}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+            {FC.map(c => (
+              <div key={c.key}>
+                <label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">{c.label}</label>
+                <select value={fl[c.key] || ""} onChange={e => sf2(c.key, e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${fl[c.key] ? "!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold" : ""}`}>
+                  <option value="">Todos</option>
+                  {uv(c.key).map(v => <option key={v}>{v}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {ac > 0 && !sf && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {Object.entries(fl).map(([k, v]) => {
+            if (!v) return null;
+            const c = COLUMNS.find(x => x.key === k);
+            return (
+              <span key={k} className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 text-[12px] font-medium">
+                <span className="text-blue-300">{c?.label}:</span>{v}
+                <button onClick={() => sf2(k, "")} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]">×</button>
+              </span>
+            );
+          })}
+          <button onClick={() => { setFl({}); setSearch(""); }} className="text-[12px] text-[var(--label-tertiary)] px-2 py-1">Limpar</button>
+        </div>
+      )}
       <ScrollTable maxHeight="calc(100vh - 180px)">
       <table className="plm-table" style={{ minWidth: 2200, borderCollapse: "collapse" }}>
         <thead>
