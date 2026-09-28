@@ -50,6 +50,13 @@ export default function EnviosView() {
   const [nFornecedor, setNFornecedor] = useState("");
   const [nObs, setNObs] = useState("");
   const [nArquivos, setNArquivos] = useState<File[]>([]);
+  const [arrastando, setArrastando] = useState(false);
+  // Soma ao que já foi escolhido (arrastar em várias levas), sem repetir o
+  // mesmo arquivo; só PDF e vídeo passam.
+  const addArquivos = (lista: FileList | null) => {
+    const novos = Array.from(lista || []).filter(f => f.type === "application/pdf" || f.type.startsWith("video/"));
+    setNArquivos(prev => [...prev, ...novos.filter(n => !prev.some(p => p.name === n.name && p.size === n.size))]);
+  };
   const [enviando, setEnviando] = useState(false);
   const [progresso, setProgresso] = useState(0);
 
@@ -163,16 +170,35 @@ export default function EnviosView() {
             </select>
           </div>
           <input className={`${inp} w-full mb-3`} value={nObs} onChange={e => setNObs(e.target.value)} placeholder="Observação para o fornecedor (opcional) — aparece na página do link" />
-          <input type="file" accept="application/pdf,video/*" multiple className="text-[13px] mb-3 block"
-            onChange={e => setNArquivos(Array.from(e.target.files || []).filter(f => f.type === "application/pdf" || f.type.startsWith("video/")))} />
+          <label
+            onDragOver={e => { e.preventDefault(); setArrastando(true); }}
+            onDragLeave={() => setArrastando(false)}
+            onDrop={e => { e.preventDefault(); setArrastando(false); addArquivos(e.dataTransfer.files); }}
+            className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-6 mb-3 cursor-pointer transition-colors text-center ${arrastando ? "border-[var(--system-blue)] bg-blue-50" : "border-[var(--separator-opaque)] hover:border-[var(--system-blue)]"}`}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--system-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span className="text-[13px] font-medium text-[var(--label-primary)]">Arraste os arquivos aqui ou clique para escolher</span>
+            <span className="text-[11px] text-[var(--label-tertiary)]">PDF e vídeo · pode soltar em várias levas</span>
+            <input type="file" accept="application/pdf,video/*" multiple className="hidden"
+              onChange={e => { addArquivos(e.target.files); e.target.value = ""; }} />
+          </label>
           {nArquivos.length > 0 && (() => {
             const totalMB = nArquivos.reduce((s, f) => s + f.size, 0) / 1048576;
             const grandes = nArquivos.filter(f => f.size / 1048576 > LIMITE_AVISO_MB);
             return (
               <>
                 <p className="text-[12px] text-[var(--label-tertiary)] mb-2">
-                  {nArquivos.length} arquivo(s), {totalMB.toFixed(1)} MB: {nArquivos.map(f => f.name).join(", ")}
+                  {nArquivos.length} arquivo(s), {totalMB.toFixed(1)} MB
+                  <button type="button" onClick={() => setNArquivos([])} className="ml-2 text-[var(--system-blue)] font-medium">limpar</button>
                 </p>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {nArquivos.map((f, i) => (
+                    <span key={f.name + f.size} className="inline-flex items-center gap-1 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-lg px-2 py-0.5 text-[12px]">
+                      {f.name}
+                      <button type="button" onClick={() => setNArquivos(p => p.filter((_, j) => j !== i))} className="text-[var(--label-tertiary)] hover:text-[var(--system-red)]" aria-label={`Remover ${f.name}`}>×</button>
+                    </span>
+                  ))}
+                </div>
                 {grandes.length > 0 && (
                   <p className="text-[12px] text-[#8a5a00] bg-[#fff6de] border border-[#D97706] rounded-lg px-3 py-2 mb-3">
                     ⚠️ {grandes.length} arquivo(s) acima de {LIMITE_AVISO_MB} MB ({grandes.map(f => f.name).join(", ")}).
