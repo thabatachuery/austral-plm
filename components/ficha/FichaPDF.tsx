@@ -24,6 +24,9 @@ type Props = {
   gradTamanhos?: string[]; gradBase?: string; tabTamanhos?: string[];
   // Ficha de fornecedor importado: imprime os rótulos em inglês.
   importado?: boolean;
+  // Ficha técnica do tecido (PDF do Cadastros › Tecidos) já convertida em
+  // imagens, uma por página — vai no final, depois de todas as seções.
+  fichasTecido?: { nome: string; paginas: string[] }[];
 };
 
 /* ── Design tokens ── */
@@ -41,7 +44,7 @@ const warnDark = "#7A4A06";
 const danger = "#DC2626";
 const white = "#FFFFFF";
 
-export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, estagio, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [], importado = false }: Props) {
+export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, estagio, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [], importado = false, fichasTecido = [] }: Props) {
   const sec = sections || { ficha: true, estamparia: true, liberacao: true, graduacao: true };
   // "t" já nomeia o tecido em vários map deste arquivo — o tradutor é "tr".
   const tr = criarTradutor(importado);
@@ -934,6 +937,24 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         </div>
         );
       })()}
+
+      {/* ══════════ FICHA TÉCNICA DO TECIDO ══════════ */}
+      {/* Uma folha por página do PDF do fornecedor, com a faixa de ref e
+          tecido no topo para a folha não se perder da ficha no papel. */}
+      {fichasTecido.map(ft => ft.paginas.map((src, i) => (
+        <div key={`${ft.nome}-${i}`} className="print-page fit-page" style={pb()}>
+          <div style={{ background: navy, color: white, borderRadius: "4px", padding: "5px 12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+            <span style={{ fontSize: "9px", fontWeight: 800, letterSpacing: "0.04em" }}>{tr("FICHA TÉCNICA DO TECIDO")} · {ft.nome}</span>
+            <span style={{ fontSize: "7.5px", opacity: 0.8 }}>
+              <strong style={{ fontFamily: "monospace" }}>{row.ref}</strong>
+              {ft.paginas.length > 1 && <> · {i + 1}/{ft.paginas.length}</>}
+            </span>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
+            <img src={src} alt={`Ficha técnica do tecido ${ft.nome}, página ${i + 1}`} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", border: `0.5px solid ${line}` }} />
+          </div>
+        </div>
+      )))}
 
       {/* Watermark footer via CSS */}
       <style>{`

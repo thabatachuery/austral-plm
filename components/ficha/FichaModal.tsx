@@ -15,6 +15,7 @@ import { STATUS_ESTILO } from "@/lib/constants";
 import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num as tamNum } from "@/lib/tamanhos";
 import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva, nomeTipoEstamparia, tituloFichaEstamparia, traduzirPontoMedida } from "@/lib/ficha-i18n";
 import FichaPDF from "./FichaPDF";
+import { pdfEmImagens } from "@/lib/pdf-paginas";
 
 // Status em que qualquer alteração de cor/tecido/aviamento dispara o popup de alerta.
 const STATUS_ALERTA = [STATUS_ESTILO.MOSTARIO_LIBERADO, STATUS_ESTILO.PRODUCAO_LIBERADA, STATUS_ESTILO.REPILOTANDO_PRODUCAO] as string[];
@@ -34,6 +35,11 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const [showPrint, setShowPrint] = useState(false);
   const [showExportDlg, setShowExportDlg] = useState(false);
   const [exportSections, setExportSections] = useState<{ ficha: boolean; estamparia: boolean; liberacao: boolean; graduacao: boolean }>({ ficha: true, estamparia: true, liberacao: true, graduacao: true });
+  // Fichas técnicas de tecido marcadas para ir no final do PDF (nome do tecido)
+  // e as páginas delas já em imagem, montadas só na hora de exportar.
+  const [exportTecFichas, setExportTecFichas] = useState<string[]>([]);
+  const [fichasTecido, setFichasTecido] = useState<{ nome: string; paginas: string[] }[]>([]);
+  const [preparandoPdf, setPreparandoPdf] = useState(false);
   const fr = useRef<HTMLInputElement>(null);
   const mrr = useRef<HTMLInputElement>(null);
   const frenteRef = useRef<HTMLInputElement>(null);
@@ -597,8 +603,28 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tec, avi, pil, obs, pv, an, provaInfo, estamparia, varCodigos, varTingimento, qtdMost, statusLib, estagio, importado, ncm, numVars, custoDet, obsCusto, peso, tEsp, img, imgModelo, imgModoMedir, imgFrente, imgCostas]);
 
+  // Tecidos da ficha (o do SKU e os da tabela de cores) que têm a ficha técnica
+  // em PDF no Cadastros › Tecidos — só esses viram opção no Exportar.
+  const tecidosComFicha = Array.from(new Set([row.tecido, ...tec.map((t: any) => t.artigo)]
+    .map(n => String(n || "").trim()).filter(Boolean)))
+    .map(nome => ({ nome, url: tecCad.find((t: any) => t.nome === nome)?.ficha_pdf || "" }))
+    .filter(t => t.url);
+
   const exportPDF = () => { setShowExportDlg(true); };
-  const doExport = () => {
+  const doExport = async () => {
+    const escolhidos = tecidosComFicha.filter(t => exportTecFichas.includes(t.nome));
+    let paginasTec: { nome: string; paginas: string[] }[] = [];
+    if (escolhidos.length) {
+      setPreparandoPdf(true);
+      const falhas: string[] = [];
+      for (const t of escolhidos) {
+        try { paginasTec.push({ nome: t.nome, paginas: await pdfEmImagens(t.url) }); }
+        catch (e) { console.error("ficha do tecido:", t.nome, e); falhas.push(t.nome); }
+      }
+      setPreparandoPdf(false);
+      if (falhas.length) alert(`Não foi possível abrir a ficha técnica de: ${falhas.join(", ")}. O PDF sai sem ela.`);
+    }
+    setFichasTecido(paginasTec);
     setShowExportDlg(false);
     setShowPrint(true);
     document.body.classList.add("printing-pdf");
@@ -613,12 +639,14 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       document.title = prevTitle;
       window.removeEventListener('beforeprint', onBefore);
       window.removeEventListener('afterprint', onAfter);
-      setTimeout(() => { setShowPrint(false); document.body.classList.remove("printing-pdf"); }, 300);
+      setTimeout(() => { setShowPrint(false); setFichasTecido([]); document.body.classList.remove("printing-pdf"); }, 300);
     };
     window.addEventListener('beforeprint', onBefore);
     window.addEventListener('afterprint', onAfter);
     document.title = pdfName;
-    setTimeout(() => { window.print(); }, 300);
+    // Cada página de ficha de tecido é uma imagem grande a decodificar.
+    const nPagTec = paginasTec.reduce((s, t) => s + t.paginas.length, 0);
+    setTimeout(() => { window.print(); }, 300 + nPagTec * 150);
   };
 
   // Rótulos da ficha: em inglês quando ela é de fornecedor importado.
@@ -780,7 +808,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   if (showPrint) {
     return (
       <div className="print-overlay">
-        <FichaPDF row={row} tec={tec} avi={avi} pil={pil} pts={tEsp ? ptsEsp : pts} grad={tEsp ? gradEsp : grad} pv={pv} an={an} img={img} imgModelo={imgModelo} imgModoMedir={imgModoMedir} imgFrente={imgFrente} imgCostas={imgCostas} hasEstamparia={hasEstamparia} estamparia={estamparia} pantones={varCodigos} obs={obs} statusLib={statusLib} estagio={estagio} tecCad={tecCad} tabelaEspecial={tEsp} sections={exportSections} ncm={ncm} peso={peso} vcCompras={vcCompras} provaInfo={provaInfo} gradTamanhos={gradTamanhos} gradBase={gradBase} tabTamanhos={tabTamanhos} importado={importado} />
+        <FichaPDF row={row} tec={tec} avi={avi} pil={pil} pts={tEsp ? ptsEsp : pts} grad={tEsp ? gradEsp : grad} pv={pv} an={an} img={img} imgModelo={imgModelo} imgModoMedir={imgModoMedir} imgFrente={imgFrente} imgCostas={imgCostas} hasEstamparia={hasEstamparia} estamparia={estamparia} pantones={varCodigos} obs={obs} statusLib={statusLib} estagio={estagio} tecCad={tecCad} tabelaEspecial={tEsp} sections={exportSections} ncm={ncm} peso={peso} vcCompras={vcCompras} provaInfo={provaInfo} gradTamanhos={gradTamanhos} gradBase={gradBase} tabTamanhos={tabTamanhos} importado={importado} fichasTecido={fichasTecido} />
       </div>
     );
   }
@@ -872,10 +900,22 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                     </div>
                   </label>
                 ))}
+                {tecidosComFicha.map(t => {
+                  const marcado = exportTecFichas.includes(t.nome);
+                  return (
+                    <label key={`tec-${t.nome}`} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${marcado ? "border-[var(--system-blue)] bg-[rgba(0,122,255,0.04)]" : "border-[var(--separator-opaque)] hover:border-[var(--label-tertiary)]"}`}>
+                      <input type="checkbox" checked={marcado} onChange={e => setExportTecFichas(prev => e.target.checked ? [...prev, t.nome] : prev.filter(n => n !== t.nome))} className="mt-0.5 w-4 h-4 accent-[var(--system-blue)]" />
+                      <div>
+                        <div className="text-[13px] font-semibold">Ficha Técnica do Tecido</div>
+                        <div className="text-[11px] text-[var(--label-tertiary)]">{t.nome} — PDF do cadastro, no final da ficha</div>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
               <div className="px-6 pb-5 flex gap-2.5 justify-end">
-                <button onClick={() => setShowExportDlg(false)} className="apple-btn-secondary">Cancelar</button>
-                <button onClick={doExport} disabled={!exportSections.ficha && !exportSections.estamparia && !exportSections.liberacao} className="apple-btn-primary disabled:opacity-40">Exportar</button>
+                <button onClick={() => setShowExportDlg(false)} disabled={preparandoPdf} className="apple-btn-secondary disabled:opacity-40">Cancelar</button>
+                <button onClick={doExport} disabled={preparandoPdf || (!exportSections.ficha && !exportSections.estamparia && !exportSections.liberacao && !exportTecFichas.some(n => tecidosComFicha.some(t => t.nome === n)))} className="apple-btn-primary disabled:opacity-40">{preparandoPdf ? "Preparando…" : "Exportar"}</button>
               </div>
             </div>
           </div>

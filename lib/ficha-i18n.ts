@@ -88,6 +88,7 @@ const EN: Record<string, string> = {
   // ── Seções e cabeçalhos de página ──
   "FICHA TÉCNICA": "TECH PACK",
   "Ficha Técnica": "Tech Pack",
+  "FICHA TÉCNICA DO TECIDO": "FABRIC SPEC SHEET",
   "Desenho Técnico": "Technical Drawing",
   "Tecidos & Variantes": "Fabrics & Colorways",
   "Aviamentação": "Trims & Notions",
