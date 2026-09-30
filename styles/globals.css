@@ -530,8 +530,16 @@ input:focus, select:focus, textarea:focus {
   .plm-sidebar-overlay.mobile-open {
     display: block;
   }
+  /* No app instalado (tela cheia) o conteúdo iria pra baixo do notch/relógio */
   .plm-header {
-    padding: 14px 16px 12px;
+    padding: calc(14px + env(safe-area-inset-top)) 16px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+  .plm-sidebar {
+    padding-top: env(safe-area-inset-top);
+    height: 100dvh;
   }
   .plm-header-title {
     font-size: 18px;
@@ -540,7 +548,7 @@ input:focus, select:focus, textarea:focus {
     font-size: 11px;
   }
   .plm-content {
-    padding: 16px;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
   }
   .plm-sidebar-footer {
     display: none;
