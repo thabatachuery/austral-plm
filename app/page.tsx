@@ -373,7 +373,7 @@ export default function Home() {
         {/* Content */}
         <div className="plm-content">
           {loading && <div className="plm-loading"><div className="plm-loading-spinner" /><span>Carregando...</span></div>}
-          {!loading && tab === "dashboard" && <DashboardView rows={rows} variantes={variantes} />}
+          {!loading && tab === "dashboard" && <DashboardView rows={rows} variantes={variantes} variantesPorColecao={variantesPorColecao} />}
           {!loading && tab === "calendario" && <CalendarioView />}
           {!loading && tab === "dev" && <DevTable rows={rows} setRows={setRows} onOpenFicha={setFichaRow} userEmail={user.email!} />}
           {!loading && tab === "dev_fluxo" && <ControleFluxoView rows={rows} />}

@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { fetchControleFluxo } from "@/lib/db";
 import { fmtBRL as _fmtBRL } from "@/lib/utils";
 const fmtBrl = (v: number) => _fmtBRL(v, { decimals: 0 });
 
-type Props = { rows: any[]; variantes: Record<string, string[]> };
+type Props = { rows: any[]; variantes: Record<string, string[]>; variantesPorColecao?: Record<string, Record<string, string[]>> };
 
 /* ── Paleta ── */
 const B900 = "#00254D"; const B800 = "#003A75"; const B700 = "#00509E";
@@ -47,18 +47,50 @@ const GROUPS = [
   ]},
 ];
 
+// Coleção fica fora: é multi-seleção e tem regra própria (ver `colecoes`).
 const DEV_FILTERS = [
-  { key: "colecao", label: "Coleção" }, { key: "grupo", label: "Grupo" },
+  { key: "grupo", label: "Grupo" },
   { key: "subgrupo", label: "Subgrupo" }, { key: "status", label: "Status" },
   { key: "linha", label: "Linha" }, { key: "estilista", label: "Estilista" },
   { key: "fornecedor", label: "Fornecedor" }, { key: "operacao", label: "Operação" },
 ];
 
-export default function DashboardView({ rows, variantes }: Props) {
+export default function DashboardView({ rows, variantes: variantesTodas, variantesPorColecao = {} }: Props) {
   const [group,  setGroup]  = useState("estilo");
   const [subTab, setSubTab] = useState("desenvolvimento");
   const [fluxo,  setFluxo]  = useState<any[]>([]);
   const [fl, setFl] = useState<Record<string, string>>({});
+  // Coleções selecionadas (soma). Um clássico entra quando a coleção dele está
+  // selecionada OU quando ele tem ficha numa temporada selecionada — escolher
+  // INVERNO 27 traz os produtos da coleção e os clássicos com temporada INVERNO 27.
+  const [colecoes, setColecoes] = useState<string[]>([]);
+  const [colAberto, setColAberto] = useState(false);
+  const colRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!colAberto) return;
+    const fora = (e: MouseEvent | TouchEvent) => { if (!colRef.current?.contains(e.target as Node)) setColAberto(false); };
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("touchstart", fora);
+    return () => { document.removeEventListener("mousedown", fora); document.removeEventListener("touchstart", fora); };
+  }, [colAberto]);
+  const toggleColecao = (v: string) => setColecoes(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v]);
+  const temporadasSelecionadas = (ref: string) => Object.keys(variantesPorColecao[ref] || {}).filter(t => colecoes.includes(t));
+  const naColecao = (r: any) => !colecoes.length || colecoes.includes(r.colecao) || temporadasSelecionadas(r.ref).length > 0;
+
+  // Cores que contam em cada referência: com o clássico entrando só pela
+  // temporada, valem as cores daquela(s) temporada(s), não as de todas.
+  const variantes = useMemo(() => {
+    if (!colecoes.length) return variantesTodas;
+    const out: Record<string, string[]> = { ...variantesTodas };
+    rows.forEach((r: any) => {
+      if (colecoes.includes(r.colecao)) return;
+      const temps = temporadasSelecionadas(r.ref);
+      if (!temps.length) return;
+      out[r.ref] = Array.from(new Set(temps.flatMap(t => variantesPorColecao[r.ref][t])));
+    });
+    return out;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, variantesTodas, variantesPorColecao, colecoes]);
 
   useEffect(() => { fetchControleFluxo().then(setFluxo); }, []);
 
@@ -73,22 +105,25 @@ export default function DashboardView({ rows, variantes }: Props) {
 
   /* filtered rows for dev sections */
   const filtered = useMemo(() => {
-    let r = rows;
+    let r = rows.filter(naColecao);
     Object.entries(fl).forEach(([k, v]) => { if (v) r = r.filter((x: any) => x[k] === v); });
     return r;
-  }, [rows, fl]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, fl, colecoes, variantesPorColecao]);
 
   const uv = (k: string) => Array.from(new Set(rows.map((r: any) => r[k]).filter(Boolean))).sort() as string[];
   const sf = (k: string, v: string) => setFl(p => { const n = { ...p }; if (v) n[k] = v; else delete n[k]; return n; });
-  const ac = Object.values(fl).filter(Boolean).length;
+  const ac = Object.values(fl).filter(Boolean).length + colecoes.length;
+  const opcoesColecao = Array.from(new Set([...uv("colecao"), ...Object.values(variantesPorColecao).flatMap(t => Object.keys(t))])).sort();
 
   /* compras rows = rows that have purchase intent (fornecedor set) */
   const comprasRows = useMemo(() => rows.filter((r: any) => r.fornecedor), [rows]);
   const comprasFiltered = useMemo(() => {
-    let r = comprasRows;
+    let r = comprasRows.filter(naColecao);
     Object.entries(fl).forEach(([k, v]) => { if (v) r = r.filter((x: any) => x[k] === v); });
     return r;
-  }, [comprasRows, fl]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comprasRows, fl, colecoes, variantesPorColecao]);
 
   const byKey = (src: any[], key: string, limit = 10) => {
     const c: Record<string, number> = {};
@@ -232,13 +267,34 @@ export default function DashboardView({ rows, variantes }: Props) {
       <div className="flex items-center justify-between mb-3">
         <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--label-secondary)]">Filtros</span>
         {ac > 0 && (
-          <button onClick={() => setFl({})} className="text-[12px] text-[var(--system-blue)] font-medium flex items-center gap-1 hover:opacity-70 transition-opacity">
+          <button onClick={() => { setFl({}); setColecoes([]); }} className="text-[12px] text-[var(--system-blue)] font-medium flex items-center gap-1 hover:opacity-70 transition-opacity">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             Limpar
           </button>
         )}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5">
+        <div ref={colRef} className="relative">
+          <label className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mb-1 block">Coleção</label>
+          <button type="button" onClick={() => setColAberto(o => !o)}
+            className={`apple-select w-full text-[12px] py-1.5 text-left truncate ${colecoes.length ? "!border-[var(--system-blue)] font-semibold" : ""}`}
+            style={colecoes.length ? { background: B50, color: B700 } : {}}>
+            {colecoes.length === 0 ? "Todas" : colecoes.length === 1 ? colecoes[0] : `${colecoes.length} coleções`}
+          </button>
+          {colAberto && (
+            <div className="absolute z-30 mt-1 left-0 min-w-full w-max max-w-[80vw] max-h-72 overflow-y-auto rounded-xl bg-[var(--bg-primary)] border border-[var(--separator-opaque)] shadow-lg py-1">
+              {opcoesColecao.map(v => (
+                <label key={v} className="flex items-center gap-2 px-3 py-2 text-[13px] cursor-pointer hover:bg-[var(--bg-secondary)]">
+                  <input type="checkbox" checked={colecoes.includes(v)} onChange={() => toggleColecao(v)} />
+                  {v}
+                </label>
+              ))}
+              <div className="px-3 pt-2 pb-1 text-[11px] text-[var(--label-tertiary)] border-t border-[var(--separator)] mt-1">
+                Inclui os clássicos que têm ficha na temporada escolhida.
+              </div>
+            </div>
+          )}
+        </div>
         {DEV_FILTERS.map(f => (
           <div key={f.key}>
             <label className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mb-1 block">{f.label}</label>
@@ -253,6 +309,12 @@ export default function DashboardView({ rows, variantes }: Props) {
       </div>
       {ac > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-[var(--separator)]">
+          {colecoes.map(v => (
+            <span key={"col-" + v} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-medium" style={{ background: B100, color: B700 }}>
+              <span className="text-[11px]" style={{ color: B400 }}>Coleção:</span>{v}
+              <button onClick={() => toggleColecao(v)} className="hover:opacity-70 leading-none" style={{ color: B400 }}>×</button>
+            </span>
+          ))}
           {Object.entries(fl).map(([k, v]) => {
             if (!v) return null;
             const f = DEV_FILTERS.find(x => x.key === k);
