@@ -15,6 +15,7 @@ type Props = {
   estagio?: string;
   imgFrente?: string | null; imgCostas?: string | null;
   hasEstamparia: boolean; estamparia?: any; pantones?: Record<string, string>;
+  tingimento?: Record<string, string>;
   obs?: string; statusLib?: string; tecCad?: any[]; tabelaEspecial?: boolean;
   sections?: { ficha: boolean; estamparia: boolean; liberacao: boolean; graduacao: boolean };
   ncm?: string;
@@ -44,7 +45,7 @@ const warnDark = "#7A4A06";
 const danger = "#DC2626";
 const white = "#FFFFFF";
 
-export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, estagio, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [], importado = false, fichasTecido = [] }: Props) {
+export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, estagio, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, tingimento, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [], importado = false, fichasTecido = [] }: Props) {
   const sec = sections || { ficha: true, estamparia: true, liberacao: true, graduacao: true };
   // "t" já nomeia o tecido em vários map deste arquivo — o tradutor é "tr".
   const tr = criarTradutor(importado);
@@ -273,6 +274,14 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                     <td colSpan={4} style={{ ...td, fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Pantone")}</td>
                     {(["var01", "var02", "var03", "var04", "var05", "var06"] as const).slice(0, numVars).map(k => (
                       <td key={k} style={{ ...td, textAlign: "center", fontFamily: "monospace", fontSize: "7px", fontWeight: 700, color: navy, padding: "3px 2px" }}>{(pantones as any)[k] || "—"}</td>
+                    ))}
+                  </tr>
+                )}
+                {tingimento && (["var01", "var02", "var03", "var04", "var05", "var06"] as const).slice(0, numVars).some(k => tingimento[k]) && (
+                  <tr style={{ background: bg }}>
+                    <td colSpan={4} style={{ ...td, fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Tipo de Tingimento")}</td>
+                    {(["var01", "var02", "var03", "var04", "var05", "var06"] as const).slice(0, numVars).map(k => (
+                      <td key={k} style={{ ...td, textAlign: "center", fontSize: "7px", fontWeight: 700, color: navy, padding: "3px 2px" }}>{tingimento[k] || "—"}</td>
                     ))}
                   </tr>
                 )}

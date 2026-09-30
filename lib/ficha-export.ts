@@ -150,6 +150,7 @@ export async function carregarFichaParaPDF(row: any): Promise<DadosFichaPDF> {
     hasEstamparia,
     estamparia,
     pantones: ficha?.pantones || { var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" },
+    tingimento: ficha?.tingimento || {},
     obs: ficha?.observacoes || "",
     statusLib: ficha?.statusLiberacao || "",
     estagio: ficha?.estagio || "",
