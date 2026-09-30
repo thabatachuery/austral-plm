@@ -1,5 +1,5 @@
 ﻿"use client";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import InlineCell from "@/components/ui/InlineCell";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
@@ -156,6 +156,29 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     ...(permPrefix === "compras_" ? [...COMPRAS_STATUS_COLS, ...PRICE_COLS] : []),
   ];
   const hiddenCount = toggleableCols.filter(c => !isColVisible(c.key)).length;
+
+  // Na tabela a Ficha vem antes da Referência, e as duas (mais o checkbox)
+  // ficam travadas na esquerda ao rolar pro lado — no celular é o que se usa
+  // pra achar o produto e abrir a ficha. O deslocamento de cada coluna travada
+  // depende da largura real das anteriores, então é medido no cabeçalho.
+  const COLS_TABELA = [...COLUMNS.filter(c => c.key === "link_ficha"), ...COLUMNS.filter(c => c.key !== "link_ficha")];
+  const thCheckRef = useRef<HTMLTableCellElement>(null);
+  const thFichaRef = useRef<HTMLTableCellElement>(null);
+  const [stickyLeft, setStickyLeft] = useState({ link_ficha: 0, ref: 0 });
+  useLayoutEffect(() => {
+    const medir = () => {
+      const wCheck = thCheckRef.current?.getBoundingClientRect().width ?? 0;
+      const wFicha = thFichaRef.current?.getBoundingClientRect().width ?? 0;
+      setStickyLeft(p => (p.link_ficha === wCheck && p.ref === wCheck + wFicha ? p : { link_ficha: wCheck, ref: wCheck + wFicha }));
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    if (thCheckRef.current) ro.observe(thCheckRef.current);
+    if (thFichaRef.current) ro.observe(thFichaRef.current);
+    return () => ro.disconnect();
+  });
+  const isStickyCol = (key: string) => key === "ref" || key === "link_ficha";
+  const ultimaSticky = "ref";
 
   const toggleSort = (k: string) => {
     setSort(prev => {
@@ -595,14 +618,14 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       <ScrollTable><table className="plm-table" style={{width:"max-content",minWidth:"100%"}}>
       <caption className="sr-only">Tabela de SKUs com filtros e opções de edição</caption>
       <thead><tr>
-        {!readOnly && canAdd && <th style={{width:36,padding:"0 8px"}}><input type="checkbox" aria-label="Selecionar todos" checked={selected.size===filtered.length&&filtered.length>0} onChange={toggleSelectAll} style={{cursor:"pointer"}}/></th>}
-        {COLUMNS.filter(c=>isColVisible(c.key)).flatMap(c=>{
+        {!readOnly && canAdd && <th ref={thCheckRef} style={{width:36,padding:"0 8px",position:"sticky",left:0,zIndex:3,background:"var(--bg-primary)"}}><input type="checkbox" aria-label="Selecionar todos" checked={selected.size===filtered.length&&filtered.length>0} onChange={toggleSelectAll} style={{cursor:"pointer"}}/></th>}
+        {COLS_TABELA.filter(c=>isColVisible(c.key)).flatMap(c=>{
         const sortable = c.type !== "action";
         const isActive = sort?.key === c.key;
-        const isSticky = c.key === "ref";
+        const isSticky = isStickyCol(c.key);
         const isMobileHidden = ["forn", "composicao", "taxa_cliente", "estilista", "operacao", "fornecedor"].includes(c.key);
         const mainTh = (
-          <th key={c.key} className={isMobileHidden ? "hidden sm:table-cell" : ""} style={{width:c.width,minWidth:c.width,textAlign:c.type==="number"?"right":"left",...(isSticky?{position:"sticky",left:0,zIndex:3,background:"var(--bg-primary)",boxShadow:"2px 0 4px rgba(0,0,0,0.06)"}:{})}}>
+          <th key={c.key} ref={c.key==="link_ficha"?thFichaRef:undefined} className={isMobileHidden ? "hidden sm:table-cell" : ""} style={{width:c.width,minWidth:c.width,textAlign:c.type==="number"?"right":"left",...(isSticky?{position:"sticky",left:stickyLeft[c.key as "ref"|"link_ficha"],zIndex:3,background:"var(--bg-primary)",...(c.key===ultimaSticky?{boxShadow:"2px 0 4px rgba(0,0,0,0.06)"}:{})}:{})}}>
             {sortable ? (
               <button onClick={() => toggleSort(c.key)} className={`inline-flex items-center gap-1 select-none cursor-pointer hover:text-[var(--label-primary)] transition-colors ${isActive ? "text-[var(--system-blue)]" : ""}`}>
                 <span>{c.label}</span>
@@ -640,10 +663,10 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       </th>
       <th style={{width:36}}/></tr></thead><tbody>
         {filtered.map((row:any)=>(<tr key={row.id} style={selected.has(row.id)?{background:"rgba(0,122,255,0.06)"}:novos.has(row.id)?{background:"rgba(255,204,0,0.10)"}:{}}>
-          {!readOnly && canAdd && <td style={{width:36,padding:"0 8px"}}><input type="checkbox" aria-label={`Selecionar SKU ${row.ref}`} checked={selected.has(row.id)} onChange={()=>toggleSelect(row.id)} style={{cursor:"pointer"}}/></td>}
-          {COLUMNS.filter(c=>isColVisible(c.key)).flatMap(c=>{
-          const isSticky = c.key === "ref";
-          const mainTd = <td key={c.key} style={{width:c.width,minWidth:c.width,...(isSticky?{position:"sticky",left:0,zIndex:2,background:"var(--bg-primary)",boxShadow:"2px 0 4px rgba(0,0,0,0.04)"}:{})}}>{c.type==="action"?<div style={{display:"flex",gap:4}}><button onClick={()=>onOpenFicha(row)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir</button>{!readOnly&&canAdd&&<button onClick={()=>{setCloneSource(row);setCloneRef("");}} title="Clonar SKU" className="apple-btn-secondary text-[12px] py-1 px-2" style={{color:"var(--system-blue)"}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>}</div>:c.type==="readonly"?<span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-secondary)]">{row[c.key]||"—"}</span>:(readOnly||permPrefix==="compras_")?<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-secondary)"}}>{row[c.key]||"—"}</span>:canEdit(c.key)?<InlineCell value={row[c.key]} type={c.type} options={c.cad?opts(c.cad):undefined} isStatus={c.key==="status"} onChange={v=>upd(row.id,c.key,v)}/>:<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-tertiary)",cursor:"default"}} title="Sem permissão para editar">{row[c.key]||"—"}</span>}</td>;
+          {!readOnly && canAdd && <td style={{width:36,padding:"0 8px",position:"sticky",left:0,zIndex:2,background:"var(--bg-primary)"}}><input type="checkbox" aria-label={`Selecionar SKU ${row.ref}`} checked={selected.has(row.id)} onChange={()=>toggleSelect(row.id)} style={{cursor:"pointer"}}/></td>}
+          {COLS_TABELA.filter(c=>isColVisible(c.key)).flatMap(c=>{
+          const isSticky = isStickyCol(c.key);
+          const mainTd = <td key={c.key} style={{width:c.width,minWidth:c.width,...(isSticky?{position:"sticky",left:stickyLeft[c.key as "ref"|"link_ficha"],zIndex:2,background:"var(--bg-primary)",...(c.key===ultimaSticky?{boxShadow:"2px 0 4px rgba(0,0,0,0.04)"}:{})}:{})}}>{c.type==="action"?<div style={{display:"flex",gap:4}}><button onClick={()=>onOpenFicha(row)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir</button>{!readOnly&&canAdd&&<button onClick={()=>{setCloneSource(row);setCloneRef("");}} title="Clonar SKU" className="apple-btn-secondary text-[12px] py-1 px-2" style={{color:"var(--system-blue)"}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>}</div>:c.type==="readonly"?<span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-secondary)]">{row[c.key]||"—"}</span>:(readOnly||permPrefix==="compras_")?<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-secondary)"}}>{row[c.key]||"—"}</span>:canEdit(c.key)?<InlineCell value={row[c.key]} type={c.type} options={c.cad?opts(c.cad):undefined} isStatus={c.key==="status"} onChange={v=>upd(row.id,c.key,v)}/>:<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-tertiary)",cursor:"default"}} title="Sem permissão para editar">{row[c.key]||"—"}</span>}</td>;
           if (c.key === "ref" && permPrefix === "compras_") {
             return [mainTd, ...COMPRAS_STATUS_COLS.filter(sc => isColVisible(sc.key)).map(sc => {
               const sv = row[sc.key] || "";
