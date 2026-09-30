@@ -81,6 +81,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   // Tipo da seção: estamparia, bordado ou aplique (escolhido na ficha).
   const tipoEst = String(estamparia?.tipo || "ESTAMPARIA").trim().toUpperCase() || "ESTAMPARIA";
   const tipoEstTitulo = tituloFichaEstamparia(tr, tipoEst);
+  const lavanderia = tipoEst === "LAVANDERIA";
   // Colunas de variante das páginas da ficha (cores, pantone, aviamentos):
   // mínimo de 4, como sempre foi — reduzir aqui esconderia dado preenchido.
   const numVars = Math.max(4, Math.min(6, estamparia?.numVariantes || tec[0]?.cores?.filter(Boolean).length || 4));
@@ -452,7 +453,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
             {artes.filter((a: any) => a.posicao !== "TAGLESS").map((arte: any, ai: number) => (
               <div key={`${arte.posicao}-${ai}`} style={{ flex: 1, border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                 {/* Arte header */}
-                <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>{tr("Arte")} {tr(arte.posicao)}</div>
+                <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>{tr(lavanderia ? "Lavagem" : "Arte")} {tr(arte.posicao)}</div>
                 {/* Arte image */}
                 <div style={{ padding: "6px", textAlign: "center", background: white, display: "flex", alignItems: "center", justifyContent: "center", flex: 1.3, minHeight: "40px", maxHeight: "300px", overflow: "hidden" }}>
                   {arte.imagem ? <img src={arte.imagem} alt={arte.posicao} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>{tr("Sem imagem")}</span>}
@@ -462,7 +463,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 {/* Localização */}
                 {(arte.imagemLocal || arte.localizacao) && (
                   <div style={{ background: bg, borderTop: `0.5px solid ${line}`, padding: "5px 8px", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-                    <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>{tr("Localização Arte")} {tr(arte.posicao)}</div>
+                    <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>{tr(lavanderia ? "Localização Lavagem" : "Localização Arte")} {tr(arte.posicao)}</div>
                     {arte.imagemLocal && <div style={{ textAlign: "center", marginBottom: arte.localizacao ? "4px" : 0, flex: 1, minHeight: "30px", maxHeight: "230px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><img src={arte.imagemLocal} alt={`Localização ${arte.posicao}`} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /></div>}
                     {arte.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4 }}>{arte.localizacao}</div>}
                   </div>

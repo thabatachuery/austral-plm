@@ -146,6 +146,13 @@ const EN: Record<string, string> = {
   "Bordado": "Embroidery",
   "APLIQUE": "APPLIQUE",
   "Aplique": "Applique",
+  "LAVANDERIA": "LAUNDRY",
+  "Lavanderia": "Laundry",
+  // Na ficha de lavanderia as "artes" frente/costas são a lavagem da peça.
+  "LAVAGEM": "WASH",
+  "Lavagem": "Wash",
+  "Localização Lavagem": "Wash Placement",
+  "LOCALIZAÇÃO LAVAGEM": "WASH PLACEMENT",
   "ARTE": "ARTWORK",
   "Arte": "Artwork",
   // "Localização Arte" é uma expressão só: em inglês a ordem inverte
@@ -244,6 +251,7 @@ const TIPO_EST_EN: Record<string, string> = {
   ESTAMPARIA: "Print",
   BORDADO: "Embroidery",
   APLIQUE: "Embellishment",
+  LAVANDERIA: "Wash",
 };
 const normalizaTipoEst = (tipo: string) => String(tipo || "ESTAMPARIA").trim().toUpperCase() || "ESTAMPARIA";
 
