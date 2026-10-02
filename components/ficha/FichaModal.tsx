@@ -736,6 +736,18 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   // acabaria alterando a outra.
   const updArte = (i: number, field: string, value: string) => setEstamparia((prev: any) => ({ ...prev, artes: (prev.artes || []).map((a: any, j: number) => j === i ? { ...a, [field]: value } : a) }));
   const POSICOES_ARTE = ["FRENTE", "COSTAS", "LATERAL", "TAGLESS"];
+  // Blocos extras de arte/localização. Cada arte ganha um id estável para o
+  // caminho da imagem no Storage: sem ele, remover um bloco desloca os índices
+  // e o upload seguinte sobrescreveria o arquivo de outro bloco. Artes antigas
+  // recebem o próprio índice original como id, mantendo o caminho que já usam.
+  const addArte = () => setEstamparia((prev: any) => ({ ...prev, artes: [...(prev.artes || []).map((a: any, j: number) => ({ ...a, id: a.id ?? String(j) })), { id: `x${Date.now().toString(36)}`, posicao: "FRENTE", imagem: "", largura: "", localizacao: "" }] }));
+  const removeArte = async (i: number) => {
+    const a = estamparia.artes?.[i]; if (!a) return;
+    if ((a.imagem || a.imagemLocal) && !(await confirm({ title: "Remover este bloco?", message: "As imagens dele também serão apagadas.", confirmLabel: "Remover", cancelLabel: "Cancelar", variant: "danger" }))) return;
+    if (a.imagem) await deleteImage(a.imagem);
+    if (a.imagemLocal) await deleteImage(a.imagemLocal);
+    setEstamparia((prev: any) => ({ ...prev, artes: (prev.artes || []).map((x: any, j: number) => ({ ...x, id: x.id ?? String(j) })).filter((_: any, j: number) => j !== i) }));
+  };
   const TIPOS_EST = ["ESTAMPARIA", "BORDADO", "APLIQUE", "LAVANDERIA"];
   const tipoEst = String(estamparia?.tipo || "ESTAMPARIA").toUpperCase();
   const tipoEstTitulo = tituloFichaEstamparia(tr, tipoEst);
@@ -762,8 +774,9 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const removeTecnica = (i: number) => setEstamparia((prev: any) => ({ ...prev, tecnicas: prev.tecnicas.filter((_: any, j: number) => j !== i) }));
   const updSim = (vk: string, field: string, value: string) => setEstamparia((prev: any) => ({ ...prev, simulacoes: { ...prev.simulacoes, [vk]: { ...(prev.simulacoes?.[vk] || {}), [field]: value } } }));
   const estImgPath = (type: string, key: string) => {
-    if (type === "arte")      return `${row.ref}/estamparia/arte_${key}`;
-    if (type === "arteLocal") return `${row.ref}/estamparia/local_${key}`;
+    const arteKey = estamparia.artes?.[Number(key)]?.id ?? key;
+    if (type === "arte")      return `${row.ref}/estamparia/arte_${arteKey}`;
+    if (type === "arteLocal") return `${row.ref}/estamparia/local_${arteKey}`;
     if (type === "sim")       return `${row.ref}/estamparia/sim_${key}`;
     if (type === "foto")      return `${row.ref}/estamparia/foto_${key}`;
     return `${row.ref}/estamparia/${key}`;
@@ -1422,6 +1435,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                   <select value={arte.posicao || ""} onChange={e => updArte(ai, "posicao", e.target.value)} className="bg-white text-[var(--label-primary)] text-[12px] font-bold rounded-lg pl-2.5 pr-1.5 py-1 outline-none cursor-pointer shadow-sm" title="Posição desta arte — muda o título no PDF">
                     {POSICOES_ARTE.map(pos => <option key={pos} value={pos}>{tr(pos)}</option>)}
                   </select>
+                  <button type="button" onClick={() => removeArte(ai)} title="Remover este bloco" className="ml-1 w-6 h-6 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center transition-colors"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `arte-${ai}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
                   onClick={() => triggerEstImg("arte", String(ai))}
@@ -1432,7 +1446,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                   {arte.imagem && <button onClick={e => { e.stopPropagation(); deleteEstImg("arte", String(ai), arte.imagem); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                 </div>
                 <input type="text" value={arte.largura} onChange={e => updArte(ai, "largura", e.target.value)} placeholder="Ex: 34CM LARG." className="apple-input w-full text-[12px]" />
-                <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 text-center"><span className="text-[12px] font-bold tracking-wide">{tr(lavanderia ? "LOCALIZAÇÃO LAVAGEM" : "LOCALIZAÇÃO ARTE")} {tr(arte.posicao)}</span></div>
+                <div style={{ background: fichaColor }} className="rounded-lg px-4 py-2" title="Título livre — clique para editar (vazio usa o padrão)"><input value={arte.tituloLocal || ""} onChange={e => updArte(ai, "tituloLocal", e.target.value.toUpperCase())} placeholder={`${tr(lavanderia ? "LOCALIZAÇÃO LAVAGEM" : "LOCALIZAÇÃO ARTE")} ${tr(arte.posicao)}`} className="w-full bg-transparent text-center text-[12px] font-bold tracking-wide uppercase text-white placeholder:text-white outline-none focus:placeholder:text-white/50" /></div>
                 <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `local-${ai}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
                   onClick={() => triggerEstImg("arteLocal", String(ai))}
                   onDragOver={e => { e.preventDefault(); setDragOver(`local-${ai}`); }}
@@ -1445,6 +1459,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               </div>
             ))}
           </div>
+          <button type="button" onClick={addArte} className="apple-btn-secondary w-full text-[12px] py-2">+ {lavanderia ? "Adicionar lavagem" : "Adicionar arte"}</button>
 
           {/* TAGLESS */}
           {(() => { const tgi = (estamparia.artes || []).findIndex((a: any) => a.posicao === "TAGLESS"); if (tgi < 0) return null; const tg = estamparia.artes[tgi]; return (
@@ -1466,7 +1481,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
                 </div>
                 <div className="space-y-2">
                   <input type="text" value={tg.largura} onChange={e => updArte(tgi, "largura", e.target.value)} placeholder="Ex: 5,5CM" className="apple-input w-full text-[12px]" />
-                  <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 text-center"><span className="text-[12px] font-bold tracking-wide">{tr("LOCALIZAÇÃO ARTE TAGLESS")}</span></div>
+                  <div style={{ background: fichaColor }} className="rounded-lg px-4 py-2" title="Título livre — clique para editar (vazio usa o padrão)"><input value={tg.tituloLocal || ""} onChange={e => updArte(tgi, "tituloLocal", e.target.value.toUpperCase())} placeholder={tr("LOCALIZAÇÃO ARTE TAGLESS")} className="w-full bg-transparent text-center text-[12px] font-bold tracking-wide uppercase text-white placeholder:text-white outline-none focus:placeholder:text-white/50" /></div>
                   <div className={`apple-card bg-[var(--bg-secondary)] aspect-[3/2] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `local-${tgi}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
                     onClick={() => triggerEstImg("arteLocal", String(tgi))}
                     onDragOver={e => { e.preventDefault(); setDragOver(`local-${tgi}`); }}

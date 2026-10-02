@@ -449,9 +449,10 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           <PageHead title={tipoEstTitulo} sub={`${row.operacao} · ${row.fornecedor} · ${row.estilista}`} />
 
           {/* Artes (frente, costas, lateral…) — colunas lado a lado */}
-          <div style={{ display: "flex", gap: "10px", marginBottom: "10px", flex: 1, minHeight: 0 }}>
+          {/* Até 3 por linha; com blocos extras, quebra em mais linhas */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "10px", flex: 1, minHeight: 0 }}>
             {artes.filter((a: any) => a.posicao !== "TAGLESS").map((arte: any, ai: number) => (
-              <div key={`${arte.posicao}-${ai}`} style={{ flex: 1, border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+              <div key={`${arte.posicao}-${ai}`} style={{ flex: "1 1 30%", border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                 {/* Arte header */}
                 <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>{tr(lavanderia ? "Lavagem" : "Arte")} {tr(arte.posicao)}</div>
                 {/* Arte image */}
@@ -463,7 +464,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 {/* Localização */}
                 {(arte.imagemLocal || arte.localizacao) && (
                   <div style={{ background: bg, borderTop: `0.5px solid ${line}`, padding: "5px 8px", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-                    <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>{tr(lavanderia ? "Localização Lavagem" : "Localização Arte")} {tr(arte.posicao)}</div>
+                    <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>{arte.tituloLocal || `${tr(lavanderia ? "Localização Lavagem" : "Localização Arte")} ${tr(arte.posicao)}`}</div>
                     {arte.imagemLocal && <div style={{ textAlign: "center", marginBottom: arte.localizacao ? "4px" : 0, flex: 1, minHeight: "30px", maxHeight: "230px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><img src={arte.imagemLocal} alt={`Localização ${arte.posicao}`} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /></div>}
                     {arte.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4 }}>{arte.localizacao}</div>}
                   </div>
@@ -485,7 +486,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               </div>
               {/* Localização TAGLESS */}
               <div style={{ flex: 1, padding: "5px 8px", background: bg }}>
-                <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>{tr("Localização Arte Tagless")}</div>
+                <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>{tg.tituloLocal || tr("Localização Arte Tagless")}</div>
                 {tg.imagemLocal && <div style={{ textAlign: "center", marginBottom: "4px" }}><img src={tg.imagemLocal} alt="Localização TAGLESS" style={{ maxHeight: "130px", maxWidth: "100%", objectFit: "contain" }} /></div>}
                 {tg.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4 }}>{tg.localizacao}</div>}
               </div>
