@@ -60,6 +60,8 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   // tamNum trata a vírgula decimal ("2,5"); parseFloat pararia nela.
   const gd = (t: string, m: string) => { if (!m) return ""; const a = tamNum(t), b = tamNum(m); if (isNaN(a) || isNaN(b)) return ""; const d = b - a; return d === 0 ? "0" : d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1); };
   const artes = estamparia?.artes || [];
+  // Mesmo critério do FichaModal: bloco extra = só título livre, imagem e texto.
+  const isArteExtra = (a: any) => !!a?.extra || (String(a?.id || "").startsWith("x") && !a?.imagem && !a?.largura);
   const tecnicas = estamparia?.tecnicas || [];
   const sims = estamparia?.simulacoes || {};
 
@@ -451,7 +453,14 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           {/* Artes (frente, costas, lateral…) — colunas lado a lado */}
           {/* Até 3 por linha; com blocos extras, quebra em mais linhas */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "10px", flex: 1, minHeight: 0 }}>
-            {artes.filter((a: any) => a.posicao !== "TAGLESS").map((arte: any, ai: number) => (
+            {artes.filter((a: any) => a.posicao !== "TAGLESS" && (!isArteExtra(a) || a.imagemLocal || a.localizacao || a.tituloLocal)).map((arte: any, ai: number) => isArteExtra(arte) ? (
+              <div key={`extra-${ai}`} style={{ flex: "1 1 30%", border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+                {/* Bloco extra: título livre, imagem e texto */}
+                <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>{arte.tituloLocal || tr("Extra")}</div>
+                {arte.imagemLocal && <div style={{ padding: "6px", textAlign: "center", background: white, display: "flex", alignItems: "center", justifyContent: "center", flex: 1.3, minHeight: "40px", maxHeight: "300px", overflow: "hidden" }}><img src={arte.imagemLocal} alt={arte.tituloLocal || "Extra"} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /></div>}
+                {arte.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4, padding: "5px 8px", background: bg, borderTop: `0.5px solid ${line}` }}>{arte.localizacao}</div>}
+              </div>
+            ) : (
               <div key={`${arte.posicao}-${ai}`} style={{ flex: "1 1 30%", border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                 {/* Arte header */}
                 <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>{tr(lavanderia ? "Lavagem" : "Arte")} {tr(arte.posicao)}</div>

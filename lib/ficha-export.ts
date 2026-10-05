@@ -131,7 +131,7 @@ export async function carregarFichaParaPDF(row: any): Promise<DadosFichaPDF> {
 
   const tEsp = !!ficha?.tabelaEspecialAtiva;
   const hasEstamparia = (estamparia?.tecnicas || []).length > 0
-    || (estamparia?.artes || []).some((a: any) => a.imagem || a.largura || a.localizacao);
+    || (estamparia?.artes || []).some((a: any) => a.imagem || a.imagemLocal || a.largura || a.localizacao);
 
   return {
     row,

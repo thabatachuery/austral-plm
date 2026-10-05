@@ -728,7 +728,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     next.select();
   };
   const tm = row.tab_medidas || "";
-  const hasEstamparia = (estamparia?.tecnicas || []).length > 0 || (estamparia?.artes || []).some((a: any) => a.imagem || a.largura || a.localizacao);
+  const hasEstamparia = (estamparia?.tecnicas || []).length > 0 || (estamparia?.artes || []).some((a: any) => a.imagem || a.imagemLocal || a.largura || a.localizacao);
 
   /* ── Estamparia helpers ── */
   // Por ÍNDICE, não pela posição: a posição virou escolha do usuário (frente,
@@ -740,7 +740,11 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   // caminho da imagem no Storage: sem ele, remover um bloco desloca os índices
   // e o upload seguinte sobrescreveria o arquivo de outro bloco. Artes antigas
   // recebem o próprio índice original como id, mantendo o caminho que já usam.
-  const addArte = () => setEstamparia((prev: any) => ({ ...prev, artes: [...(prev.artes || []).map((a: any, j: number) => ({ ...a, id: a.id ?? String(j) })), { id: `x${Date.now().toString(36)}`, posicao: "FRENTE", imagem: "", largura: "", localizacao: "" }] }));
+  const addArte = () => setEstamparia((prev: any) => ({ ...prev, artes: [...(prev.artes || []).map((a: any, j: number) => ({ ...a, id: a.id ?? String(j) })), { id: `x${Date.now().toString(36)}`, extra: true, posicao: "EXTRA", tituloLocal: "", imagemLocal: "", localizacao: "" }] }));
+  // Bloco extra (manual de medidas, observações…): só título livre, uma imagem e
+  // o texto. Blocos adicionados antes disso que só usaram a parte de baixo
+  // (sem arte nem largura) também passam a ser mostrados como extra.
+  const isArteExtra = (a: any) => !!a?.extra || (String(a?.id || "").startsWith("x") && !a?.imagem && !a?.largura);
   const removeArte = async (i: number) => {
     const a = estamparia.artes?.[i]; if (!a) return;
     if ((a.imagem || a.imagemLocal) && !(await confirm({ title: "Remover este bloco?", message: "As imagens dele também serão apagadas.", confirmLabel: "Remover", cancelLabel: "Cancelar", variant: "danger" }))) return;
@@ -1428,7 +1432,23 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
 
           {/* Artes: a posição de cada uma é escolhida (frente, costas, lateral, tagless) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {(estamparia.artes || []).map((a: any, i: number) => ({ arte: a, ai: i })).filter((x: any) => x.arte.posicao !== "TAGLESS").map(({ arte, ai }: any) => (
+            {(estamparia.artes || []).map((a: any, i: number) => ({ arte: a, ai: i })).filter((x: any) => x.arte.posicao !== "TAGLESS").map(({ arte, ai }: any) => isArteExtra(arte) ? (
+              <div key={ai} className="space-y-2.5">
+                <div style={{ background: fichaColor }} className="rounded-lg px-4 py-2 flex items-center gap-2" title="Título livre — clique para editar">
+                  <input value={arte.tituloLocal || ""} onChange={e => updArte(ai, "tituloLocal", e.target.value.toUpperCase())} placeholder="TÍTULO (EX: MANUAL MEDIDAS)" className="flex-1 min-w-0 bg-transparent text-center text-[12px] font-bold tracking-wide uppercase text-white placeholder:text-white/60 outline-none" />
+                  <button type="button" onClick={() => removeArte(ai)} title="Remover este bloco" className="w-6 h-6 shrink-0 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center transition-colors"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+                <div className={`apple-card bg-[var(--bg-secondary)] aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-[var(--system-blue)] relative overflow-hidden transition-colors ${dragOver === `local-${ai}` ? "border-[var(--system-blue)] bg-blue-50/40" : ""}`}
+                  onClick={() => triggerEstImg("arteLocal", String(ai))}
+                  onDragOver={e => { e.preventDefault(); setDragOver(`local-${ai}`); }}
+                  onDragLeave={() => setDragOver(null)}
+                  onDrop={e => dropEstImg(e, "arteLocal", String(ai))}>
+                  {arte.imagemLocal ? <img src={arte.imagemLocal} alt={arte.tituloLocal || "Extra"} className="w-full h-full object-contain p-3" /> : <div className="text-center"><svg className="mx-auto mb-2 text-[var(--label-quaternary)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg><p className="text-[13px] text-[var(--label-tertiary)]">Arrastar aqui ou clique</p></div>}
+                  {arte.imagemLocal && <button onClick={e => { e.stopPropagation(); deleteEstImg("arteLocal", String(ai), arte.imagemLocal); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
+                </div>
+                <textarea value={arte.localizacao || ""} onChange={e => updArte(ai, "localizacao", e.target.value)} placeholder="Texto (opcional)..." rows={3} className="apple-input w-full resize-none text-[12px]" />
+              </div>
+            ) : (
               <div key={ai} className="space-y-2.5">
                 <div style={{ background: fichaColor }} className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-2">
                   <span className="text-[12px] font-bold tracking-wide">{tr(lavanderia ? "LAVAGEM" : "ARTE")}</span>
@@ -1459,7 +1479,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
               </div>
             ))}
           </div>
-          <button type="button" onClick={addArte} className="apple-btn-secondary w-full text-[12px] py-2">+ {lavanderia ? "Adicionar lavagem" : "Adicionar arte"}</button>
+          <button type="button" onClick={addArte} className="apple-btn-secondary w-full text-[12px] py-2">+ Adicionar campo extra</button>
 
           {/* TAGLESS */}
           {(() => { const tgi = (estamparia.artes || []).findIndex((a: any) => a.posicao === "TAGLESS"); if (tgi < 0) return null; const tg = estamparia.artes[tgi]; return (
