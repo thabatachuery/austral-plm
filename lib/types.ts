@@ -61,6 +61,7 @@ export type FichaTecido = {
   fornecedor: string;
   preco: number;
   cores: string[]; // array de nomes de cor por variante
+  localizacao: string; // onde o tecido entra na peça (CORPO, FORRO…)
 };
 
 export type FichaAviamento = {

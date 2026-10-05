@@ -455,7 +455,7 @@ export async function fetchFicha(ref: string, colecao?: string | null) {
       var03: data.qtd_most_var03 ?? null, var04: data.qtd_most_var04 ?? null,
       var05: data.qtd_most_var05 ?? null, var06: data.qtd_most_var06 ?? null,
     },
-    tecidos: (tec.data || []).map((t: any) => ({ artigo: t.artigo, forn: t.fornecedor, preco: Number(t.preco) || 0, cores: t.cores || [] })),
+    tecidos: (tec.data || []).map((t: any) => ({ artigo: t.artigo, forn: t.fornecedor, preco: Number(t.preco) || 0, cores: t.cores || [], local: t.localizacao || "" })),
     aviamentos: (avi.data || []).map((a: any) => ({ item: a.item, cod: a.codigo, qtd: a.qtd, valor: Number(a.valor) || 0, local: a.localizacao || "", var01: a.var01 || "", var02: a.var02 || "", var03: a.var03 || "", var04: a.var04 || "", var05: a.var05 || "", var06: a.var06 || "" })),
     pilotagem: (pil.data || []).map((p: any) => ({ num: p.num, lacre: p.lacre || "", envio: p.data_envio || "", receb: p.data_recebimento || "", prova: p.data_prova || "", status: p.status || "" })),
     provas: Object.fromEntries((prv.data || []).map((p: any) => [p.ponto_cod, { p1: p.prova1, p2: p.prova2, p3: p.prova3 }])),
@@ -565,7 +565,17 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
   const insertResults = await Promise.all([
     // Tecidos
     f.tecidos?.length
-      ? sb().from("ficha_tecidos").insert(f.tecidos.map((t: any) => ({ ficha_id: fid, artigo: t.artigo, fornecedor: t.forn || "", preco: t.preco || 0, cores: t.cores || [] })))
+      ? (async () => {
+          const linhas = f.tecidos.map((t: any) => ({ ficha_id: fid, artigo: t.artigo, fornecedor: t.forn || "", preco: t.preco || 0, cores: t.cores || [], localizacao: (t.local || "").trim() }));
+          const r = await sb().from("ficha_tecidos").insert(linhas);
+          // Sem a migration 036 a coluna não existe: grava sem a localização
+          // em vez de deixar a ficha sem tecidos (as linhas já foram apagadas).
+          if (r.error && /localizacao/.test(r.error.message)) {
+            console.error("ficha_tecidos sem localizacao (falta a migration 036?):", r.error.message);
+            return sb().from("ficha_tecidos").insert(linhas.map(({ localizacao, ...l }: any) => l));
+          }
+          return r;
+        })()
       : Promise.resolve(),
     // Aviamentos
     f.aviamentos?.length

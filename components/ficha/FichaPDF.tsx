@@ -260,7 +260,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 </tr></thead>
                 <tbody>{tec.map((t, i) => { const cs = t.cores || []; return (
                   <tr key={i} style={i % 2 ? { background: bg } : {}}>
-                    <td style={{ ...td, fontWeight: 700 }}>{t.artigo}</td>
+                    <td style={{ ...td, fontWeight: 700 }}>{t.artigo}{t.local && <div style={{ marginTop: "1px", fontSize: "6.5px", fontWeight: 800, color: accent, textTransform: "uppercase", letterSpacing: "0.06em" }}>{tr("Localização")}: {t.local}</div>}</td>
                     <td style={{ ...td, color: muted }}>{t.forn}</td>
                     <td style={{ ...td, fontSize: "7.5px", color: muted }}>{(i === 0 ? (row.composicao || compOf(t.artigo)) : compOf(t.artigo)) || "—"}</td>
                     <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{t.preco > 0 ? `R$ ${t.preco.toFixed(2)}` : "—"}</td>
