@@ -1,4 +1,5 @@
 "use client";
+import { Fragment } from "react";
 import { COR_PALETTE } from "@/lib/cor-palette";
 import { valorNoTamanho, calcularDaBase, num as tamNum } from "@/lib/tamanhos";
 import type { ResultadoPeso } from "@/lib/peso";
@@ -14,7 +15,7 @@ type Props = {
   img: string | null; imgModelo: string | null; imgModoMedir?: string | null;
   estagio?: string;
   imgFrente?: string | null; imgCostas?: string | null;
-  hasEstamparia: boolean; estamparia?: any; pantones?: Record<string, string>;
+  hasEstamparia: boolean; estamparia?: any; pantones?: Record<string, any>;
   tingimento?: Record<string, string>;
   obs?: string; statusLib?: string; tecCad?: any[]; tabelaEspecial?: boolean;
   sections?: { ficha: boolean; estamparia: boolean; liberacao: boolean; graduacao: boolean };
@@ -60,6 +61,10 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   // tamNum trata a vírgula decimal ("2,5"); parseFloat pararia nela.
   const gd = (t: string, m: string) => { if (!m) return ""; const a = tamNum(t), b = tamNum(m); if (isNaN(a) || isNaN(b)) return ""; const d = b - a; return d === 0 ? "0" : d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1); };
   const artes = estamparia?.artes || [];
+  // Tecido 1 usa pantones.var01…; os demais, pantones.porTecido[i] (ou o que
+  // estiver no próprio tecido, quando vem direto da tela da ficha).
+  const pantoneDoTecido = (i: number): Record<string, string> | null =>
+    i === 0 ? (pantones || null) : ((tec[i] as any)?.pantones || pantones?.porTecido?.[i] || null);
   // Mesmo critério do FichaModal: bloco extra = só título livre, imagem e texto.
   const isArteExtra = (a: any) => !!a?.extra || (String(a?.id || "").startsWith("x") && !a?.imagem && !a?.largura);
   const tecnicas = estamparia?.tecnicas || [];
@@ -258,28 +263,30 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                   <th style={th}>{tr("Artigo")}</th><th style={{ ...th, width: "55px" }}>{tr("Forn.")}</th><th style={{ ...th, width: "75px" }}>{tr("Composição")}</th><th style={{ ...th, textAlign: "right", width: "38px" }}>{tr("Preço")}</th>
                   {Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} style={{ ...th, textAlign: "center", width: "55px" }}><div>Var {String(i + 1).padStart(2, "0")}</div>{cor && <div style={{ marginTop: "3px", display: "inline-block", padding: "1px 5px", borderRadius: "3px", fontSize: "7px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333" }}>{cor}</div>}</th>); })}
                 </tr></thead>
-                <tbody>{tec.map((t, i) => { const cs = t.cores || []; return (
-                  <tr key={i} style={i % 2 ? { background: bg } : {}}>
+                <tbody>{tec.map((t, i) => { const cs = t.cores || []; const pt = pantoneDoTecido(i); return (<Fragment key={i}>
+                  <tr style={i % 2 ? { background: bg } : {}}>
                     <td style={{ ...td, fontWeight: 700 }}>{t.artigo}{t.local && <div style={{ marginTop: "1px", fontSize: "6.5px", fontWeight: 800, color: accent, textTransform: "uppercase", letterSpacing: "0.06em" }}>{tr("Localização")}: {t.local}</div>}</td>
                     <td style={{ ...td, color: muted }}>{t.forn}</td>
                     <td style={{ ...td, fontSize: "7.5px", color: muted }}>{(i === 0 ? (row.composicao || compOf(t.artigo)) : compOf(t.artigo)) || "—"}</td>
                     <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{t.preco > 0 ? `R$ ${t.preco.toFixed(2)}` : "—"}</td>
                     {Array.from({length: numVars}, (_, j) => { const cor = cs[j]; const pal = cor ? COR_PALETTE[cor] : null; return (<td key={j} style={{ ...td, textAlign: "center", padding: "3px 4px" }}>{cor ? <span style={{ display: "inline-block", padding: "2px 5px", borderRadius: "3px", fontSize: "7.5px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333", whiteSpace: "nowrap" }}>{cor}</span> : <span style={{ color: lineDark }}>—</span>}</td>); })}
                   </tr>
-                ); })}
+                  {/* Pantone de cada tecido, logo abaixo dele: tecidos diferentes
+                      podem ter pantones diferentes para a mesma variante. */}
+                  {pt && VARS.slice(0, numVars).some(k => pt[k]) && (
+                    <tr style={{ background: bg }}>
+                      <td colSpan={4} style={{ ...td, fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Pantone")}{tec.length > 1 ? ` · Tec.${String(i + 1).padStart(2, "0")}` : ""}</td>
+                      {VARS.slice(0, numVars).map(k => (
+                        <td key={k} style={{ ...td, textAlign: "center", fontFamily: "monospace", fontSize: "7px", fontWeight: 700, color: navy, padding: "3px 2px" }}>{pt[k] || "—"}</td>
+                      ))}
+                    </tr>
+                  )}
+                </Fragment>); })}
 
                 {/* Pantone / Compra / Pedido — linhas DESTA tabela. Antes eram
                     divs de flex logo abaixo dela, presumindo 55px por variante;
                     como a tabela dimensiona as colunas por conta própria, os
                     valores não caíam sob a cor correspondente. */}
-                {pantones && (pantones.var01 || pantones.var02 || pantones.var03 || pantones.var04) && (
-                  <tr style={{ background: bg }}>
-                    <td colSpan={4} style={{ ...td, fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Pantone")}</td>
-                    {(["var01", "var02", "var03", "var04", "var05", "var06"] as const).slice(0, numVars).map(k => (
-                      <td key={k} style={{ ...td, textAlign: "center", fontFamily: "monospace", fontSize: "7px", fontWeight: 700, color: navy, padding: "3px 2px" }}>{(pantones as any)[k] || "—"}</td>
-                    ))}
-                  </tr>
-                )}
                 {tingimento && (["var01", "var02", "var03", "var04", "var05", "var06"] as const).slice(0, numVars).some(k => tingimento[k]) && (
                   <tr style={{ background: bg }}>
                     <td colSpan={4} style={{ ...td, fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Tipo de Tingimento")}</td>

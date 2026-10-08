@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 import { uploadImage, uploadArquivo, deleteImage } from "@/lib/storage";
@@ -296,6 +296,10 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         setFichaId(ficha.id); setClonadaDe(ficha.clonadaDe || ""); setImg(ficha.imagem_url); setImgModelo(ficha.imagem_modelo);
         setImgFrente(ficha.imagem_frente || null); setImgCostas(ficha.imagem_costas || null);
         tecComputed = espelharTecidoDoSku(ficha.tecidos || [], tecs);
+        // Pantone dos tecidos 2, 3…: o do tecido 1 continua em pantones.var01…
+        // (fichas antigas), os demais ficam em pantones.porTecido[i].
+        const ptTec = ficha.pantones?.porTecido;
+        if (Array.isArray(ptTec)) tecComputed = tecComputed.map((t: any, i: number) => i > 0 && ptTec[i] ? { ...t, pantones: ptTec[i] } : t);
         setTec(tecComputed);
         if (ficha.pilotagem?.length) setPil(ficha.pilotagem);
         setObs(ficha.observacoes || "");
@@ -540,7 +544,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     setPendingSave(false);
     setAutoSaveStatus("saving");
     try {
-      const fichaData = { id: fichaId, tecidos: tec, aviamentos: avi, pilotagem: pil, observacoes: obs, imagem_url: img, imagem_modelo: imgModelo, imagem_modo_medir: imgModoMedir, imagem_frente: imgFrente, imagem_costas: imgCostas, provas: pv, anotacoes: an, pantones: varCodigos, tingimento: varTingimento, qtdMost, statusLiberacao: statusLib, estagio, importado, ncm, estamparia: { ...estamparia, numVariantes: numVars }, provaInfo, custoDet, obsCusto, pesoCalculo: peso, tabelaEspecialAtiva: tEsp, pontosEspeciais: tEsp ? ptsEsp : undefined, gradEspecial: tEsp ? gradEsp : undefined };
+      const fichaData = { id: fichaId, tecidos: tec, aviamentos: avi, pilotagem: pil, observacoes: obs, imagem_url: img, imagem_modelo: imgModelo, imagem_modo_medir: imgModoMedir, imagem_frente: imgFrente, imagem_costas: imgCostas, provas: pv, anotacoes: an, pantones: { ...varCodigos, porTecido: tec.map((t: any, i: number) => i === 0 ? {} : (t.pantones || {})) }, tingimento: varTingimento, qtdMost, statusLiberacao: statusLib, estagio, importado, ncm, estamparia: { ...estamparia, numVariantes: numVars }, provaInfo, custoDet, obsCusto, pesoCalculo: peso, tabelaEspecialAtiva: tEsp, pontosEspeciais: tEsp ? ptsEsp : undefined, gradEspecial: tEsp ? gradEsp : undefined };
       const newId = await upsertFicha(row.ref, fichaData, isClassic ? selectedColecao : null);
       if (!newId) throw new Error("Falha ao salvar a ficha técnica.");
       setFichaId(newId);
@@ -831,7 +835,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   if (showPrint) {
     return (
       <div className="print-overlay">
-        <FichaPDF row={row} tec={tec} avi={avi} pil={pil} pts={tEsp ? ptsEsp : pts} grad={tEsp ? gradEsp : grad} pv={pv} an={an} img={img} imgModelo={imgModelo} imgModoMedir={imgModoMedir} imgFrente={imgFrente} imgCostas={imgCostas} hasEstamparia={hasEstamparia} estamparia={estamparia} pantones={varCodigos} tingimento={varTingimento} obs={obs} statusLib={statusLib} estagio={estagio} tecCad={tecCad} tabelaEspecial={tEsp} sections={exportSections} ncm={ncm} peso={peso} vcCompras={vcCompras} provaInfo={provaInfo} gradTamanhos={gradTamanhos} gradBase={gradBase} tabTamanhos={tabTamanhos} importado={importado} fichasTecido={fichasTecido} />
+        <FichaPDF row={row} tec={tec} avi={avi} pil={pil} pts={tEsp ? ptsEsp : pts} grad={tEsp ? gradEsp : grad} pv={pv} an={an} img={img} imgModelo={imgModelo} imgModoMedir={imgModoMedir} imgFrente={imgFrente} imgCostas={imgCostas} hasEstamparia={hasEstamparia} estamparia={estamparia} pantones={{ ...varCodigos, porTecido: tec.map((t: any, i: number) => i === 0 ? {} : (t.pantones || {})) }} tingimento={varTingimento} obs={obs} statusLib={statusLib} estagio={estagio} tecCad={tecCad} tabelaEspecial={tEsp} sections={exportSections} ncm={ncm} peso={peso} vcCompras={vcCompras} provaInfo={provaInfo} gradTamanhos={gradTamanhos} gradBase={gradBase} tabTamanhos={tabTamanhos} importado={importado} fichasTecido={fichasTecido} />
       </div>
     );
   }
@@ -1117,24 +1121,24 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             <textarea value={obs} onChange={e => setObs(e.target.value)} placeholder="Observações técnicas, instruções especiais..." rows={3} className="apple-input w-full resize-none" />
           </div>
 
-          <div className="apple-card overflow-x-auto"><table className="plm-table"><thead><tr><th className="px-4">{tr("Artigo")}</th><th className="w-24">{tr("Fornec.")}</th><th className="w-36">{tr("Composição")}</th><th className="text-center w-16">{tr("Preço")}</th>{Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} className="text-center w-[120px]"><div>Var {String(i+1).padStart(2,"0")}</div>{cor && <div className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold" style={pal ? { background: pal.bg, color: pal.text } : { background: "var(--bg-tertiary)", color: "var(--label-secondary)" }}>{cor}</div>}</th>); })}</tr></thead><tbody>{tec.map((t: any, ti: number) => { const cs = t.cores || []; while (cs.length < numVars) cs.push(""); return (<tr key={ti}><td className="px-4"><span className="text-[var(--label-tertiary)] text-[11px] mr-1.5">Tec.{String(ti + 1).padStart(2, "0")}</span>{ti === 0 ? <span className="font-semibold" title="O tecido principal vem do SKU (coluna Tecido, em Desenvolvimento)">{t.artigo}</span> : <button type="button" onClick={() => { setTecPick(ti); setTsq(""); }} className={`text-left font-semibold underline decoration-dotted decoration-[var(--separator-opaque)] underline-offset-2 hover:decoration-[var(--system-blue)] hover:text-[var(--system-blue)] ${t.artigo ? "" : "text-[var(--system-blue)]"}`} title="Escolher tecido do cadastro">{t.artigo || "Selecionar tecido..."}</button>}<input value={t.local || ""} onChange={e => setTec(p => p.map((x: any, j: number) => j === ti ? { ...x, local: e.target.value.toUpperCase() } : x))} placeholder="Localização (ex.: CORPO, FORRO)" className="mt-1 block w-full max-w-[260px] text-[12px] border border-[var(--separator-opaque)] rounded-lg px-2.5 py-1 outline-none focus:border-[var(--system-blue)]" /></td><td>{t.forn || "—"}</td><td className="text-[12px] text-[var(--label-secondary)] px-3">{compOf(t.artigo) || "—"}</td><td className="text-center tabnum">{t.preco > 0 ? t.preco.toFixed(2) : "—"}</td>{cs.slice(0, numVars).map((c: string, ci: number) => { const pal = c ? COR_PALETTE[c] : null; return (<td key={ci} className="px-1.5 py-1.5"><select value={c} onChange={e => utc(ti, ci, e.target.value)} className="w-full text-[12px] px-2 py-1.5 rounded-lg border outline-none cursor-pointer font-bold" style={pal ? { background: pal.bg, color: pal.text, borderColor: pal.bg } : { borderColor: "var(--separator-opaque)", color: "var(--label-quaternary)" }}><option value="">Selecionar</option>{corOpts.map(x => <option key={x} value={x}>{x}</option>)}</select></td>); })}</tr>); })}</tbody><tfoot>
-                <tr className="border-t border-[var(--separator-opaque)] bg-[var(--bg-secondary)]">
-                  <td colSpan={3} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] whitespace-nowrap">{tr("Pantone / Código")}</td>
+          <div className="apple-card overflow-x-auto"><table className="plm-table"><thead><tr><th className="px-4">{tr("Artigo")}</th><th className="w-24">{tr("Fornec.")}</th><th className="w-36">{tr("Composição")}</th><th className="text-center w-16">{tr("Preço")}</th>{Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} className="text-center w-[120px]"><div>Var {String(i+1).padStart(2,"0")}</div>{cor && <div className="mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold" style={pal ? { background: pal.bg, color: pal.text } : { background: "var(--bg-tertiary)", color: "var(--label-secondary)" }}>{cor}</div>}</th>); })}</tr></thead><tbody>{tec.map((t: any, ti: number) => { const cs = t.cores || []; while (cs.length < numVars) cs.push(""); return (<Fragment key={ti}><tr><td className="px-4"><span className="text-[var(--label-tertiary)] text-[11px] mr-1.5">Tec.{String(ti + 1).padStart(2, "0")}</span>{ti === 0 ? <span className="font-semibold" title="O tecido principal vem do SKU (coluna Tecido, em Desenvolvimento)">{t.artigo}</span> : <button type="button" onClick={() => { setTecPick(ti); setTsq(""); }} className={`text-left font-semibold underline decoration-dotted decoration-[var(--separator-opaque)] underline-offset-2 hover:decoration-[var(--system-blue)] hover:text-[var(--system-blue)] ${t.artigo ? "" : "text-[var(--system-blue)]"}`} title="Escolher tecido do cadastro">{t.artigo || "Selecionar tecido..."}</button>}<input value={t.local || ""} onChange={e => setTec(p => p.map((x: any, j: number) => j === ti ? { ...x, local: e.target.value.toUpperCase() } : x))} placeholder="Localização (ex.: CORPO, FORRO)" className="mt-1 block w-full max-w-[260px] text-[12px] border border-[var(--separator-opaque)] rounded-lg px-2.5 py-1 outline-none focus:border-[var(--system-blue)]" /></td><td>{t.forn || "—"}</td><td className="text-[12px] text-[var(--label-secondary)] px-3">{compOf(t.artigo) || "—"}</td><td className="text-center tabnum">{t.preco > 0 ? t.preco.toFixed(2) : "—"}</td>{cs.slice(0, numVars).map((c: string, ci: number) => { const pal = c ? COR_PALETTE[c] : null; return (<td key={ci} className="px-1.5 py-1.5"><select value={c} onChange={e => utc(ti, ci, e.target.value)} className="w-full text-[12px] px-2 py-1.5 rounded-lg border outline-none cursor-pointer font-bold" style={pal ? { background: pal.bg, color: pal.text, borderColor: pal.bg } : { borderColor: "var(--separator-opaque)", color: "var(--label-quaternary)" }}><option value="">Selecionar</option>{corOpts.map(x => <option key={x} value={x}>{x}</option>)}</select></td>); })}</tr>
+                <tr className="bg-[var(--bg-secondary)]">
+                  <td colSpan={3} className="px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] whitespace-nowrap">{tr("Pantone / Código")}{tec.length > 1 && <span className="ml-1.5 normal-case tracking-normal text-[var(--label-tertiary)]">Tec.{String(ti + 1).padStart(2, "0")}</span>}</td>
                   <td />
                   {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVars).map(k => (
                     <td key={k} className="px-1.5 py-1.5">
                       <textarea
-                        value={varCodigos[k]}
-                        onChange={e => setVarCodigos(prev => ({ ...prev, [k]: e.target.value }))}
+                        value={ti === 0 ? varCodigos[k] : (t.pantones?.[k] || "")}
+                        onChange={e => { const v = e.target.value; if (ti === 0) setVarCodigos(prev => ({ ...prev, [k]: v })); else setTec(p => p.map((x: any, j: number) => j === ti ? { ...x, pantones: { ...(x.pantones || {}), [k]: v } } : x)); }}
                         placeholder="P. 000 C"
                         rows={1}
                         className="w-full text-[12px] px-2 py-1.5 rounded-lg border border-[var(--separator-opaque)] outline-none focus:border-[var(--system-blue)] text-center font-mono tracking-wide resize-none overflow-hidden"
                         style={{ minHeight: "32px" }}
-                        onInput={e => { const t = e.target as HTMLTextAreaElement; t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }}
+                        onInput={e => { const el = e.target as HTMLTextAreaElement; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }}
                       />
                     </td>
                   ))}
-                </tr>
+                </tr></Fragment>); })}</tbody><tfoot>
                 <tr className="border-t border-[var(--separator-opaque)]">
                   <td colSpan={3} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] whitespace-nowrap">{tr("Tipo de Tingimento")}</td>
                   <td />
