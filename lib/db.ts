@@ -378,13 +378,11 @@ async function clonarFichas(srcRef: string, newRef: string): Promise<string | nu
   const semId = ({ id, created_at, updated_at, ficha_id, ...r }: any) => r;
   for (const f of fichas) {
     const { id: oldId, created_at, updated_at, ...resto } = f;
-    const nova = trocaUrls({ ...resto, produto_ref: newRef, status_liberacao: "", estagio: null, prova_info: null });
-    let ins = await sb().from("fichas_tecnicas").insert({ ...nova, clonada_de: srcRef }).select("id").single();
-    // Sem a migration 037 a coluna clonada_de não existe: clona sem o aviso.
-    if (ins.error && /clonada_de/.test(ins.error.message)) {
-      console.error("fichas_tecnicas sem clonada_de (falta a migration 037?):", ins.error.message);
-      ins = await sb().from("fichas_tecnicas").insert(nova).select("id").single();
-    }
+    // A origem vai dentro do JSON da estamparia (já existe, é salvo inteiro
+    // pela ficha e o PDF ignora chaves que não conhece) — assim não depende de
+    // coluna nova no banco. Aparece só como aviso interno na tela da ficha.
+    const nova = trocaUrls({ ...resto, produto_ref: newRef, status_liberacao: "", estagio: null, prova_info: null, estamparia: { ...(resto.estamparia || {}), clonadaDe: srcRef } });
+    const ins = await sb().from("fichas_tecnicas").insert(nova).select("id").single();
     if (ins.error) { console.error("clonarFichas insert:", ins.error); return ins.error.message; }
     const fid = ins.data.id;
     for (const tabela of ["ficha_tecidos", "ficha_aviamentos", "ficha_pontos_especiais", "ficha_graduacao_especial"]) {
@@ -505,7 +503,7 @@ export async function fetchFicha(ref: string, colecao?: string | null) {
     anotacoes: Object.fromEntries((ant.data || []).map((a: any) => [`p${a.prova_num}`, { texto: a.anotacao || "", video: a.video_link || "" }])),
     estamparia: data.estamparia && Object.keys(data.estamparia).length > 0 ? data.estamparia : { artes: [{ posicao: "FRENTE", imagem: "", largura: "", localizacao: "" }, { posicao: "COSTAS", imagem: "", largura: "", localizacao: "" }, { posicao: "TAGLESS", imagem: "", largura: "", localizacao: "" }], tecnicas: [], simulacoes: { var01: { nome: "", imgSim: "", imgFoto: "", status: "" }, var02: { nome: "", imgSim: "", imgFoto: "", status: "" }, var03: { nome: "", imgSim: "", imgFoto: "", status: "" }, var04: { nome: "", imgSim: "", imgFoto: "", status: "" } }, observacoes: "" },
     importado: data.importado || false,
-    clonadaDe: data.clonada_de || "",
+    clonadaDe: data.estamparia?.clonadaDe || "",
     tabelaEspecialAtiva: data.tabela_especial_ativa || false,
     pontosEspeciais: [] as any[],
     gradEspecial: [] as any[],
