@@ -20,3 +20,4 @@ backup/
 # planilhas de trabalho geradas por consulta — nao fazem parte do codigo
 *.xlsx
 ~$*
+backup-fichas-*/

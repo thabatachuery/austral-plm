@@ -464,7 +464,17 @@ export async function fetchFicha(ref: string, colecao?: string | null) {
   // aconteceram. Com maybeSingle() isso virava erro, a ficha abria em branco e
   // o próximo salvamento criava OUTRA duplicata — então pega a mais recente
   // (a que tem os últimos dados salvos) em vez de desistir.
-  const { data: achadas, error } = await q.order("id", { ascending: false }).limit(1);
+  let { data: achadas, error } = await q.order("id", { ascending: false }).limit(1);
+  // Referência que deixou de ser "clássico" (ex.: coleção mudou de CLÁSSICOS
+  // para INVERNO 27) tem a ficha salva com temporada, e aqui procura sem.
+  // Sem este fallback a ficha abria em branco e o salvamento automático criava
+  // uma ficha vazia por cima — parecia que tudo tinha sido apagado. Usa a
+  // primeira temporada (a mesma que a tela de clássico mostra primeiro); os
+  // salvamentos seguintes atualizam essa mesma linha pelo id.
+  if (!error && !achadas?.length && !colecao) {
+    ({ data: achadas, error } = await sb().from("fichas_tecnicas").select("*").eq("produto_ref", ref)
+      .not("colecao", "is", null).order("ordem", { ascending: true }).order("id", { ascending: true }).limit(1));
+  }
   if (error || !achadas?.length) return null;
   const data = achadas[0];
   const fid = data.id;
