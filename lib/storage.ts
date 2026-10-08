@@ -117,3 +117,33 @@ export async function deleteImagesByPrefix(prefix: string): Promise<void> {
   const { error: rmErr } = await supabase.storage.from(BUCKET).remove(paths);
   if (rmErr) console.error("deleteImagesByPrefix remove:", rmErr);
 }
+
+// Duplica todos os arquivos de uma referência (incluindo subpastas, como
+// estamparia/arte_x/) para a pasta de outra. Usado ao clonar um produto: o
+// clone ganha cópias próprias das imagens, então trocar ou apagar o desenho de
+// um não quebra o do outro — nem excluir o original apaga as fotos do clone.
+// Devolve o mapa URL antiga → URL nova, só dos arquivos que copiaram.
+export async function copyImagesByPrefix(fromRef: string, toRef: string): Promise<Record<string, string>> {
+  const supabase = getSupabase();
+  const bucket = supabase.storage.from(BUCKET);
+  const from = sanitizePath(fromRef), to = sanitizePath(toRef);
+  const arquivos: string[] = [];
+  const listar = async (pasta: string) => {
+    const { data, error } = await bucket.list(pasta, { limit: 1000 });
+    if (error) { console.error("copyImagesByPrefix list:", error); return; }
+    for (const f of data || []) {
+      // Pasta não tem id; arquivo tem.
+      if (f.id) arquivos.push(`${pasta}/${f.name}`);
+      else await listar(`${pasta}/${f.name}`);
+    }
+  };
+  await listar(from);
+  const mapa: Record<string, string> = {};
+  await Promise.all(arquivos.map(async (orig) => {
+    const destino = to + orig.slice(from.length);
+    const { error } = await bucket.copy(orig, destino);
+    if (error) { console.error("copyImagesByPrefix copy:", orig, error); return; }
+    mapa[bucket.getPublicUrl(orig).data.publicUrl] = bucket.getPublicUrl(destino).data.publicUrl;
+  }));
+  return mapa;
+}

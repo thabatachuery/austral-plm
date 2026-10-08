@@ -383,7 +383,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       showError(`Referência "${cloneRef.trim()}" já existe.`);
       return;
     }
-    const { data, error } = await cloneProduto(cloneSource.id, cloneRef.trim());
+    const { data, error, erroFicha } = await cloneProduto(cloneSource.id, cloneRef.trim());
     if (error) {
       showError(`Erro ao clonar: ${error}`);
       return;
@@ -391,7 +391,8 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     if (data) {
       const newRow = { ...cloneSource, id: data.id, ref: data.ref, status: STATUS_ESTILO.DESENVOLVIMENTO };
       setRows((p:any) => [...p, newRow]);
-      success("SKU clonado com sucesso");
+      if (erroFicha) showError(`SKU clonado, mas a ficha não copiou inteira: ${erroFicha}`);
+      else success("SKU e ficha clonados");
     }
     setCloneSource(null);
     setCloneRef("");

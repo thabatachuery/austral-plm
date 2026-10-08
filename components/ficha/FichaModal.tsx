@@ -32,6 +32,8 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const [up, setUp] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fichaId, setFichaId] = useState<number | null>(null);
+  // Referência de onde esta ficha foi clonada — aviso só na tela, não vai pro PDF.
+  const [clonadaDe, setClonadaDe] = useState("");
   const [showPrint, setShowPrint] = useState(false);
   const [showExportDlg, setShowExportDlg] = useState(false);
   const [exportSections, setExportSections] = useState<{ ficha: boolean; estamparia: boolean; liberacao: boolean; graduacao: boolean }>({ ficha: true, estamparia: true, liberacao: true, graduacao: true });
@@ -237,6 +239,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       // Para clássicos: carrega a ficha da temporada selecionada (ou null se nenhuma ainda)
       const fichaColecao = isClassic ? selectedColecao : null;
       setFichaId(null);
+      setClonadaDe("");
       // Trocar de temporada não pode herdar a marcação da anterior: quem tem
       // ficha salva (ou seed) recebe o valor certo mais abaixo.
       setImportado(false);
@@ -290,7 +293,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
       }
       setImgModoMedir(modoMedirTabela || ficha?.imagem_modo_medir || null);
       if (ficha) {
-        setFichaId(ficha.id); setImg(ficha.imagem_url); setImgModelo(ficha.imagem_modelo);
+        setFichaId(ficha.id); setClonadaDe(ficha.clonadaDe || ""); setImg(ficha.imagem_url); setImgModelo(ficha.imagem_modelo);
         setImgFrente(ficha.imagem_frente || null); setImgCostas(ficha.imagem_costas || null);
         tecComputed = espelharTecidoDoSku(ficha.tecidos || [], tecs);
         setTec(tecComputed);
@@ -1029,6 +1032,14 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
             </div>
             {importado && <span className="ml-auto text-[10px] font-bold tracking-wide uppercase text-[var(--system-blue)] bg-[rgba(0,122,255,0.1)] px-2 py-1 rounded-md whitespace-nowrap">EN</span>}
           </label>
+
+          {clonadaDe && (
+            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--separator)] text-[12px] text-[var(--label-secondary)]" title="Aviso interno — não sai no PDF">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              <span>Clonada da ficha original <strong className="text-[var(--label-primary)] tabnum">{clonadaDe}</strong></span>
+              <span className="ml-auto text-[10px] uppercase tracking-wide text-[var(--label-tertiary)]">Interno · não sai no PDF</span>
+            </div>
+          )}
 
           <div className="apple-card">
             <div className="grid grid-cols-1 sm:grid-cols-2">{([["Referência", row.ref], ["Descrição", row.desc], ["Tecido", row.tecido], ["Forn. tecido", row.forn_tecido], ["Composição", row.composicao || compOf(row.tecido)], ["Operação", row.operacao], ["Fornecedor", row.fornecedor], ["Estilista", row.estilista], ["Tab. medidas", row.tab_medidas]] as [string, any][]).map(([l, v]) => <F key={l} l={tr(l)} v={v} />)}</div>

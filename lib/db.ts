@@ -345,13 +345,56 @@ export async function deleteProduto(id: number, ref?: string): Promise<string | 
   }
   return null;
 }
-export async function cloneProduto(sourceId: number, newRef: string): Promise<{ data: any; error: string | null }> {
+export async function cloneProduto(sourceId: number, newRef: string): Promise<{ data: any; error: string | null; erroFicha?: string | null }> {
   const { data: src, error: fetchErr } = await sb().from("produtos").select("*").eq("id", sourceId).single();
   if (fetchErr || !src) return { data: null, error: "Produto original não encontrado" };
   const { id: _id, ref: _ref, created_at: _ca, updated_at: _ua, ...rest } = src;
   const { data, error } = await sb().from("produtos").insert({ ...rest, ref: newRef, status: "DESENVOLVIMENTO" }).select().single();
   if (error) { console.error("cloneProduto:", error); return { data: null, error: error.message || "Erro ao clonar" }; }
-  return { data, error: null };
+  const erroFicha = await clonarFichas(src.ref, newRef);
+  return { data, error: null, erroFicha };
+}
+
+// Copia a(s) ficha(s) técnica(s) da referência de origem para o clone: desenho
+// e demais imagens (duplicadas no Storage), tecidos, aviamentos, estamparia,
+// medidas e tabela especial. Pilotagem, provas, anotações e o estágio/status de
+// liberação ficam de fora: são o histórico das amostras da peça original, e o
+// clone começa o desenvolvimento do zero. Clássicos têm uma ficha por
+// temporada; todas são copiadas.
+async function clonarFichas(srcRef: string, newRef: string): Promise<string | null> {
+  const { data: fichas, error } = await sb().from("fichas_tecnicas").select("*").eq("produto_ref", srcRef);
+  if (error) { console.error("clonarFichas:", error); return error.message; }
+  if (!fichas?.length) return null;
+  const { copyImagesByPrefix } = await import("./storage");
+  const urls = await copyImagesByPrefix(srcRef, newRef);
+  // Troca, em qualquer campo (inclusive dentro do JSON da estamparia), as URLs
+  // das imagens da origem pelas cópias. Imagens de outras pastas (ex. foto do
+  // cadastro de tecido) continuam apontando para o mesmo arquivo.
+  const trocaUrls = (obj: any) => {
+    let txt = JSON.stringify(obj);
+    for (const [de, para] of Object.entries(urls)) txt = txt.split(de).join(para);
+    return JSON.parse(txt);
+  };
+  const semId = ({ id, created_at, updated_at, ficha_id, ...r }: any) => r;
+  for (const f of fichas) {
+    const { id: oldId, created_at, updated_at, ...resto } = f;
+    const nova = trocaUrls({ ...resto, produto_ref: newRef, status_liberacao: "", estagio: null, prova_info: null });
+    let ins = await sb().from("fichas_tecnicas").insert({ ...nova, clonada_de: srcRef }).select("id").single();
+    // Sem a migration 037 a coluna clonada_de não existe: clona sem o aviso.
+    if (ins.error && /clonada_de/.test(ins.error.message)) {
+      console.error("fichas_tecnicas sem clonada_de (falta a migration 037?):", ins.error.message);
+      ins = await sb().from("fichas_tecnicas").insert(nova).select("id").single();
+    }
+    if (ins.error) { console.error("clonarFichas insert:", ins.error); return ins.error.message; }
+    const fid = ins.data.id;
+    for (const tabela of ["ficha_tecidos", "ficha_aviamentos", "ficha_pontos_especiais", "ficha_graduacao_especial"]) {
+      const { data: linhas } = await sb().from(tabela).select("*").eq("ficha_id", oldId);
+      if (!linhas?.length) continue;
+      const { error: e } = await sb().from(tabela).insert(linhas.map((l: any) => ({ ...trocaUrls(semId(l)), ficha_id: fid })));
+      if (e) { console.error(`clonarFichas ${tabela}:`, e); return e.message; }
+    }
+  }
+  return null;
 }
 export async function bulkUpdateStatus(ids: number[], status: string): Promise<string | null> {
   const { error } = await sb().from("produtos").update({ status }).in("id", ids);
@@ -462,6 +505,7 @@ export async function fetchFicha(ref: string, colecao?: string | null) {
     anotacoes: Object.fromEntries((ant.data || []).map((a: any) => [`p${a.prova_num}`, { texto: a.anotacao || "", video: a.video_link || "" }])),
     estamparia: data.estamparia && Object.keys(data.estamparia).length > 0 ? data.estamparia : { artes: [{ posicao: "FRENTE", imagem: "", largura: "", localizacao: "" }, { posicao: "COSTAS", imagem: "", largura: "", localizacao: "" }, { posicao: "TAGLESS", imagem: "", largura: "", localizacao: "" }], tecnicas: [], simulacoes: { var01: { nome: "", imgSim: "", imgFoto: "", status: "" }, var02: { nome: "", imgSim: "", imgFoto: "", status: "" }, var03: { nome: "", imgSim: "", imgFoto: "", status: "" }, var04: { nome: "", imgSim: "", imgFoto: "", status: "" } }, observacoes: "" },
     importado: data.importado || false,
+    clonadaDe: data.clonada_de || "",
     tabelaEspecialAtiva: data.tabela_especial_ativa || false,
     pontosEspeciais: [] as any[],
     gradEspecial: [] as any[],
