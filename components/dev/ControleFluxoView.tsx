@@ -56,7 +56,8 @@ function fmtDate(v: string) {
 
 // Mesmos filtros do Desenvolvimento: selects de cadastro (menos coleção,
 // que vira o seletor de pílulas no topo).
-const FC = COLUMNS.filter(c => c.type === "select" && c.cad && c.key !== "colecao");
+// Forn. tecido é só leitura (vem do cadastro do tecido), mas também filtra.
+const FC = COLUMNS.filter(c => (c.type === "select" && c.cad && c.key !== "colecao") || c.key === "forn_tecido");
 const FILTERS_KEY = "plm_filters_fluxo";
 
 interface Props { rows: any[] }

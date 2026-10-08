@@ -23,7 +23,8 @@ function fmtDataBR(iso?: string): string {
 }
 
 type Props = { rows: any[]; setRows: (fn: any) => void; onOpenFicha: (row: any) => void; userEmail?: string; readOnly?: boolean; permPrefix?: string; hiddenColumns?: string[] };
-const FC = COLUMNS.filter(c => c.type === "select" && c.cad && c.key !== "colecao");
+// Forn. tecido é só leitura (vem do cadastro do tecido), mas também filtra.
+const FC = COLUMNS.filter(c => (c.type === "select" && c.cad && c.key !== "colecao") || c.key === "forn_tecido");
 const ALWAYS_VISIBLE = ["ref"];
 
 // ── Colunas de status exclusivas de Compras ───────────────────────────────
