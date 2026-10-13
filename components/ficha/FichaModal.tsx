@@ -681,7 +681,7 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
         subgrupo: row.subgrupo || "",
         categoria: row.categoria || "",
         tecido: row.tecido || "",
-        composicao: compOf(row.tecido),
+        composicao: row.composicao || compOf(row.tecido),
         descricao: row.desc || "",
       });
       setNcm(result.ncm);
