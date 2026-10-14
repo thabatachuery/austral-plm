@@ -14,6 +14,7 @@ import { fmtBRL, nomeUsuario } from "@/lib/utils";
 const STATUS_ALERTA = [STATUS_ESTILO.MOSTARIO_LIBERADO, STATUS_ESTILO.PRODUCAO_LIBERADA, STATUS_ESTILO.REPILOTANDO_PRODUCAO] as string[];
 import ScrollTable from "@/components/ui/ScrollTable";
 import FichaExportLote from "@/components/ficha/FichaExportLote";
+import { naColecao, colecoesComTemporadas, type TemporadasPorRef } from "@/lib/colecao";
 
 // "2026-03-13" -> "13/03/26" (compacto para a lista de pedidos)
 function fmtDataBR(iso?: string): string {
@@ -22,7 +23,7 @@ function fmtDataBR(iso?: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : String(iso);
 }
 
-type Props = { rows: any[]; setRows: (fn: any) => void; onOpenFicha: (row: any) => void; userEmail?: string; readOnly?: boolean; permPrefix?: string; hiddenColumns?: string[] };
+type Props = { rows: any[]; setRows: (fn: any) => void; onOpenFicha: (row: any) => void; userEmail?: string; readOnly?: boolean; permPrefix?: string; hiddenColumns?: string[]; temporadasPorRef?: TemporadasPorRef };
 // Forn. tecido é só leitura (vem do cadastro do tecido), mas também filtra.
 const FC = COLUMNS.filter(c => (c.type === "select" && c.cad && c.key !== "colecao") || c.key === "forn_tecido");
 const ALWAYS_VISIBLE = ["ref"];
@@ -67,7 +68,7 @@ function getPriceVal(key: string, row: any): number | null {
   return n(key);
 }
 
-export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOnly = false, permPrefix = "", hiddenColumns = [] }: Props) {
+export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOnly = false, permPrefix = "", hiddenColumns = [], temporadasPorRef = {} }: Props) {
   const { user } = useAuth();
   const isAdmin = user?.app_metadata?.role === "admin";
   const perms: Record<string, boolean> = user?.app_metadata?.permissions || {};
@@ -216,12 +217,13 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     return () => document.removeEventListener("mousedown", handler);
   }, [showColMenu]);
 
-  const colecoes = useMemo(() => Array.from(new Set(rows.map((r: any) => r.colecao).filter(Boolean))).sort((a, b) => String(b).localeCompare(String(a), "pt-BR", { numeric: true })), [rows]);
+  const colecoes = useMemo(() => colecoesComTemporadas(rows, temporadasPorRef), [rows, temporadasPorRef]);
 
   const filtered = useMemo(() => {
     // Os recém-criados saem da filtragem e voltam fixados no topo (ver `novos`).
     let r = novos.size ? rows.filter((x: any) => !novos.has(x.id)) : rows;
-    if (colecaoAtiva) r = r.filter((x: any) => x.colecao === colecaoAtiva);
+    // Clássico com ficha na temporada filtrada também entra (ver lib/colecao).
+    if (colecaoAtiva) r = r.filter((x: any) => naColecao(x, colecaoAtiva, temporadasPorRef));
     Object.entries(fl).forEach(([k,v]) => { if(v) r = r.filter((x:any) => x[k]===v); });
     if(q) { const s=q.toLowerCase(); r = r.filter((x:any) => (x.ref+x.desc+x.tecido+x.composicao+x.fornecedor+x.forn_tecido+x.estilista+x.tab_medidas).toLowerCase().includes(s)); }
     if (sort) {
@@ -668,7 +670,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
           {!readOnly && canAdd && <td style={{width:36,padding:"0 8px",position:"sticky",left:0,zIndex:2,background:"var(--bg-primary)"}}><input type="checkbox" aria-label={`Selecionar SKU ${row.ref}`} checked={selected.has(row.id)} onChange={()=>toggleSelect(row.id)} style={{cursor:"pointer"}}/></td>}
           {COLS_TABELA.filter(c=>isColVisible(c.key)).flatMap(c=>{
           const isSticky = isStickyCol(c.key);
-          const mainTd = <td key={c.key} style={{width:c.width,minWidth:c.width,...(isSticky?{position:"sticky",left:stickyLeft[c.key as "ref"|"link_ficha"],zIndex:2,background:"var(--bg-primary)",...(c.key===ultimaSticky?{boxShadow:"2px 0 4px rgba(0,0,0,0.04)"}:{})}:{})}}>{c.type==="action"?<div style={{display:"flex",gap:4}}><button onClick={()=>onOpenFicha(row)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir</button>{!readOnly&&canAdd&&<button onClick={()=>{setCloneSource(row);setCloneRef("");}} title="Clonar SKU" className="apple-btn-secondary text-[12px] py-1 px-2" style={{color:"var(--system-blue)"}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>}</div>:c.type==="readonly"?<span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-secondary)]">{row[c.key]||"—"}</span>:(readOnly||permPrefix==="compras_")?<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-secondary)"}}>{row[c.key]||"—"}</span>:canEdit(c.key)?<InlineCell value={row[c.key]} type={c.type} options={c.cad?opts(c.cad):undefined} isStatus={c.key==="status"} onChange={v=>upd(row.id,c.key,v)}/>:<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-tertiary)",cursor:"default"}} title="Sem permissão para editar">{row[c.key]||"—"}</span>}</td>;
+          const mainTd = <td key={c.key} style={{width:c.width,minWidth:c.width,...(isSticky?{position:"sticky",left:stickyLeft[c.key as "ref"|"link_ficha"],zIndex:2,background:"var(--bg-primary)",...(c.key===ultimaSticky?{boxShadow:"2px 0 4px rgba(0,0,0,0.04)"}:{})}:{})}}>{c.type==="action"?<div style={{display:"flex",gap:4}}><button onClick={()=>onOpenFicha(colecaoAtiva&&row.colecao!==colecaoAtiva?{...row,_temporada:colecaoAtiva}:row)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir</button>{!readOnly&&canAdd&&<button onClick={()=>{setCloneSource(row);setCloneRef("");}} title="Clonar SKU" className="apple-btn-secondary text-[12px] py-1 px-2" style={{color:"var(--system-blue)"}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>}</div>:c.type==="readonly"?<span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-secondary)]">{row[c.key]||"—"}</span>:(readOnly||permPrefix==="compras_")?<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-secondary)"}}>{row[c.key]||"—"}</span>:canEdit(c.key)?<InlineCell value={row[c.key]} type={c.type} options={c.cad?opts(c.cad):undefined} isStatus={c.key==="status"} onChange={v=>upd(row.id,c.key,v)}/>:<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-tertiary)",cursor:"default"}} title="Sem permissão para editar">{row[c.key]||"—"}</span>}</td>;
           if (c.key === "ref" && permPrefix === "compras_") {
             return [mainTd, ...COMPRAS_STATUS_COLS.filter(sc => isColVisible(sc.key)).map(sc => {
               const sv = row[sc.key] || "";

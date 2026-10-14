@@ -148,7 +148,8 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
     Promise.all([fetchFichasColecoes(row.ref), fetchCadastros()]).then(([opts, cad]) => {
       setColecaoOpts(opts);
       setColecaoCadOpts(cad.colecao || []);
-      if (opts.length > 0 && selectedColecao === null) setSelectedColecao(opts[0]);
+      // Aberta de um filtro de coleção: já cai na temporada filtrada.
+      if (opts.length > 0 && selectedColecao === null) setSelectedColecao(opts.includes(row._temporada) ? row._temporada : opts[0]);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.ref, isClassic]);

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import COLUMNS from "@/lib/columns";
 import { fetchControleFluxo, upsertControleFluxo, FLUXO_MOSTRUARIO_LIBERADO, FLUXO_AGUARDANDO_MOSTRUARIO } from "@/lib/db";
 import ScrollTable from "@/components/ui/ScrollTable";
+import { naColecao, colecoesComTemporadas, type TemporadasPorRef } from "@/lib/colecao";
 import { useToast } from "@/components/ui/Toast";
 
 const PILOTAGEM_COLS = [
@@ -60,9 +61,9 @@ function fmtDate(v: string) {
 const FC = COLUMNS.filter(c => (c.type === "select" && c.cad && c.key !== "colecao") || c.key === "forn_tecido");
 const FILTERS_KEY = "plm_filters_fluxo";
 
-interface Props { rows: any[] }
+interface Props { rows: any[]; temporadasPorRef?: TemporadasPorRef }
 
-export default function ControleFluxoView({ rows }: Props) {
+export default function ControleFluxoView({ rows, temporadasPorRef = {} }: Props) {
   const [fluxoMap, setFluxoMap] = useState<Record<string, any>>({});
   const [localData, setLocalData] = useState<Record<string, Record<string, string>>>({});
   const [loading, setLoading] = useState(true);
@@ -117,12 +118,12 @@ export default function ControleFluxoView({ rows }: Props) {
     try { localStorage.setItem(FILTERS_KEY, JSON.stringify({ q: search, fl, colecaoAtiva })); } catch {}
   }, [search, fl, colecaoAtiva]);
 
-  const colecoes = useMemo(() => Array.from(new Set(rows.map((r: any) => r.colecao).filter(Boolean))).sort((a, b) => String(b).localeCompare(String(a), "pt-BR", { numeric: true })) as string[], [rows]);
+  const colecoes = useMemo(() => colecoesComTemporadas(rows, temporadasPorRef), [rows, temporadasPorRef]);
   const uv = (k: string): string[] => Array.from(new Set(rows.map((r: any) => r[k]).filter(Boolean))).sort() as string[];
   const sf2 = (k: string, v: string) => setFl(p => { const n = { ...p }; if (v) n[k] = v; else delete n[k]; return n; });
 
   let filtrados = rows;
-  if (colecaoAtiva) filtrados = filtrados.filter((x: any) => x.colecao === colecaoAtiva);
+  if (colecaoAtiva) filtrados = filtrados.filter((x: any) => naColecao(x, colecaoAtiva, temporadasPorRef));
   Object.entries(fl).forEach(([k, v]) => { if (v) filtrados = filtrados.filter((x: any) => x[k] === v); });
   if (search) {
     const q = search.toLowerCase();

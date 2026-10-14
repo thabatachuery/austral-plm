@@ -19,7 +19,7 @@ import MapaEntregasView from "@/components/dev/MapaEntregasView";
 import EtiquetasLineView from "@/components/dev/EtiquetasLineView";
 import CalendarioView from "@/components/calendario/CalendarioView";
 import EnviosView from "@/components/envios/EnviosView";
-import { fetchProdutos, fetchAllVariantes, fetchVariantesPorColecao, fetchAlertasPendentes, marcarAlertasCiente, mapProduto } from "@/lib/db";
+import { fetchProdutos, fetchAllVariantes, fetchVariantesPorColecao, fetchTemporadasPorRef, fetchAlertasPendentes, marcarAlertasCiente, mapProduto } from "@/lib/db";
 import { COMPRAS_STATUS_ALLOW } from "@/lib/constants";
 import { subscribeRealtime } from "@/lib/realtime";
 import { nomeUsuario } from "@/lib/utils";
@@ -57,6 +57,7 @@ export default function Home() {
   const [rows, setRows] = useState<any[]>([]);
   const [variantes, setVariantes] = useState<Record<string, string[]>>({});
   const [variantesPorColecao, setVariantesPorColecao] = useState<Record<string, Record<string, string[]>>>({});
+  const [temporadasPorRef, setTemporadasPorRef] = useState<Record<string, string[]>>({});
   const comprasRows = rows.filter(r => COMPRAS_STATUS_ALLOW.includes(r.status));
   const [fichaRow, setFichaRow] = useState<any>(null);
   const [laudoRow, setLaudoRow] = useState<any>(null);
@@ -68,9 +69,10 @@ export default function Home() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [prods, vars, varsPorCol] = await Promise.all([fetchProdutos(), fetchAllVariantes(), fetchVariantesPorColecao()]);
+    const [prods, vars, varsPorCol, temps] = await Promise.all([fetchProdutos(), fetchAllVariantes(), fetchVariantesPorColecao(), fetchTemporadasPorRef()]);
     setRows(prods);
     setVariantesPorColecao(varsPorCol);
+    setTemporadasPorRef(temps);
     setVariantes(vars);
     setLoading(false);
   }, []);
@@ -128,10 +130,11 @@ export default function Home() {
       if (varTimer) clearTimeout(varTimer);
       varTimer = setTimeout(async () => {
         if (!isMounted) return; // Previne update após desmonte
-        const [vars, varsPorCol] = await Promise.all([fetchAllVariantes(), fetchVariantesPorColecao()]);
+        const [vars, varsPorCol, temps] = await Promise.all([fetchAllVariantes(), fetchVariantesPorColecao(), fetchTemporadasPorRef()]);
         if (!isMounted) return;
         setVariantes(vars);
         setVariantesPorColecao(varsPorCol);
+        setTemporadasPorRef(temps);
       }, 1000);
     };
     // Compras/fluxo não têm patch incremental de linha — recarrega a tabela toda, com debounce.
@@ -375,16 +378,16 @@ export default function Home() {
           {loading && <div className="plm-loading"><div className="plm-loading-spinner" /><span>Carregando...</span></div>}
           {!loading && tab === "dashboard" && <DashboardView rows={rows} variantes={variantes} variantesPorColecao={variantesPorColecao} />}
           {!loading && tab === "calendario" && <CalendarioView />}
-          {!loading && tab === "dev" && <DevTable rows={rows} setRows={setRows} onOpenFicha={setFichaRow} userEmail={user.email!} />}
-          {!loading && tab === "dev_fluxo" && <ControleFluxoView rows={rows} />}
+          {!loading && tab === "dev" && <DevTable rows={rows} setRows={setRows} onOpenFicha={setFichaRow} userEmail={user.email!} temporadasPorRef={temporadasPorRef} />}
+          {!loading && tab === "dev_fluxo" && <ControleFluxoView rows={rows} temporadasPorRef={temporadasPorRef} />}
           {!loading && tab === "variantes" && <VariantesTable rows={rows} variantes={variantes} variantesPorColecao={variantesPorColecao} onOpenFicha={setFichaRow} />}
           {!loading && tab === "preprod" && canSection("can_preproducao") && <PreProducaoView rows={rows} onOpenLaudo={setLaudoRow} />}
           {!loading && tab === "envios" && <EnviosView />}
           {!loading && tab === "cad" && canSection("can_cadastros") && <CadView />}
           {!loading && tab === "medidas" && canSection("can_medidas") && <MedidasView />}
-          {!loading && tab === "compras_dev" && <DevTable rows={comprasRows} setRows={setRows} onOpenFicha={setFichaRow} userEmail={user.email!} permPrefix="compras_" hiddenColumns={["piloto_most","tab_medidas"]} />}
+          {!loading && tab === "compras_dev" && <DevTable rows={comprasRows} setRows={setRows} onOpenFicha={setFichaRow} userEmail={user.email!} temporadasPorRef={temporadasPorRef} permPrefix="compras_" hiddenColumns={["piloto_most","tab_medidas"]} />}
           {!loading && tab === "compras_variantes" && <VariantesTable rows={comprasRows} variantes={variantes} variantesPorColecao={variantesPorColecao} onOpenFicha={setFichaRow} readOnly compras setRows={setRows} canEditOrders={isAdmin || perms["compras_pedidos"] === true} />}
-          {!loading && tab === "compras_explosao" && <ExplosaoView comprasRows={comprasRows} variantes={variantes} />}
+          {!loading && tab === "compras_explosao" && <ExplosaoView comprasRows={comprasRows} variantes={variantes} temporadasPorRef={temporadasPorRef} />}
           {!loading && tab === "compras_entregas" && <MapaEntregasView />}
           {!loading && tab === "dev_mapa" && <MapaColecaoView rows={rows} />}
           {!loading && tab === "dev_etiquetas" && <EtiquetasLineView rows={rows} variantes={variantes} />}

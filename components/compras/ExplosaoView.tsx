@@ -5,8 +5,9 @@ import { exportToExcel } from "@/lib/export-excel";
 import { exportExplosaoPDF } from "@/lib/export-pdf-explosao";
 import { fmtBRL } from "@/lib/utils";
 import ScrollTable from "@/components/ui/ScrollTable";
+import { naColecao, colecoesComTemporadas, type TemporadasPorRef } from "@/lib/colecao";
 
-type Props = { comprasRows: any[]; variantes: Record<string, string[]> };
+type Props = { comprasRows: any[]; variantes: Record<string, string[]>; temporadasPorRef?: TemporadasPorRef };
 
 const QTD_MOST_KEYS = ["qtd_most_var01","qtd_most_var02","qtd_most_var03","qtd_most_var04","qtd_most_var05","qtd_most_var06"] as const;
 const VAR_KEYS = ["var01","var02","var03","var04","var05","var06"] as const;
@@ -46,7 +47,7 @@ function codigoFornecedorPorCor(codigoFornecedor: string, cor: string): string {
   return m ? m[1] : codigoFornecedor;
 }
 
-export default function ExplosaoView({ comprasRows, variantes }: Props) {
+export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef = {} }: Props) {
   const [data, setData] = useState<{ fichas: any[]; avFichas: any[]; avLib: any[]; comprasVar: any[]; tecFichas: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -79,9 +80,9 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
     if (search)     { const q = search.toLowerCase(); r = r.filter((x: any) => (`${x.ref} ${x.descricao}`).toLowerCase().includes(q)); }
     if (flFornProd) r = r.filter((x: any) => x.fornecedor === flFornProd);
     if (flStatus)   r = r.filter((x: any) => x.status === flStatus);
-    if (flColecao)  r = r.filter((x: any) => x.colecao === flColecao);
+    if (flColecao)  r = r.filter((x: any) => naColecao(x, flColecao, temporadasPorRef));
     return r;
-  }, [comprasRows, search, flFornProd, flStatus, flColecao, modoInfo]);
+  }, [comprasRows, search, flFornProd, flStatus, flColecao, modoInfo, temporadasPorRef]);
 
   const refSet = useMemo(() => new Set(filteredProd.map((r: any) => r.ref as string)), [filteredProd]);
 
@@ -89,9 +90,17 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
   const fichaRefMap = useMemo(() => {
     if (!data) return new Map<number, string>();
     const m = new Map<number, string>();
-    data.fichas.forEach((f: any) => { if (refSet.has(f.produto_ref)) m.set(f.id, f.produto_ref); });
+    // Clássico que entrou pela temporada filtrada conta só a ficha daquela
+    // temporada, não a de todas.
+    const colecaoDoProduto: Record<string, string> = {};
+    filteredProd.forEach((p: any) => { colecaoDoProduto[p.ref] = p.colecao || ""; });
+    data.fichas.forEach((f: any) => {
+      if (!refSet.has(f.produto_ref)) return;
+      if (flColecao && f.colecao && colecaoDoProduto[f.produto_ref] !== flColecao && f.colecao !== flColecao) return;
+      m.set(f.id, f.produto_ref);
+    });
     return m;
-  }, [data, refSet]);
+  }, [data, refSet, filteredProd, flColecao]);
 
   // ref → product fornecedor
   const refFornMap = useMemo(() => {
@@ -366,7 +375,7 @@ export default function ExplosaoView({ comprasRows, variantes }: Props) {
             <label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">Coleção</label>
             <select value={flColecao} onChange={e => setFlColecao(e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${flColecao ? "!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold" : ""}`}>
               <option value="">Todas</option>
-              {uv("colecao").map(v => <option key={v}>{v}</option>)}
+              {colecoesComTemporadas(comprasRows, temporadasPorRef).map(v => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>

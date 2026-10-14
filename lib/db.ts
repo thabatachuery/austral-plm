@@ -690,7 +690,7 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
 // ══ EXPLOSÃO DE AVIAMENTOS ══
 export async function fetchExplosaoData() {
   const [fichas, avFichas, avLib, comprasVar, tecFichas] = await Promise.all([
-    selectAll((de, ate) => sb().from("fichas_tecnicas").select("id, produto_ref, qtd_most_var01, qtd_most_var02, qtd_most_var03, qtd_most_var04, qtd_most_var05, qtd_most_var06").range(de, ate), "fetchExplosaoData/fichas"),
+    selectAll((de, ate) => sb().from("fichas_tecnicas").select("id, produto_ref, colecao, qtd_most_var01, qtd_most_var02, qtd_most_var03, qtd_most_var04, qtd_most_var05, qtd_most_var06").range(de, ate), "fetchExplosaoData/fichas"),
     selectAll((de, ate) => sb().from("ficha_aviamentos").select("ficha_id, codigo, qtd, valor, localizacao, var01, var02, var03, var04, var05, var06").range(de, ate), "fetchExplosaoData/avFichas"),
     selectAll((de, ate) => sb().from("aviamentos").select("codigo, nome, fornecedor, preco, imagem, imagens_cores, codigo_fornecedor").range(de, ate), "fetchExplosaoData/avLib"),
     // As datas de entrega entram porque a explosão em modo Produção só conta
@@ -702,7 +702,7 @@ export async function fetchExplosaoData() {
     selectAll((de, ate) => sb().from("ficha_tecidos").select("ficha_id, cores").order("id").range(de, ate), "fetchExplosaoData/tecFichas"),
   ]);
   return {
-    fichas: fichas as { id: number; produto_ref: string; qtd_most_var01: number|null; qtd_most_var02: number|null; qtd_most_var03: number|null; qtd_most_var04: number|null; qtd_most_var05: number|null; qtd_most_var06: number|null }[],
+    fichas: fichas as { id: number; produto_ref: string; colecao: string | null; qtd_most_var01: number|null; qtd_most_var02: number|null; qtd_most_var03: number|null; qtd_most_var04: number|null; qtd_most_var05: number|null; qtd_most_var06: number|null }[],
     avFichas: avFichas as { ficha_id: number; codigo: string; qtd: number; valor: number; localizacao: string; var01: string; var02: string; var03: string; var04: string; var05: string; var06: string }[],
     avLib: avLib as { codigo: string; nome: string; fornecedor: string; preco: number; imagem: string; imagens_cores: Record<string, string>; codigo_fornecedor: string }[],
     comprasVar: comprasVar as { produto_id: number; cor: string; qtd_compra1: number|null; data_entrega1: string|null; qtd_compra2: number|null; data_entrega2: string|null }[],
@@ -871,6 +871,20 @@ export async function fetchVariantesPorColecao(): Promise<Record<string, Record<
     if (!result[ref]) result[ref] = {};
     if (!result[ref][col]) result[ref][col] = [];
     t.cores.forEach((c: string) => { if (c && !result[ref][col].includes(c)) result[ref][col].push(c); });
+  });
+  return result;
+}
+
+// Temporadas em que cada ref tem ficha (clássicos: fichas_tecnicas.colecao).
+// Usado nos filtros de coleção: INVERNO 27 também traz o clássico que tem
+// ficha na temporada INVERNO 27, mesmo sem cor cadastrada ainda.
+export async function fetchTemporadasPorRef(): Promise<Record<string, string[]>> {
+  const fichas = await selectAll((de, ate) => sb().from("fichas_tecnicas").select("produto_ref, colecao").not("colecao", "is", null).order("id").range(de, ate), "fetchTemporadasPorRef");
+  const result: Record<string, string[]> = {};
+  fichas.forEach((f: any) => {
+    if (!f.produto_ref || !f.colecao) return;
+    (result[f.produto_ref] ||= []);
+    if (!result[f.produto_ref].includes(f.colecao)) result[f.produto_ref].push(f.colecao);
   });
   return result;
 }
