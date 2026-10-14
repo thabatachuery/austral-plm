@@ -394,7 +394,7 @@ export default function Home() {
         </div>
       </main>
 
-      {fichaRow && <FichaModal row={fichaRow} onClose={() => setFichaRow(null)} onSave={handleFichaSave} />}
+      {fichaRow && <FichaModal row={fichaRow} onClose={() => setFichaRow(null)} onSave={handleFichaSave} temTemporadas={!!temporadasPorRef[fichaRow.ref]?.length} />}
       {laudoRow && <LaudoPPPedidosModal row={laudoRow} onClose={() => setLaudoRow(null)} />}
       {showUsers && <UsersModal onClose={() => setShowUsers(false)} />}
       {grupoAtual && <AlertaFichaModal grupo={grupoAtual} avisosPendentes={gruposAlerta.length} alteracoesPendentes={alertaFila.length} onCiente={handleAlertaCiente} onCienteTodos={handleAlertaCienteTodos} />}

@@ -20,9 +20,9 @@ import { pdfEmImagens } from "@/lib/pdf-paginas";
 // Status em que qualquer alteração de cor/tecido/aviamento dispara o popup de alerta.
 const STATUS_ALERTA = [STATUS_ESTILO.MOSTARIO_LIBERADO, STATUS_ESTILO.PRODUCAO_LIBERADA, STATUS_ESTILO.REPILOTANDO_PRODUCAO] as string[];
 
-type Props = { row: any; onClose: () => void; onSave: (r: any, variantesChanged?: boolean) => void };
+type Props = { row: any; onClose: () => void; onSave: (r: any, variantesChanged?: boolean) => void; temTemporadas?: boolean };
 
-export default function FichaModal({ row, onClose, onSave }: Props) {
+export default function FichaModal({ row, onClose, onSave, temTemporadas = false }: Props) {
   const [tab, setTab] = useState<"ficha" | "estamparia" | "liberacao" | "graduacao">("ficha");
   const [img, setImg] = useState<string | null>(null);
   const [imgModelo, setImgModelo] = useState<string | null>(null);
@@ -133,7 +133,9 @@ export default function FichaModal({ row, onClose, onSave }: Props) {
   const [gradEsp, setGradEsp] = useState<any[]>([]);
 
   /* Clássicos: seleção de temporada */
-  const isClassic = (row.ref || "").startsWith("11") || /cl.ssic/i.test(row.colecao || "");
+  // Também vale para ref de outra coleção que tem ficha por temporada (ex.:
+  // VERÃO 27 com temporada INVERNO 27): mostra o seletor de temporada.
+  const isClassic = (row.ref || "").startsWith("11") || /cl.ssic/i.test(row.colecao || "") || temTemporadas;
   const [selectedColecao, setSelectedColecao] = useState<string | null>(null);
   const [colecaoOpts, setColecaoOpts] = useState<string[]>([]);
   const [newColecaoMode, setNewColecaoMode] = useState(false);
