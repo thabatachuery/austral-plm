@@ -1759,13 +1759,6 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
                           <option value="MOSTRUÁRIO">Mostruário</option>
                           <option value="PRODUÇÃO">Produção</option>
                         </select>
-                        <input
-                          type="url"
-                          value={info.link || ""}
-                          onChange={e => setProvaInfo(prev => ({ ...prev, [pk]: { ...info, link: e.target.value } }))}
-                          placeholder="Link vídeo..."
-                          className="w-full text-[10px] border border-[var(--separator-opaque)] rounded-lg px-2 py-1.5 outline-none focus:border-[var(--system-blue)] bg-[var(--bg-primary)] font-normal"
-                        />
                       </div>
                     </th>
                   );
@@ -2018,11 +2011,6 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
                       </div>
                     ))}
                     <button onClick={() => setAn(prev => ({ ...prev, [k]: { ...a, texto: a.texto ? a.texto + '\n' : '\n' } }))} className="text-[11px] text-[var(--system-blue)] font-medium ml-5 mt-0.5">+ Adicionar tópico</button>
-                  </div>
-                  {/* Link vídeo */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-[11px] text-[var(--label-tertiary)] shrink-0">Link vídeo:</span>
-                    <input type="text" value={a.video} onChange={e => setAn(prev => ({ ...prev, [k]: { ...a, video: e.target.value } }))} placeholder="https://..." className="apple-input flex-1 text-[12px]" />
                   </div>
                   {/* Campos de pilotagem */}
                   <div className="grid grid-cols-3 gap-3">
