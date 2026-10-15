@@ -34,16 +34,51 @@ export default function InlineCell({ value, type, options, isStatus, onChange, d
   const anchorRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const cancelling = useRef(false);
+  // Tecla digitada com a célula só focada (via Tab): abre a edição já com ela,
+  // como numa planilha, em vez de exigir duplo clique.
+  const teclaInicial = useRef<string | null>(null);
+  // Opção escolhida ao sair do select com Tab (o blur que vem em seguida grava).
+  const escolhaTab = useRef<string | null>(null);
+  const cellRef = useRef<HTMLDivElement>(null);
+  const editou = useRef(false);
 
   const opts = options || [];
 
-  useEffect(() => { if (editing && ref.current) ref.current.focus(); }, [editing]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!editing || !el) return;
+    el.focus();
+    // Cursor no fim do texto, para continuar digitando depois da tecla inicial.
+    if (el instanceof HTMLInputElement && el.type === "text") {
+      const n = el.value.length;
+      try { el.setSelectionRange(n, n); } catch {}
+    }
+  }, [editing]);
+  // Ao sair da edição com Enter/Esc o input some e o foco iria para a página;
+  // devolve para a célula, assim dá para seguir com Tab. (Com Tab ou clique em
+  // outro lugar o foco já foi para outro elemento e fica onde está.)
+  useEffect(() => {
+    if (editing) { editou.current = true; return; }
+    if (!editou.current) return;
+    editou.current = false;
+    const a = document.activeElement;
+    if (!a || a === document.body) cellRef.current?.focus();
+  }, [editing]);
   useEffect(() => { setTmp(value); }, [value]);
   // Ao abrir um select, a busca começa vazia (a lista inteira aparece) e o
   // destaque vai para o valor atual. Antes a busca vinha preenchida com o valor,
   // então a lista mostrava só ele — parecia que não dava para pesquisar.
   useEffect(() => {
     if (editing && type === "select") {
+      const t = teclaInicial.current;
+      teclaInicial.current = null;
+      escolhaTab.current = null;
+      if (t) {
+        setQuery(t);
+        setDigitou(true);
+        setActiveIdx(0);
+        return;
+      }
       setQuery("");
       setDigitou(false);
       const i = opts.indexOf(String(value ?? ""));
@@ -117,6 +152,9 @@ export default function InlineCell({ value, type, options, isStatus, onChange, d
             onChange={e => { setQuery(e.target.value); setDigitou(true); setActiveIdx(0); }}
             onBlur={() => {
               // Sem digitar nada, sair do campo não mexe no valor.
+              const tab = escolhaTab.current;
+              escolhaTab.current = null;
+              if (tab !== null) { commit(tab); return; }
               if (!digitou) { cancel(); return; }
               const exact = opts.find(o => norm(o) === norm(busca));
               if (exact) commit(exact);
@@ -128,6 +166,10 @@ export default function InlineCell({ value, type, options, isStatus, onChange, d
               else if (e.key === "Enter") {
                 e.preventDefault();
                 if (filtered[activeIdx]) commit(filtered[activeIdx]);
+              } else if (e.key === "Tab") {
+                // Tab grava a opção destacada (se a pessoa digitou) e segue
+                // para o próximo campo — o foco anda sozinho, sem preventDefault.
+                if (digitou && busca && filtered[activeIdx]) escolhaTab.current = filtered[activeIdx];
               } else if (e.key === "Escape") cancel();
             }}
           />
@@ -189,10 +231,26 @@ export default function InlineCell({ value, type, options, isStatus, onChange, d
   // (o navegador trata como zoom/seleção de texto) e o campo parecia travado.
   const abrirComClique = type === "select";
 
+  // Célula focada (Tab/Shift+Tab): Enter/Espaço/F2 abrem a edição mantendo o
+  // valor; qualquer caractere abre já substituindo pelo que foi digitado.
+  const onKeyDownCelula = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " " || e.key === "F2") {
+      e.preventDefault();
+      setEditing(true);
+      return;
+    }
+    if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey) return;
+    e.preventDefault();
+    if (type === "select") teclaInicial.current = e.key;
+    else if (type !== "date") setTmp(e.key);
+    setEditing(true);
+  };
+
   if (isStatus && value) {
     return (
       <div onClick={abrirComClique ? () => setEditing(true) : undefined} onDoubleClick={() => setEditing(true)}
-        className={`px-1 ${abrirComClique ? "cursor-pointer" : "cursor-default"}`}>
+        ref={cellRef} onKeyDown={onKeyDownCelula} tabIndex={0} role="button" aria-label={`Editar: ${value}`}
+        className={`px-1 rounded-lg outline-none focus:ring-2 focus:ring-[var(--system-blue)] ${abrirComClique ? "cursor-pointer" : "cursor-default"}`}>
         <StatusPill status={String(value)} />
       </div>
     );
@@ -211,12 +269,8 @@ export default function InlineCell({ value, type, options, isStatus, onChange, d
     <div
       onClick={abrirComClique ? () => setEditing(true) : undefined}
       onDoubleClick={() => setEditing(true)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          setEditing(true);
-        }
-      }}
+      ref={cellRef}
+      onKeyDown={onKeyDownCelula}
       tabIndex={0}
       role="button"
       aria-label={`Editar: ${displayEl || display}`}
