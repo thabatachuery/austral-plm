@@ -2,12 +2,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { uploadImage } from "@/lib/storage";
 import {
-  fetchTabelasMedidas, fetchTabelaPontos, fetchGraduacoes,
+  fetchTabelasMedidas, fetchTabelaPontos, fetchCadastros, fetchGraduacoes,
   createTabelaMedidas, deleteTabelaMedidas,
   upsertPontos, upsertGraduacoes, saveTabelaImagemModoMedir, saveTabelaAreaMedia,
 } from "@/lib/db";
 import { subscribeRealtime } from "@/lib/realtime";
-import { calcularDaBase } from "@/lib/tamanhos";
+import { calcularDaBase, tamanhosDaGrade } from "@/lib/tamanhos";
 
 type Tabela = { id: number; nome: string; tamanhos?: string[]; tamanho_base?: string; area_media?: number | null };
 type Ponto = { cod: string; desc: string; tabela: string; tol: string };
@@ -17,11 +17,39 @@ type Grad = { desc: string; valores: Record<string, string>; ampliacoes: Record<
 // (Graduação | Ampliação | Tolerância) na tabela de graduação.
 const GRUPO_INICIO = "!border-l-2 !border-l-[var(--separator)]";
 
-// Esquemas de tamanho oferecidos ao criar uma tabela nova.
-const ESQUEMAS = [
-  { label: "38 a 48 (base 42)", tamanhos: ["38", "40", "42", "44", "46", "48"], base: "42" },
-  { label: "PP a GG (base M)", tamanhos: ["PP", "P", "M", "G", "GG"], base: "M" },
+type Esquema = { label: string; tamanhos: string[]; base: string };
+
+// Esquemas fixos que já existiam antes de a lista vir do cadastro de grades
+// (o 38 a 48 não está cadastrado como grade, mas várias tabelas usam).
+const ESQUEMAS_FIXOS: Esquema[] = [
+  { label: "38 AO 48", tamanhos: ["38", "40", "42", "44", "46", "48"], base: "42" },
+  { label: "PP AO GG", tamanhos: ["PP", "P", "M", "G", "GG"], base: "M" },
 ];
+
+// Base sugerida: M ou 42 quando a grade tem, senão o tamanho do meio.
+function baseSugerida(tamanhos: string[]): string {
+  if (tamanhos.includes("M")) return "M";
+  if (tamanhos.includes("42")) return "42";
+  return tamanhos[Math.floor((tamanhos.length - 1) / 2)] || "";
+}
+
+// Todas as grades cadastradas (Cadastros › Grade) viram opção ao criar uma
+// tabela. Grade de tamanho único (UNICO, CAIXA) vira uma tabela de um tamanho.
+function esquemasDasGrades(grades: string[]): Esquema[] {
+  const out = [...ESQUEMAS_FIXOS];
+  const vistos = new Set(out.map(e => e.tamanhos.join("|")));
+  for (const g of grades) {
+    const nome = g.trim().toUpperCase();
+    if (!nome) continue;
+    const tamanhos = tamanhosDaGrade(nome);
+    const lista = tamanhos.length ? tamanhos : [nome];
+    const chave = lista.join("|");
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    out.push({ label: nome, tamanhos: lista, base: baseSugerida(lista) });
+  }
+  return out;
+}
 
 const mapPontos = (pts: any[]): Ponto[] =>
   pts.map((p: any) => ({ cod: p.cod, desc: p.descricao, tabela: p.valor_base, tol: p.tolerancia }));
@@ -40,6 +68,11 @@ export default function MedidasView() {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEsquema, setNewEsquema] = useState(0);
+  const [newBase, setNewBase] = useState(ESQUEMAS_FIXOS[0].base);
+  const [esquemas, setEsquemas] = useState<Esquema[]>(ESQUEMAS_FIXOS);
+  useEffect(() => {
+    fetchCadastros().then(c => setEsquemas(esquemasDasGrades(c?.grade || []))).catch(() => {});
+  }, []);
   const [im1, setIm1] = useState<string | null>(null);
   const r1 = useRef<HTMLInputElement>(null);
   // Um timer por tipo: editar o valor base salva pontos E graduação (que dele
@@ -170,11 +203,12 @@ export default function MedidasView() {
   const handleCreate = async () => {
     const name = newName.trim().toUpperCase();
     if (!name) return;
-    const esq = ESQUEMAS[newEsquema];
-    const result = await createTabelaMedidas(name, esq.tamanhos, esq.base);
+    const esq = esquemas[newEsquema] || esquemas[0];
+    const base = esq.tamanhos.includes(newBase) ? newBase : esq.base;
+    const result = await createTabelaMedidas(name, esq.tamanhos, base);
     if (result) {
       await loadTabelas();
-      setSel({ id: result.id, nome: result.nome, tamanhos: esq.tamanhos, tamanho_base: esq.base });
+      setSel({ id: result.id, nome: result.nome, tamanhos: esq.tamanhos, tamanho_base: base });
       setPontos([]);
       setGrad([]);
       setSec("base");
@@ -240,9 +274,18 @@ export default function MedidasView() {
               <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleCreate()}
                 placeholder="Nome da tabela..." className="apple-input w-full text-[12px] py-1.5 mb-1.5" autoFocus />
-              <select value={newEsquema} onChange={e => setNewEsquema(Number(e.target.value))} className="apple-select w-full text-[12px] py-1.5 mb-1.5">
-                {ESQUEMAS.map((e, i) => <option key={e.label} value={i}>{e.label}</option>)}
+              <div className="text-[10px] text-[var(--label-tertiary)] uppercase tracking-wide mb-0.5">Grade</div>
+              <select value={newEsquema} onChange={e => { const i = Number(e.target.value); setNewEsquema(i); setNewBase(esquemas[i]?.base || ""); }} className="apple-select w-full text-[12px] py-1.5 mb-1.5">
+                {esquemas.map((e, i) => <option key={e.label} value={i}>{e.label} ({e.tamanhos.join(", ")})</option>)}
               </select>
+              {(esquemas[newEsquema]?.tamanhos.length || 0) > 1 && (
+                <>
+                  <div className="text-[10px] text-[var(--label-tertiary)] uppercase tracking-wide mb-0.5">Tamanho base</div>
+                  <select value={newBase} onChange={e => setNewBase(e.target.value)} className="apple-select w-full text-[12px] py-1.5 mb-1.5">
+                    {esquemas[newEsquema]?.tamanhos.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </>
+              )}
               <div className="flex gap-1.5">
                 <button onClick={handleCreate} className="apple-btn-primary flex-1 text-[12px] py-1.5">Criar</button>
                 <button onClick={() => { setShowNew(false); setNewName(""); }} className="apple-btn-secondary flex-1 text-[12px] py-1.5">Cancelar</button>
