@@ -7,7 +7,8 @@ import {
   upsertPontos, upsertGraduacoes, saveTabelaImagemModoMedir, saveTabelaAreaMedia,
 } from "@/lib/db";
 import { subscribeRealtime } from "@/lib/realtime";
-import { calcularDaBase, tamanhosDaGrade } from "@/lib/tamanhos";
+import { calcularDaBase, tamanhosDaGrade, GRADES_CALCADO } from "@/lib/tamanhos";
+import { normGrade } from "@/lib/etiquetas-tamanho";
 
 type Tabela = { id: number; nome: string; tamanhos?: string[]; tamanho_base?: string; area_media?: number | null };
 type Ponto = { cod: string; desc: string; tabela: string; tol: string };
@@ -46,7 +47,8 @@ function esquemasDasGrades(grades: string[]): Esquema[] {
     const chave = lista.join("|");
     if (vistos.has(chave)) continue;
     vistos.add(chave);
-    out.push({ label: nome, tamanhos: lista, base: baseSugerida(lista) });
+    const baseCalcado = GRADES_CALCADO[normGrade(nome)]?.base;
+    out.push({ label: nome, tamanhos: lista, base: baseCalcado || baseSugerida(lista) });
   }
   return out;
 }

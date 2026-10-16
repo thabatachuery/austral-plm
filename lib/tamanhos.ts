@@ -31,6 +31,12 @@ export function fmt(n: number): string {
   return s.replace(".", ",");
 }
 
+// Grades numéricas de calçado (tamanho a tamanho, não de 2 em 2), com o
+// tamanho base de cada uma. Chave já normalizada ("38 AO 44" -> "38-44").
+export const GRADES_CALCADO: Record<string, { base: string }> = {
+  "38-44": { base: "41" },
+};
+
 // Expande a grade na lista ordenada de tamanhos que ela cobre.
 // "PP AO GG" -> [PP,P,M,G,GG] · "38 AO 46" -> [38,40,42,44,46]
 // "34-35 AO 44-45" -> [34-35,36-37,38-39,40-41,42-43,44-45]
@@ -50,10 +56,11 @@ export function tamanhosDaGrade(grade?: string): string[] {
   const [ini, fim] = g.split("-");
   if (!ini || !fim) return [];
 
-  // Numérica: passo de 2 (38,40,42...)
+  // Numérica: passo de 2 (38,40,42...); calçado anda de 1 em 1 (38,39,40...)
   if (/^\d+$/.test(ini) && /^\d+$/.test(fim)) {
+    const passo = GRADES_CALCADO[g] ? 1 : 2;
     const out: string[] = [];
-    for (let x = Number(ini); x <= Number(fim); x += 2) out.push(String(x));
+    for (let x = Number(ini); x <= Number(fim); x += passo) out.push(String(x));
     return out;
   }
 
