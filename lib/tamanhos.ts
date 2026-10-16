@@ -35,6 +35,7 @@ export function fmt(n: number): string {
 // tamanho base de cada uma. Chave já normalizada ("38 AO 44" -> "38-44").
 export const GRADES_CALCADO: Record<string, { base: string }> = {
   "38-44": { base: "41" },
+  "35-45": { base: "40" },
 };
 
 // Expande a grade na lista ordenada de tamanhos que ela cobre.
