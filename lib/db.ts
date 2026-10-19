@@ -676,15 +676,36 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
   }
   // Tabela especial
   if (f.tabelaEspecialAtiva !== undefined) await sb().from("fichas_tecnicas").update({ tabela_especial_ativa: f.tabelaEspecialAtiva }).eq("id", fid);
+  // Grava por UPSERT na chave única (ficha_id+cod / ficha_id+descricao) em vez
+  // de apagar e reinserir: o DELETE é restrito a admin, então para os demais
+  // ele não apagava nada, a reinserção batia no índice único e falhava calada
+  // — a ficha reabria com a cópia antiga (a da tabela base).
   if (f.tabelaEspecialAtiva && f.pontosEspeciais) {
-    await sb().from("ficha_pontos_especiais").delete().eq("ficha_id", fid);
-    if (f.pontosEspeciais.length) await sb().from("ficha_pontos_especiais").insert(f.pontosEspeciais.map((p: any, i: number) => ({ ficha_id: fid, cod: p.cod, descricao: p.desc, valor_base: p.tabela || "", tolerancia: p.tol || "1,0 + OU -", ordem: i })));
+    await gravarLinhasEspeciais("ficha_pontos_especiais", fid, "cod",
+      f.pontosEspeciais.map((p: any, i: number) => ({ ficha_id: fid, cod: p.cod, descricao: p.desc, valor_base: p.tabela || "", tolerancia: p.tol || "1,0 + OU -", ordem: i })));
   }
   if (f.tabelaEspecialAtiva && f.gradEspecial) {
-    await sb().from("ficha_graduacao_especial").delete().eq("ficha_id", fid);
-    if (f.gradEspecial.length) await sb().from("ficha_graduacao_especial").insert(f.gradEspecial.map((g: any, i: number) => ({ ficha_id: fid, descricao: g.desc, valores: g.valores || {}, ampliacoes: g.ampliacoes || {}, tolerancia: g.tol || "1,0 + OU -", ordem: i })));
+    await gravarLinhasEspeciais("ficha_graduacao_especial", fid, "descricao",
+      f.gradEspecial.map((g: any, i: number) => ({ ficha_id: fid, descricao: g.desc, valores: g.valores || {}, ampliacoes: g.ampliacoes || {}, tolerancia: g.tol || "1,0 + OU -", ordem: i })));
   }
   return fid;
+}
+
+async function gravarLinhasEspeciais(tabela: string, fid: number, chave: "cod" | "descricao", linhas: any[]) {
+  // Chave repetida no mesmo upsert dá erro no Postgres; fica a primeira.
+  const vistas = new Set<string>();
+  const unicas = linhas.filter(l => { const k = String(l[chave] ?? ""); if (vistas.has(k)) return false; vistas.add(k); return true; });
+  if (unicas.length) {
+    const { error } = await sb().from(tabela).upsert(unicas, { onConflict: `ficha_id,${chave}` });
+    if (error) { console.error(`upsertFicha/${tabela}:`, error.message); throw new Error(error.message); }
+  }
+  // Linhas que saíram da tabela especial (o delete pode ser negado a quem não é admin).
+  const { data: atuais } = await sb().from(tabela).select(`id, ${chave}`).eq("ficha_id", fid);
+  const sobra = (atuais || []).filter((r: any) => !vistas.has(String(r[chave] ?? ""))).map((r: any) => r.id);
+  if (sobra.length) {
+    const { error } = await sb().from(tabela).delete().in("id", sobra);
+    if (error) console.error(`upsertFicha/${tabela} (remover sobras):`, error.message);
+  }
 }
 
 // ══ EXPLOSÃO DE AVIAMENTOS ══

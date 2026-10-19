@@ -340,6 +340,12 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
         setGrad(g.linhas);
         setTabTamanhos(g.tamanhos);
         setTabBase(g.base);
+        // Especial ativa mas sem linhas gravadas (fichas em que o save falhou
+        // antes desta correção): parte de uma cópia da base em vez de vazia.
+        if (ficha?.tabelaEspecialAtiva) {
+          if (!ficha.pontosEspeciais?.length) setPtsEsp(p.map((pt: any) => ({ ...pt })));
+          if (!ficha.gradEspecial?.length) setGradEsp(g.linhas.map((l: any) => ({ ...l, valores: { ...l.valores }, ampliacoes: { ...l.ampliacoes } })));
+        }
         if (!ficha?.provas) { const init: any = {}; p.forEach((pt: any) => { init[pt.cod] = { p1: "", p2: "", p3: "" }; }); setPv(init); }
       }
       setIsDataLoaded(true);
@@ -612,7 +618,10 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
     }, 1500);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tec, avi, pil, obs, pv, an, provaInfo, estamparia, varCodigos, varTingimento, qtdMost, statusLib, estagio, importado, ncm, numVars, custoDet, obsCusto, peso, tEsp, img, imgModelo, imgModoMedir, imgFrente, imgCostas]);
+  // ptsEsp/gradEsp entram aqui: sem eles, editar a tabela especial não
+  // disparava o save — só o ato de ativar gravava (a cópia da base), e ao
+  // reabrir a ficha as medidas alteradas tinham sumido.
+  }, [tec, avi, pil, obs, pv, an, provaInfo, estamparia, varCodigos, varTingimento, qtdMost, statusLib, estagio, importado, ncm, numVars, custoDet, obsCusto, peso, tEsp, ptsEsp, gradEsp, img, imgModelo, imgModoMedir, imgFrente, imgCostas]);
 
   // Tecidos da ficha (o do SKU e os da tabela de cores) que têm a ficha técnica
   // em PDF no Cadastros › Tecidos — só esses viram opção no Exportar.
