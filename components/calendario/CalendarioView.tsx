@@ -168,7 +168,7 @@ export default function CalendarioView() {
           </div>
         </div>
 
-        <div className="flex gap-1 mb-5 bg-[var(--surface-1)] rounded-lg p-1 w-fit border border-[var(--separator)]">
+        <div className="flex gap-1 mb-5 bg-[var(--bg-secondary)] rounded-lg p-1 w-fit border border-[var(--separator)]">
           {([["planilha", "Planilha"], ["resumo", "Resumo"], ["controle", "Controle"]] as const).map(([k, l]) => (
             <button key={k} onClick={() => setSubTab(k)} className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors"
               style={subTab === k ? { background: "var(--system-blue)", color: "white" } : { color: "var(--label-secondary)" }}>{l}</button>
@@ -230,12 +230,12 @@ export default function CalendarioView() {
               <thead>
                 <tr>
                   {[["Tarefa", 260, 0], ["Coleção", 130, 260], ["Responsável", 130, 390], ["Status", 112, 520]].map(([h, w, left]) => (
-                    <th key={h as string} className="px-3 py-2.5 text-left font-semibold text-[11.5px] bg-[var(--surface-1)] border-b border-r border-[var(--separator)] sticky top-0 z-20"
+                    <th key={h as string} className="px-3 py-2.5 text-left font-semibold text-[11.5px] bg-[var(--bg-secondary)] border-b border-r border-[var(--separator)] sticky top-0 z-20"
                       style={{ left: left as number, minWidth: w as number, maxWidth: w as number }}>{h}</th>
                   ))}
                   {semanas.map((s, i) => (
                     <th key={i} ref={i === hojeIdx ? todayColRef : undefined}
-                      className={`px-2 py-2.5 text-center font-semibold text-[11px] border-b border-r border-[var(--separator)] whitespace-nowrap sticky top-0 z-10 ${i === hojeIdx ? "bg-[#e6f0ff] text-[var(--system-blue)]" : "bg-[var(--surface-1)]"}`}
+                      className={`px-2 py-2.5 text-center font-semibold text-[11px] border-b border-r border-[var(--separator)] whitespace-nowrap sticky top-0 z-10 ${i === hojeIdx ? "bg-[#e6f0ff] text-[var(--system-blue)]" : "bg-[var(--bg-secondary)]"}`}
                       style={{ minWidth: 150 }}>
                       {s.label}
                     </th>

@@ -97,7 +97,7 @@ export default function CalendarioResumoView({ tarefas, loading, onEditTask }: P
 
       {/* Grid mensal */}
       <div className="border border-[var(--separator)] rounded-xl overflow-hidden">
-        <div className="grid grid-cols-7 bg-[var(--surface-1)] border-b border-[var(--separator)]">
+        <div className="grid grid-cols-7 bg-[var(--bg-secondary)] border-b border-[var(--separator)]">
           {DIAS_SEMANA.map(d => (
             <div key={d} className="px-3 py-2 text-[12px] font-semibold text-[var(--label-secondary)] truncate">{d}</div>
           ))}
