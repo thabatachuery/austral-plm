@@ -10,6 +10,7 @@ import { uploadImage, deleteImage } from "@/lib/storage";
 import { STATUS_PRE_PRODUCAO_OPTS, STATUS_PRE_PRODUCAO_COLORS } from "@/lib/constants";
 import { useToast } from "@/components/ui/Toast";
 import LaudoPPPDF from "./LaudoPPPDF";
+import FichaModal from "@/components/ficha/FichaModal";
 
 type Ponto = { cod: string; desc: string; tabela: string; tol: string };
 type Grad = { desc: string; valores: Record<string, string>; ampliacoes: Record<string, string>; tol: string };
@@ -55,6 +56,9 @@ const fmtDateInput = (v: any) => (v ? String(v).slice(0, 10) : "");
 type Props = { row: any; fichaId: number; laudoPedidoId: number; onClose: () => void };
 
 export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: Props) {
+  // Ficha completa ao lado do laudo, só para conferir o que foi entregue
+  // (tecidos, aviamentos, estamparia, medidas). Não grava nada.
+  const [verFicha, setVerFicha] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pts, setPts] = useState<Ponto[]>([]);
   const [grad, setGrad] = useState<Grad[]>([]);
@@ -266,6 +270,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-start justify-center p-2 sm:p-8 overflow-y-auto bg-black/30 backdrop-blur-[6px] no-print" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-labelledby="laudo-pp-title" className="bg-[var(--bg-primary)] rounded-2xl w-full max-w-[1200px] shadow-[0_24px_80px_rgba(0,0,0,0.18)] overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[var(--separator)] gap-3 flex-wrap">
@@ -285,6 +290,10 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
             )}
           </div>
           <div className="flex gap-2 items-center">
+            <button onClick={() => setVerFicha(true)} className="text-[12px] sm:text-[13px] font-medium text-[var(--system-blue)] hover:bg-blue-50 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+              <svg aria-hidden="true" className="inline mr-1" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
+              Ver ficha completa
+            </button>
             {!loading && (
               <button onClick={doExport} className="text-[12px] sm:text-[13px] font-medium text-[var(--system-blue)] hover:bg-blue-50 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
                 <svg aria-hidden="true" className="inline mr-1" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
@@ -484,5 +493,8 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
       </div>
       <ToastContainer />
     </div>
+    {/* Fora do overlay do laudo: o clique de fechar da ficha não fecha o laudo junto. */}
+    {verFicha && <FichaModal row={row} somenteLeitura onClose={() => setVerFicha(false)} onSave={() => {}} />}
+    </>
   );
 }
