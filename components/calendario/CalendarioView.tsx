@@ -1,213 +1,147 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
-import {
-  fetchCalendarioTarefas, createCalendarioTarefa, updateCalendarioTarefa, deleteCalendarioTarefa,
-  type CalendarioTarefa,
-} from "@/lib/db";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import type { CalendarioTarefa } from "@/lib/db";
+import { lerCalendarioPlanilha, type CalendarioPlanilha, type LinhaPlanilha } from "@/lib/calendario-planilha";
+import { salvarCalendarioPlanilha, carregarCalendarioPlanilha } from "@/lib/storage";
+import { useAuth } from "@/lib/auth-context";
+import { nomeUsuario } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
-import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { getColecaoColor } from "@/lib/collection-colors";
-import { parseISO, addDays, startOfWeekMonday, fmtDiaMes } from "@/lib/calendario-utils";
+import { parseISO } from "@/lib/calendario-utils";
 import CalendarioResumoView from "./CalendarioResumoView";
 import CalendarioControleView from "./CalendarioControleView";
 
-const STATUS_OPTIONS = ["PENDENTE", "EM ANDAMENTO", "CONCLUÍDO"] as const;
-const STATUS_ORDER: Record<string, string> = { PENDENTE: "EM ANDAMENTO", "EM ANDAMENTO": "CONCLUÍDO", CONCLUÍDO: "PENDENTE" };
+// O Calendário é o espelho da planilha "Calendário 2026" do SharePoint
+// (Produto › 0 - CALENDÁRIOS › 2026): mesmas linhas, mesmas semanas, mesmos
+// textos e cores. Quem edita é a planilha. Filtros, Resumo e Controle
+// continuam, calculados a partir das linhas da planilha.
+//
+// De onde vem a planilha:
+//  1. direto do SharePoint (rota /api/calendario), quando o TI liberar o app
+//     do Azure — aí cada abertura já traz a versão atual;
+//  2. até lá, da última planilha enviada pelo botão "Atualizar com o Excel",
+//     guardada no Storage para todo mundo ver a mesma.
 
-type Semana = { start: Date; end: Date; label: string };
+const LINK_PLANILHA = "https://australbgb.sharepoint.com/:x:/r/sites/Produto/_layouts/15/Doc.aspx?sourcedoc=%7BFF4AC554-AD0A-4160-8749-11614B21F85F%7D&file=Calend%C3%A1rio%202026.xlsx&action=default&mobileredirect=true&DefaultItemOpen=1";
 
-const emptyForm = {
-  tarefa: "", colecao: "", responsavel: "", status: "PENDENTE" as string,
-  data_inicio: "", data_fim: "", descricao: "",
+const corDoStatus = (status: string) => {
+  const s = status.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (s.startsWith("CONCLU")) return "bg-[#4caf50] text-white";
+  if (s.includes("ANDAMENTO")) return "bg-[#fbc02d] text-[#000]";
+  if (s.includes("ATRAS")) return "bg-[#e53935] text-white";
+  return "bg-[#9e9e9e] text-white";
 };
 
+// Texto legível sobre a cor de fundo da célula.
+function textoSobre(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#1d1d1f" : "#ffffff";
+}
+
 export default function CalendarioView() {
-  const [subTab, setSubTab] = useState<"gantt" | "resumo" | "controle">("gantt");
-  const [tarefas, setTarefas] = useState<CalendarioTarefa[]>([]);
+  const [subTab, setSubTab] = useState<"planilha" | "resumo" | "controle">("planilha");
+  const [cal, setCal] = useState<CalendarioPlanilha | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filterColecao, setFilterColecao] = useState("");
   const [filterResponsavel, setFilterResponsavel] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<CalendarioTarefa | null>(null);
-  const [form, setForm] = useState(emptyForm);
-  const [saving, setSaving] = useState(false);
-  const [formErr, setFormErr] = useState<string | null>(null);
-
-  const { error: showError, success, Container: ToastContainer } = useToast();
-  const { confirm, Dialog: ConfirmDialogEl } = useConfirm();
+  const [busca, setBusca] = useState("");
+  const [detalhe, setDetalhe] = useState<LinhaPlanilha | null>(null);
   const todayColRef = useRef<HTMLTableCellElement | null>(null);
+  const arquivoRef = useRef<HTMLInputElement>(null);
+  const [enviando, setEnviando] = useState(false);
+  const { user } = useAuth();
+  const { success, error: showError, Container: ToastContainer } = useToast();
   const scrolledRef = useRef(false);
 
-  // Scroll horizontal duplicado (topo + fundo) sincronizado — evita ter que
-  // descer até o fim da tabela (que pode ter centenas de linhas) só para
-  // rolar a grade de semanas.
-  const topScrollRef = useRef<HTMLDivElement>(null);
-  const bottomScrollRef = useRef<HTMLDivElement>(null);
-  const [tableScrollWidth, setTableScrollWidth] = useState(0);
-  const syncingRef = useRef(false);
-
-  const onTopScroll = () => {
-    if (syncingRef.current) return;
-    syncingRef.current = true;
-    if (bottomScrollRef.current && topScrollRef.current) bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
-    syncingRef.current = false;
-  };
-  const onBottomScroll = () => {
-    if (syncingRef.current) return;
-    syncingRef.current = true;
-    if (topScrollRef.current && bottomScrollRef.current) topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
-    syncingRef.current = false;
-  };
-
-  const load = async () => {
+  const carregar = useCallback(async () => {
     setLoading(true);
-    const data = await fetchCalendarioTarefas();
-    setTarefas(data);
+    try {
+      const r = await fetch("/api/calendario", { cache: "no-store" });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) { setCal(j); setErro(null); }
+      else {
+        // Sem acesso direto ao SharePoint (ou ele falhou): usa a última planilha enviada.
+        const salvo = await carregarCalendarioPlanilha<CalendarioPlanilha>();
+        if (salvo) { setCal(salvo); setErro(j?.error === "sem-graph" ? null : (j?.error || null)); }
+        else setErro(j?.error === "sem-graph" ? "vazio" : (j?.error || "Não foi possível ler a planilha."));
+      }
+    } catch {
+      const salvo = await carregarCalendarioPlanilha<CalendarioPlanilha>();
+      if (salvo) setCal(salvo); else setErro("Não foi possível ler a planilha.");
+    }
     setLoading(false);
+  }, []);
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const enviarPlanilha = async (file: File) => {
+    setEnviando(true);
+    try {
+      const lido = lerCalendarioPlanilha(await file.arrayBuffer());
+      if (!lido.linhas.length) throw new Error("A planilha não tem tarefas na aba com o cabeçalho “Tarefa”.");
+      const dados: CalendarioPlanilha = { ...lido, origem: "upload", enviadoPor: nomeUsuario(user), arquivo: file.name };
+      const err = await salvarCalendarioPlanilha(dados);
+      if (err) throw new Error(err);
+      setCal(dados); setErro(null);
+      success(`Calendário atualizado: ${lido.linhas.length} tarefas.`);
+    } catch (e: any) {
+      showError(e?.message || "Não foi possível ler o arquivo.");
+    }
+    setEnviando(false);
+    if (arquivoRef.current) arquivoRef.current.value = "";
   };
 
-  useEffect(() => { load(); }, []);
+  const linhas = cal?.linhas || [];
+  const semanas = cal?.semanas || [];
+  const colecoes = useMemo(() => Array.from(new Set(linhas.map(l => l.colecao).filter(Boolean))).sort(), [linhas]);
+  const responsaveis = useMemo(() => Array.from(new Set(linhas.map(l => l.responsavel).filter(Boolean))).sort(), [linhas]);
+  const statusOpts = useMemo(() => Array.from(new Set(linhas.map(l => l.status).filter(Boolean))).sort(), [linhas]);
 
-  const colecoes = useMemo(() => Array.from(new Set(tarefas.map(t => t.colecao).filter(Boolean))).sort(), [tarefas]);
-  const responsaveis = useMemo(() => Array.from(new Set(tarefas.map(t => t.responsavel).filter(Boolean))).sort(), [tarefas]);
-
-  const filtered = useMemo(() => {
-    return tarefas.filter(t =>
-      (!filterColecao || t.colecao === filterColecao) &&
-      (!filterResponsavel || t.responsavel === filterResponsavel) &&
-      (!filterStatus || t.status === filterStatus)
+  const filtradas = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return linhas.filter(l =>
+      (!filterColecao || l.colecao === filterColecao) &&
+      (!filterResponsavel || l.responsavel === filterResponsavel) &&
+      (!filterStatus || l.status === filterStatus) &&
+      (!q || [l.tarefa, l.colecao, l.responsavel, ...l.celulas.map(c => c.texto)].join(" ").toLowerCase().includes(q))
     );
-  }, [tarefas, filterColecao, filterResponsavel, filterStatus]);
+  }, [linhas, filterColecao, filterResponsavel, filterStatus, busca]);
 
-  // Grade de semanas calculada a partir do intervalo real das tarefas — nunca fica
-  // presa a um período fixo, e sempre inclui a semana atual para referência.
-  const semanas: Semana[] = useMemo(() => {
-    const hoje = new Date();
-    let minD = hoje, maxD = hoje;
-    if (tarefas.length) {
-      minD = tarefas.reduce((min, t) => { const d = parseISO(t.data_inicio); return d < min ? d : min; }, parseISO(tarefas[0].data_inicio));
-      maxD = tarefas.reduce((max, t) => { const d = parseISO(t.data_fim); return d > max ? d : max; }, parseISO(tarefas[0].data_fim));
-    }
-    // Garante que a semana atual sempre apareça, mesmo sem tarefas cobrindo-a
-    if (hoje < minD) minD = hoje;
-    if (hoje > maxD) maxD = addDays(hoje, 7 * 8);
-
-    let cursor = startOfWeekMonday(addDays(minD, -7));
-    const fim = startOfWeekMonday(addDays(maxD, 7));
-    const out: Semana[] = [];
-    while (cursor <= fim) {
-      const end = addDays(cursor, 6);
-      out.push({ start: cursor, end, label: `${fmtDiaMes(cursor)} - ${fmtDiaMes(end)}` });
-      cursor = addDays(cursor, 7);
-    }
-    return out;
-  }, [tarefas]);
+  // Resumo e Controle trabalham com tarefas de início/fim: cada linha da
+  // planilha vira uma tarefa da primeira à última semana preenchida.
+  const tarefas: CalendarioTarefa[] = useMemo(() => filtradas.flatMap(l => {
+    const preenchidas = l.celulas.filter(c => c.texto);
+    if (!preenchidas.length || !semanas.length) return [];
+    const ini = Math.min(...preenchidas.map(c => c.col));
+    const fim = Math.min(semanas.length - 1, Math.max(...preenchidas.map(c => c.col + c.span - 1)));
+    return [{
+      id: l.id, tarefa: l.tarefa, colecao: l.colecao, responsavel: l.responsavel, status: l.status,
+      data_inicio: semanas[ini].ini, data_fim: semanas[fim].fim,
+      descricao: preenchidas.map(c => c.texto).join(" · "),
+    }];
+  }), [filtradas, semanas]);
 
   const hojeIdx = useMemo(() => {
-    const hoje = new Date();
-    return semanas.findIndex(s => hoje >= s.start && hoje <= s.end);
+    const hoje = new Date(); hoje.setHours(12, 0, 0, 0);
+    return semanas.findIndex(s => hoje >= parseISO(s.ini) && hoje <= new Date(parseISO(s.fim).getTime() + 86399000));
   }, [semanas]);
 
   useEffect(() => {
-    if (!scrolledRef.current && todayColRef.current) {
+    if (subTab === "planilha" && !scrolledRef.current && todayColRef.current) {
       todayColRef.current.scrollIntoView({ inline: "center", block: "nearest" });
       scrolledRef.current = true;
     }
-  }, [semanas]);
+  }, [semanas, subTab]);
 
-  // Mede a largura real da tabela para a barra de rolagem "fantasma" do topo
-  // ter o mesmo tamanho da barra de baixo.
-  useEffect(() => {
-    const el = bottomScrollRef.current;
-    if (!el) return;
-    const measure = () => setTableScrollWidth(el.scrollWidth);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [semanas, filtered]);
+  // Sem nenhuma cor na planilha (ou se a leitura das cores falhar), pinta
+  // pelo nome da coleção, como o calendário antigo.
+  const temCorNaPlanilha = useMemo(() => linhas.some(l => l.celulas.some(c => c.cor)), [linhas]);
 
-  const weekRangeFor = (t: CalendarioTarefa) => {
-    const ini = parseISO(t.data_inicio);
-    const fim = parseISO(t.data_fim);
-    const iniIdx = semanas.findIndex(s => ini >= s.start && ini <= s.end);
-    const fimIdx = semanas.findIndex(s => fim >= s.start && fim <= s.end);
-    return { iniIdx: iniIdx === -1 ? 0 : iniIdx, fimIdx: fimIdx === -1 ? semanas.length - 1 : fimIdx };
-  };
-
-  const toggleStatus = async (t: CalendarioTarefa) => {
-    const novoStatus = STATUS_ORDER[t.status] || "PENDENTE";
-    setTarefas(prev => prev.map(x => x.id === t.id ? { ...x, status: novoStatus } : x));
-    const err = await updateCalendarioTarefa(t.id, { status: novoStatus });
-    if (err) {
-      showError(`Erro ao salvar status: ${err}`);
-      setTarefas(prev => prev.map(x => x.id === t.id ? { ...x, status: t.status } : x));
-    }
-  };
-
-  const openAdd = () => { setEditing(null); setForm(emptyForm); setFormErr(null); setShowModal(true); };
-  const openEdit = (t: CalendarioTarefa) => {
-    setEditing(t);
-    setForm({
-      tarefa: t.tarefa, colecao: t.colecao, responsavel: t.responsavel || "",
-      status: t.status, data_inicio: t.data_inicio, data_fim: t.data_fim, descricao: t.descricao || "",
-    });
-    setFormErr(null);
-    setShowModal(true);
-  };
-
-  const handleSubmit = async () => {
-    setFormErr(null);
-    if (!form.tarefa.trim()) { setFormErr("Informe o nome da tarefa."); return; }
-    if (!form.colecao.trim()) { setFormErr("Informe a coleção."); return; }
-    if (!form.data_inicio || !form.data_fim) { setFormErr("Informe as datas de início e fim."); return; }
-    if (form.data_fim < form.data_inicio) { setFormErr("A data de fim não pode ser antes da data de início."); return; }
-
-    setSaving(true);
-    const payload = {
-      tarefa: form.tarefa.trim(), colecao: form.colecao.trim(), responsavel: form.responsavel.trim(),
-      status: form.status, data_inicio: form.data_inicio, data_fim: form.data_fim, descricao: form.descricao.trim(),
-    };
-    if (editing) {
-      const err = await updateCalendarioTarefa(editing.id, payload);
-      setSaving(false);
-      if (err) { setFormErr(err); return; }
-      success("Tarefa atualizada");
-    } else {
-      const { error } = await createCalendarioTarefa(payload);
-      setSaving(false);
-      if (error) { setFormErr(error); return; }
-      success("Tarefa criada");
-    }
-    setShowModal(false);
-    load();
-  };
-
-  const handleDelete = async (t: CalendarioTarefa) => {
-    const confirmed = await confirm({
-      title: "Excluir tarefa?",
-      message: `"${t.tarefa}" será removida do calendário. Esta ação não pode ser desfeita.`,
-      confirmLabel: "Excluir",
-      cancelLabel: "Cancelar",
-      variant: "danger",
-    });
-    if (!confirmed) return;
-    const err = await deleteCalendarioTarefa(t.id);
-    if (err) { showError(`Erro ao excluir: ${err}`); return; }
-    success("Tarefa excluída");
-    load();
-  };
-
-  const getStatusColor = (status: string) => {
-    if (status === "CONCLUÍDO") return "bg-[#4caf50] text-white";
-    if (status === "EM ANDAMENTO") return "bg-[#fbc02d] text-[#000]";
-    return "bg-[#9e9e9e] text-white";
-  };
-
-  const inputCls = "apple-input w-full";
+  const abrirDetalheTarefa = (t: CalendarioTarefa) => setDetalhe(linhas.find(l => l.id === t.id) || null);
+  const ac = [filterColecao, filterResponsavel, filterStatus, busca].filter(Boolean).length;
 
   return (
     <div className="flex flex-col gap-5 min-h-screen pb-10">
@@ -216,289 +150,169 @@ export default function CalendarioView() {
           <div>
             <h2 className="text-[18px] font-bold tracking-[-0.02em]">Calendário</h2>
             <div className="text-[12px] text-[var(--label-tertiary)] mt-1">
-              {tarefas.length} tarefa{tarefas.length !== 1 ? "s" : ""} cadastrada{tarefas.length !== 1 ? "s" : ""}
+              {cal ? <>
+                {linhas.length} tarefa{linhas.length !== 1 ? "s" : ""} da planilha ·{" "}
+                {cal.origem === "sharepoint"
+                  ? `lida do SharePoint às ${new Date(cal.lidoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                  : `atualizada em ${new Date(cal.lidoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}${cal.enviadoPor ? ` por ${cal.enviadoPor}` : ""}`}
+              </> : "Planilha Calendário 2026 (SharePoint)"}
             </div>
           </div>
-          <button onClick={openAdd} className="apple-btn-primary text-[13px]">+ Nova tarefa</button>
+          <div className="flex gap-2 flex-wrap">
+            <a href={LINK_PLANILHA} target="_blank" rel="noopener noreferrer" className="apple-btn-secondary text-[13px]">Editar no SharePoint</a>
+            <input ref={arquivoRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) enviarPlanilha(f); }} />
+            {cal?.origem === "sharepoint"
+              ? <button onClick={carregar} disabled={loading} className="apple-btn-primary text-[13px] disabled:opacity-50">{loading ? "Atualizando…" : "Atualizar"}</button>
+              : <button onClick={() => arquivoRef.current?.click()} disabled={enviando} className="apple-btn-primary text-[13px] disabled:opacity-50">{enviando ? "Lendo planilha…" : "Atualizar com o Excel"}</button>}
+          </div>
         </div>
 
-        {/* Sub-navegação: Gantt / Resumo */}
         <div className="flex gap-1 mb-5 bg-[var(--surface-1)] rounded-lg p-1 w-fit border border-[var(--separator)]">
-          <button
-            onClick={() => setSubTab("gantt")}
-            className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors"
-            style={subTab === "gantt" ? { background: "var(--system-blue)", color: "white" } : { color: "var(--label-secondary)" }}
-          >
-            Gantt
-          </button>
-          <button
-            onClick={() => setSubTab("resumo")}
-            className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors"
-            style={subTab === "resumo" ? { background: "var(--system-blue)", color: "white" } : { color: "var(--label-secondary)" }}
-          >
-            Resumo
-          </button>
-          <button
-            onClick={() => setSubTab("controle")}
-            className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors"
-            style={subTab === "controle" ? { background: "var(--system-blue)", color: "white" } : { color: "var(--label-secondary)" }}
-          >
-            Controle
-          </button>
+          {([["planilha", "Planilha"], ["resumo", "Resumo"], ["controle", "Controle"]] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setSubTab(k)} className="px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors"
+              style={subTab === k ? { background: "var(--system-blue)", color: "white" } : { color: "var(--label-secondary)" }}>{l}</button>
+          ))}
         </div>
 
-        {subTab === "resumo" ? (
-          <CalendarioResumoView tarefas={tarefas} loading={loading} onEditTask={openEdit} />
-        ) : subTab === "controle" ? (
-          <CalendarioControleView tarefas={tarefas} loading={loading} onEditTask={openEdit} />
-        ) : (
-        <>
-        {/* Filtros */}
-        <div className="flex flex-wrap gap-3 mb-5">
+        {/* Filtros: valem para as três visões */}
+        <div className="flex flex-wrap gap-3 mb-5 items-end">
+          <div className="flex flex-col gap-1 min-w-0">
+            <label htmlFor="cal-busca" className="text-[12px] font-semibold uppercase text-[var(--label-tertiary)]">Buscar</label>
+            <input id="cal-busca" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Tarefa, coleção, texto da semana…" className="apple-input w-64 max-w-full" />
+          </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[12px] font-semibold uppercase text-[var(--label-tertiary)]">Coleção</label>
-            <select value={filterColecao} onChange={e => setFilterColecao(e.target.value)} className="apple-input w-48">
+            <label htmlFor="cal-col" className="text-[12px] font-semibold uppercase text-[var(--label-tertiary)]">Coleção</label>
+            <select id="cal-col" value={filterColecao} onChange={e => setFilterColecao(e.target.value)} className="apple-input w-48">
               <option value="">Todas ({colecoes.length})</option>
               {colecoes.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-
           <div className="flex flex-col gap-1">
-            <label className="text-[12px] font-semibold uppercase text-[var(--label-tertiary)]">Responsável</label>
-            <select value={filterResponsavel} onChange={e => setFilterResponsavel(e.target.value)} className="apple-input w-48">
+            <label htmlFor="cal-resp" className="text-[12px] font-semibold uppercase text-[var(--label-tertiary)]">Responsável</label>
+            <select id="cal-resp" value={filterResponsavel} onChange={e => setFilterResponsavel(e.target.value)} className="apple-input w-48">
               <option value="">Todos ({responsaveis.length})</option>
               {responsaveis.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
-
           <div className="flex flex-col gap-1">
-            <label className="text-[12px] font-semibold uppercase text-[var(--label-tertiary)]">Status</label>
-            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="apple-input w-48">
+            <label htmlFor="cal-st" className="text-[12px] font-semibold uppercase text-[var(--label-tertiary)]">Status</label>
+            <select id="cal-st" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="apple-input w-48">
               <option value="">Todos</option>
-              <option value="PENDENTE">⏳ Pendente</option>
-              <option value="EM ANDAMENTO">⚙ Em andamento</option>
-              <option value="CONCLUÍDO">✓ Concluído</option>
+              {statusOpts.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
+          {ac > 0 && <button onClick={() => { setFilterColecao(""); setFilterResponsavel(""); setFilterStatus(""); setBusca(""); }} className="text-[12px] text-[var(--system-blue)] font-medium pb-2">Limpar filtros</button>}
         </div>
 
-        {loading ? (
+        {erro && !cal ? (
+          <div className="rounded-xl border border-[var(--separator)] p-5 max-w-[620px]">
+            {erro === "vazio" ? (<>
+              <p className="text-[14px] font-semibold mb-1.5">Envie a planilha do calendário</p>
+              <p className="text-[13px] text-[var(--label-secondary)] leading-relaxed">
+                Abra a planilha no SharePoint, baixe uma cópia (Arquivo › Criar uma cópia › Baixar uma cópia) e clique em
+                <b> Atualizar com o Excel</b> para escolher o arquivo. Todo mundo passa a ver o mesmo calendário.
+              </p>
+            </>) : (<>
+              <p className="text-[14px] font-semibold mb-1.5">Não foi possível ler a planilha</p>
+              <p className="text-[13px] text-[var(--label-secondary)]">{erro}</p>
+            </>)}
+          </div>
+        ) : loading && !cal ? (
           <div className="plm-loading" style={{ padding: "48px 0" }}><div className="plm-loading-spinner" /></div>
+        ) : subTab === "resumo" ? (
+          <CalendarioResumoView tarefas={tarefas} loading={loading} onEditTask={abrirDetalheTarefa} />
+        ) : subTab === "controle" ? (
+          <CalendarioControleView tarefas={tarefas} loading={loading} onEditTask={abrirDetalheTarefa} />
         ) : (
-          <>
-            {/* Gantt Chart */}
-            <div className="border border-[var(--separator)] rounded-xl overflow-hidden">
-              {/* Scrollbar "fantasma" no topo — sincronizada com a de baixo, para não
-                  precisar descer até o fim de uma tabela com centenas de linhas só
-                  para rolar horizontalmente. */}
-              <div ref={topScrollRef} onScroll={onTopScroll} style={{ overflowX: "auto", overflowY: "hidden" }}>
-                <div style={{ width: tableScrollWidth, height: 1 }} />
-              </div>
-              <div ref={bottomScrollRef} onScroll={onBottomScroll} className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-[var(--surface-1)] border-b border-[var(--separator)]">
-                      <th className="px-4 py-3 text-left font-semibold text-[12px] w-64 sticky left-0 bg-[var(--surface-1)] z-10">
-                        Tarefa
-                      </th>
-                      {semanas.map((semana, idx) => (
-                        <th
-                          key={idx}
-                          ref={idx === hojeIdx ? todayColRef : undefined}
-                          className={`px-2 py-3 text-center font-semibold text-[11px] min-w-[100px] border-r border-[var(--separator)] whitespace-nowrap ${idx === hojeIdx ? "bg-[var(--system-blue)]/10 text-[var(--system-blue)]" : ""}`}
-                        >
-                          {semana.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {filtered.length === 0 ? (
-                      <tr>
-                        <td colSpan={semanas.length + 1} className="px-4 py-8 text-center text-[var(--label-tertiary)] text-[13px]">
-                          Nenhuma tarefa encontrada para os filtros selecionados
-                        </td>
-                      </tr>
-                    ) : (
-                      filtered.map(tarefa => {
-                        const cor = getColecaoColor(tarefa.colecao);
-                        const { iniIdx, fimIdx } = weekRangeFor(tarefa);
-                        return (
-                          <tr key={tarefa.id} className="border-b border-[var(--separator)] hover:bg-[var(--bg-secondary)] transition-colors">
-                            <td className="px-4 py-3 sticky left-0 bg-white z-10 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <div className="font-semibold text-[12px] text-[var(--label-primary)] truncate">
-                                    {tarefa.tarefa}
-                                  </div>
-                                  <span
-                                    className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold truncate max-w-full"
-                                    style={{ background: cor.bg, color: cor.text }}
-                                  >
-                                    {tarefa.colecao}
-                                  </span>
-                                  {tarefa.responsavel && (
-                                    <div className="text-[10px] text-[var(--label-tertiary)] mt-1">
-                                      {tarefa.responsavel}
-                                    </div>
-                                  )}
-                                  <div className="mt-1 flex items-center gap-1">
-                                    <button
-                                      onClick={() => toggleStatus(tarefa)}
-                                      className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${getStatusColor(tarefa.status)}`}
-                                      title="Clique para mudar status"
-                                    >
-                                      {tarefa.status}
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="flex flex-col gap-1 flex-shrink-0">
-                                  <button onClick={() => openEdit(tarefa)} title="Editar" className="w-5 h-5 flex items-center justify-center text-[var(--label-tertiary)] hover:text-[var(--system-blue)]">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                                  </button>
-                                  <button onClick={() => handleDelete(tarefa)} title="Excluir" className="w-5 h-5 flex items-center justify-center text-[var(--label-tertiary)] hover:text-[var(--system-red)]">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                                  </button>
-                                </div>
-                              </div>
-                            </td>
-
-                            {semanas.map((_, semanaIdx) => {
-                              const isInRange = semanaIdx >= iniIdx && semanaIdx <= fimIdx;
-                              const isStart = semanaIdx === iniIdx;
-                              const isEnd = semanaIdx === fimIdx;
-                              const isOnly = isStart && isEnd;
-
-                              return (
-                                <td
-                                  key={semanaIdx}
-                                  className={`px-2 py-3 text-center border-r border-[var(--separator)] min-w-[100px] ${semanaIdx === hojeIdx ? "bg-[var(--system-blue)]/5" : ""}`}
-                                >
-                                  {isInRange && (
-                                    <div
-                                      className="py-1 px-1 text-[10px] font-semibold text-center truncate"
-                                      title={tarefa.descricao || tarefa.tarefa}
-                                      style={{
-                                        background: cor.bar,
-                                        color: cor.text,
-                                        borderRadius: isOnly ? 6 : isStart ? "6px 0 0 6px" : isEnd ? "0 6px 6px 0" : 0,
-                                        marginLeft: isStart ? 0 : -8,
-                                        marginRight: isEnd ? 0 : -8,
-                                        paddingLeft: isStart ? 8 : 0,
-                                        paddingRight: isEnd ? 8 : 0,
-                                        width: isOnly ? undefined : "calc(100% + 16px)",
-                                      }}
-                                    >
-                                      {isStart ? "●" : ""}
-                                    </div>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="mt-4 text-[12px] text-[var(--label-tertiary)]">
-              Mostrando <span className="font-semibold">{filtered.length}</span> de <span className="font-semibold">{tarefas.length}</span> tarefas
-            </div>
-
-            {/* Legenda de coleções */}
-            <div className="mt-6 p-4 bg-[var(--surface-1)] rounded-lg border border-[var(--separator)]">
-              <div className="text-[12px] font-semibold text-[var(--label-secondary)] mb-3 uppercase">Coleções</div>
-              <div className="flex flex-wrap gap-3">
-                {colecoes.map(c => {
-                  const cor = getColecaoColor(c);
+          <div className="border border-[var(--separator)] rounded-xl overflow-auto" style={{ maxHeight: "calc(100vh - 260px)" }}>
+            <table className="border-separate" style={{ borderSpacing: 0 }}>
+              <thead>
+                <tr>
+                  {[["Tarefa", 260, 0], ["Coleção", 130, 260], ["Responsável", 130, 390], ["Status", 112, 520]].map(([h, w, left]) => (
+                    <th key={h as string} className="px-3 py-2.5 text-left font-semibold text-[11.5px] bg-[var(--surface-1)] border-b border-r border-[var(--separator)] sticky top-0 z-20"
+                      style={{ left: left as number, minWidth: w as number, maxWidth: w as number }}>{h}</th>
+                  ))}
+                  {semanas.map((s, i) => (
+                    <th key={i} ref={i === hojeIdx ? todayColRef : undefined}
+                      className={`px-2 py-2.5 text-center font-semibold text-[11px] border-b border-r border-[var(--separator)] whitespace-nowrap sticky top-0 z-10 ${i === hojeIdx ? "bg-[#e6f0ff] text-[var(--system-blue)]" : "bg-[var(--surface-1)]"}`}
+                      style={{ minWidth: 150 }}>
+                      {s.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtradas.length === 0 ? (
+                  <tr><td colSpan={semanas.length + 4} className="px-4 py-8 text-center text-[var(--label-tertiary)] text-[13px]">Nenhuma tarefa encontrada para os filtros selecionados</td></tr>
+                ) : filtradas.map(l => {
+                  const corCol = getColecaoColor(l.colecao);
+                  const porCol = new Map(l.celulas.map(c => [c.col, c]));
+                  const tds: React.ReactNode[] = [];
+                  for (let i = 0; i < semanas.length; i++) {
+                    const c = porCol.get(i);
+                    const hoje = i === hojeIdx;
+                    if (!c) { tds.push(<td key={i} className={`border-b border-r border-[var(--separator)] ${hoje ? "bg-[rgba(0,122,255,0.04)]" : ""}`} />); continue; }
+                    const fundo = c.cor || (!temCorNaPlanilha && c.texto ? corCol.bar : undefined);
+                    tds.push(
+                      <td key={i} colSpan={c.span} className="border-b border-r border-[var(--separator)] px-2 py-1.5 align-top text-[11.5px] leading-snug"
+                        style={{ background: fundo, color: fundo ? textoSobre(fundo.startsWith("#") ? fundo : "#dddddd") : undefined, minWidth: 150 * c.span }}>
+                        {c.texto}
+                      </td>,
+                    );
+                    i += c.span - 1;
+                  }
                   return (
-                    <span key={c} className="px-2 py-0.5 rounded text-[11px] font-semibold" style={{ background: cor.bg, color: cor.text }}>
-                      {c}
-                    </span>
+                    <tr key={l.id} className="hover:brightness-[0.98]">
+                      <td className="px-3 py-2 border-b border-r border-[var(--separator)] sticky left-0 z-[5] bg-[var(--bg-primary)] text-[12.5px] font-medium align-top"
+                        style={{ minWidth: 260, maxWidth: 260 }}>
+                        <button type="button" onClick={() => setDetalhe(l)} className="text-left hover:text-[var(--system-blue)]">{l.tarefa || "—"}</button>
+                      </td>
+                      <td className="px-3 py-2 border-b border-r border-[var(--separator)] sticky z-[5] bg-[var(--bg-primary)] align-top" style={{ left: 260, minWidth: 130, maxWidth: 130 }}>
+                        {l.colecao && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full inline-block" style={{ background: corCol.bg, color: corCol.text }}>{l.colecao}</span>}
+                      </td>
+                      <td className="px-3 py-2 border-b border-r border-[var(--separator)] sticky z-[5] bg-[var(--bg-primary)] text-[12px] text-[var(--label-secondary)] align-top" style={{ left: 390, minWidth: 130, maxWidth: 130 }}>{l.responsavel}</td>
+                      <td className="px-3 py-2 border-b border-r border-[var(--separator)] sticky z-[5] bg-[var(--bg-primary)] align-top" style={{ left: 520, minWidth: 112, maxWidth: 112 }}>
+                        {l.status && <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full inline-block ${corDoStatus(l.status)}`}>{l.status}</span>}
+                      </td>
+                      {tds}
+                    </tr>
                   );
                 })}
-              </div>
-              <div className="text-[12px] text-[var(--label-secondary)] mt-3">
-                • Clique no status da tarefa para mudar (Pendente → Em andamento → Concluído)
-              </div>
-            </div>
-          </>
-        )}
-        </>
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* Modal de criar/editar tarefa */}
-      {showModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
-          <div className="apple-card" style={{ width: 480, maxHeight: "85vh", overflowY: "auto", padding: 24 }}>
-            <div className="text-[16px] font-bold mb-4">{editing ? "Editar tarefa" : "Nova tarefa"}</div>
-
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="text-[11px] font-semibold uppercase text-[var(--label-tertiary)] block mb-1">Tarefa</label>
-                <input value={form.tarefa} onChange={e => setForm(f => ({ ...f, tarefa: e.target.value }))} className={inputCls} placeholder="Ex: Campanha - Captação estúdio" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold uppercase text-[var(--label-tertiary)] block mb-1">Coleção</label>
-                  <input value={form.colecao} onChange={e => setForm(f => ({ ...f, colecao: e.target.value }))} className={inputCls} placeholder="Ex: Inverno 27" list="colecoes-list" />
-                  <datalist id="colecoes-list">
-                    {colecoes.map(c => <option key={c} value={c} />)}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold uppercase text-[var(--label-tertiary)] block mb-1">Responsável</label>
-                  <input value={form.responsavel} onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))} className={inputCls} placeholder="Ex: Criação" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold uppercase text-[var(--label-tertiary)] block mb-1">Início</label>
-                  <input type="date" value={form.data_inicio} onChange={e => setForm(f => ({ ...f, data_inicio: e.target.value }))} className={inputCls} />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold uppercase text-[var(--label-tertiary)] block mb-1">Fim</label>
-                  <input type="date" value={form.data_fim} onChange={e => setForm(f => ({ ...f, data_fim: e.target.value }))} className={inputCls} />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold uppercase text-[var(--label-tertiary)] block mb-1">Status</label>
-                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className="apple-select w-full">
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold uppercase text-[var(--label-tertiary)] block mb-1">Descrição (opcional)</label>
-                <textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} className={inputCls} rows={3} />
-              </div>
-
-              {formErr && (
-                <div style={{ background: "rgba(255,59,48,0.08)", border: "1px solid rgba(255,59,48,0.2)", color: "var(--system-red)", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
-                  {formErr}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2 mt-2">
-                <button onClick={() => setShowModal(false)} className="apple-btn-secondary text-[13px]">Cancelar</button>
-                <button onClick={handleSubmit} disabled={saving} className="apple-btn-primary text-[13px]" style={{ opacity: saving ? 0.6 : 1 }}>
-                  {saving ? "Salvando…" : editing ? "Salvar alterações" : "Criar tarefa"}
-                </button>
-              </div>
+      <ToastContainer />
+      {detalhe && (
+        <div className="fixed inset-0 z-[60] bg-black/35 flex items-end sm:items-center justify-center" onClick={() => setDetalhe(null)}>
+          <div role="dialog" aria-modal="true" aria-label={detalhe.tarefa} onClick={e => e.stopPropagation()}
+            className="bg-[var(--bg-primary)] w-full sm:max-w-[520px] max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl p-5 flex flex-col gap-3">
+            <div>
+              <h3 className="text-[16px] font-semibold">{detalhe.tarefa || "Tarefa"}</h3>
+              <p className="text-[12.5px] text-[var(--label-secondary)] mt-0.5">{[detalhe.colecao, detalhe.responsavel, detalhe.status].filter(Boolean).join(" · ")}</p>
+            </div>
+            <ol className="flex flex-col">
+              {detalhe.celulas.filter(c => c.texto).map(c => {
+                const ini = semanas[c.col], fim = semanas[Math.min(semanas.length - 1, c.col + c.span - 1)];
+                return (
+                  <li key={c.col} className="grid gap-3 py-2 border-b border-[var(--separator)] last:border-0 text-[13px]" style={{ gridTemplateColumns: "118px 1fr" }}>
+                    <span className="text-[11.5px] text-[var(--label-secondary)] tabnum">{ini?.ini.split("-").reverse().join("/")} – {fim?.fim.split("-").reverse().join("/")}</span>
+                    <span>{c.texto}</span>
+                  </li>
+                );
+              })}
+            </ol>
+            <p className="text-[12px] text-[var(--label-tertiary)]">Para mudar, edite a planilha no SharePoint e atualize o calendário.</p>
+            <div className="flex justify-end gap-2">
+              <a href={LINK_PLANILHA} target="_blank" rel="noopener noreferrer" className="apple-btn-secondary text-[13px]">Editar no SharePoint</a>
+              <button onClick={() => setDetalhe(null)} className="apple-btn-primary text-[13px]">Fechar</button>
             </div>
           </div>
         </div>
       )}
-
-      <ConfirmDialogEl />
-      <ToastContainer />
     </div>
   );
 }

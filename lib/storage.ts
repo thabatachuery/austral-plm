@@ -147,3 +147,22 @@ export async function copyImagesByPrefix(fromRef: string, toRef: string): Promis
   }));
   return mapa;
 }
+
+// ══ CALENDÁRIO (espelho da planilha do SharePoint) ══
+// A planilha já lida vira um JSON no Storage; todo mundo abre o mesmo arquivo.
+// Caminho fixo para a próxima subida substituir a anterior.
+const CALENDARIO_PATH = "calendario/planilha-2026.json";
+
+export async function salvarCalendarioPlanilha(dados: unknown): Promise<string | null> {
+  const blob = new Blob([JSON.stringify(dados)], { type: "application/json" });
+  const { error } = await getSupabase().storage.from(BUCKET).upload(CALENDARIO_PATH, blob, { upsert: true, contentType: "application/json", cacheControl: "0" });
+  if (error) { console.error("salvarCalendarioPlanilha:", error); return error.message; }
+  return null;
+}
+
+export async function carregarCalendarioPlanilha<T = any>(): Promise<T | null> {
+  // download() vai pela API (sem o cache da URL pública), então pega sempre a última versão.
+  const { data, error } = await getSupabase().storage.from(BUCKET).download(CALENDARIO_PATH);
+  if (error || !data) return null;
+  try { return JSON.parse(await data.text()) as T; } catch { return null; }
+}
