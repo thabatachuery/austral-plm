@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminClient } from "@/lib/supabase-server";
 import { linxParaFluxo } from "@/lib/linx-fluxo";
-import { encadearAutomaticos, gravarMovimento, provasDaFicha, type FluxoEstado } from "@/lib/fluxo";
+import { encadearAutomaticos, gravarMovimento, provasDaFicha, refCancelada, type FluxoEstado } from "@/lib/fluxo";
 
 // Rotina diária (vercel.json) do Kanban de Fluxo: aplica as mesmas regras
 // automáticas que o quadro aplica ao abrir — Linx (cadastro e pedido) e ficha
@@ -20,16 +20,20 @@ export async function GET(req: NextRequest) {
   if (!linhas?.length) return NextResponse.json({ movidos: 0 });
 
   const refs = linhas.map((l: any) => l.produto_ref);
-  const [{ data: fichas }, linx] = await Promise.all([
+  const [{ data: fichas }, { data: prods }, linx] = await Promise.all([
     db.from("fichas_tecnicas").select("produto_ref, prova_info").in("produto_ref", refs),
+    db.from("produtos").select("ref, status").in("ref", refs),
     linxParaFluxo().catch(() => null),
   ]);
   const provas: Record<string, any[]> = {};
   (fichas || []).forEach((f: any) => { (provas[f.produto_ref] ||= []).push(f.prova_info); });
   const cadastrados = new Set(linx?.cadastrados || []);
 
+  const canceladas = new Set((prods || []).filter((p: any) => refCancelada(p.status)).map((p: any) => p.ref));
+
   let movidos = 0;
   for (const l of linhas as any[]) {
+    if (canceladas.has(l.produto_ref)) continue;
     const e: FluxoEstado = { ref: l.produto_ref, etapa: l.etapa, ciclo: l.ciclo || 1, desde: l.etapa_desde, meta: l.fluxo_meta || {} };
     const { movimentos, estado, fotoPedidos } = encadearAutomaticos(e, provasDaFicha(provas[e.ref] || []), linx, cadastrados);
     if (fotoPedidos) await db.from("controle_fluxo").update({ fluxo_meta: estado.meta }).eq("produto_ref", e.ref).eq("etapa", 15);

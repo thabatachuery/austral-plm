@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import COLUMNS from "@/lib/columns";
 import { fetchFluxoKanban, fetchMapaColecao, moverFluxo, salvarFluxoMeta, atualizarPrevisaoFluxo } from "@/lib/db";
 import {
-  ETAPAS, TOTAL_ETAPAS, etapaInfo, AREA_NOME, podeMoverPara, hojeISO, addDias, diasEntre, fmtBR,
+  ETAPAS, TOTAL_ETAPAS, etapaInfo, refCancelada, AREA_NOME, podeMoverPara, hojeISO, addDias, diasEntre, fmtBR,
   prazoPreProducao, provasDaFicha, encadearAutomaticos, metaAoEntrar,
   type FluxoEstado, type FluxoEvento, type FluxoMeta, type LinxFluxo, type Movimento, type PermFluxo,
 } from "@/lib/fluxo";
@@ -108,7 +108,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     try { const v = JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}"); localStorage.setItem(FILTERS_KEY, JSON.stringify({ ...v, q: search, fl, colecaoAtiva })); } catch {}
   }, [search, fl, colecaoAtiva]);
 
-  const ativos = useMemo(() => rows.filter((r: any) => String(r.status || "").toUpperCase() !== "CANCELADO"), [rows]);
+  const ativos = useMemo(() => rows.filter((r: any) => !refCancelada(r.status)), [rows]);
   const colecoes = useMemo(() => colecoesComTemporadas(ativos, temporadasPorRef), [ativos, temporadasPorRef]);
   const uv = (k: string): string[] => Array.from(new Set(ativos.map((r: any) => r[k]).filter(Boolean))).sort() as string[];
   const sf2 = (k: string, v: string) => setFl(p => { const n = { ...p }; if (v) n[k] = v; else delete n[k]; return n; });

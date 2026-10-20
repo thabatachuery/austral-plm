@@ -39,6 +39,11 @@ export const ETAPAS: Etapa[] = [
   { n: 19, t: "PRODUÇÃO LIBERADA", a: "EC" },
 ];
 export const TOTAL_ETAPAS = ETAPAS.length;
+
+// Ref cancelada sai do fluxo: não aparece no quadro, no resumo nem nas regras
+// automáticas. Volta sozinha se o status deixar de ser cancelado.
+export const refCancelada = (status?: string | null) =>
+  String(status || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim().startsWith("CANCEL");
 export const etapaInfo = (n: number) => ETAPAS[Math.min(Math.max(n, 1), TOTAL_ETAPAS) - 1];
 export const AREA_NOME: Record<Area, string> = { E: "Estilo", C: "Compras", EC: "Estilo / Compras" };
 
