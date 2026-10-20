@@ -20,18 +20,18 @@ const MODOS: { key: Modo; label: string; regra: string; statusMatch: (s: string)
     statusMatch: s => s.includes("DESENVOLVIMENTO") },
   { key: "mostruario",      label: "Mostruário",      regra: "quantidade de mostruário da variante + 10%, arredondado por variante",
     statusMatch: s => s.includes("MOSTRUÁRIO") || s.includes("MOSTRUARIO") },
-  { key: "producao",        label: "Produção",        regra: "compra da variante (pedidos não entregues) + 10%, arredondado na dezena — acima de 1000, na centena",
+  { key: "producao",        label: "Produção",        regra: "compra da variante (pedidos não entregues) + 10%, arredondado na dezena — acima de 1000, de 50 em 50",
     statusMatch: s => s.includes("PRODUÇÃO") || s.includes("PRODUCAO") },
 ];
 
 // +10% arredondado para cima: na unidade em desenvolvimento/mostruário; na
-// produção, na dezena até 1000 e na centena acima disso.
+// produção, na dezena até 1000 e de 50 em 50 acima disso.
 // O Math.round tira o resíduo de ponto flutuante (1600 × 1,1 = 1760,0000000002,
 // que subiria para 1761 / 1800 errado em outros casos).
 function comMargem(q: number, modo: Modo): number {
   if (q <= 0) return 0;
   const m = Math.round(q * 1.1 * 1e6) / 1e6;
-  const passo = modo !== "producao" ? 1 : m > 1000 ? 100 : 10;
+  const passo = modo !== "producao" ? 1 : m > 1000 ? 50 : 10;
   return Math.ceil(m / passo) * passo;
 }
 
@@ -233,7 +233,7 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
       // Peças da variante: desenvolvimento = 2; mostruário = qtd de mostruário
       // da variante; produção = compra pendente da cor da peça.
       // Arredondamento: desenvolvimento/mostruário na unidade; produção na
-      // dezena até 1000 e na centena acima (1760 → 1800, 792 → 800).
+      // dezena até 1000 e de 50 em 50 acima (1020 → 1050, 1060 → 1100, 792 → 800).
       //
       // Só conta variante solicitada: a que tem cor de peça no 1º tecido da
       // ficha. Ficha sem cor nenhuma no tecido conta pelas cores do aviamento.
