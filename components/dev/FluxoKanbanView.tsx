@@ -20,8 +20,8 @@ const FILTERS_KEY = "plm_filters_kanban";
 // Fases do fluxo, com as cores que a tabela do Controle de Fluxo usava —
 // o resumo e as colunas do quadro falam a mesma cor.
 const FASES = [
-  { nome: "Pilotagem",    de: 1,  ate: 6,  cor: "#1d4ed8" },
-  { nome: "Mostruário",   de: 7,  ate: 9,  cor: "#b45309" },
+  { nome: "Pilotagem",    de: 1,  ate: 5,  cor: "#1d4ed8" },
+  { nome: "Mostruário",   de: 6,  ate: 9,  cor: "#b45309" },
   { nome: "Produção",     de: 10, ate: 17, cor: "#15803d" },
   { nome: "Pré-produção", de: 18, ate: 19, cor: "#7e22ce" },
 ];
@@ -149,9 +149,10 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
       { key: "dev",       label: "Em desenvolvimento",               test: entre(1, 1) },
       { key: "ag_piloto", label: "Aguardando piloto",                test: entre(2, 2) },
       { key: "em_prova",  label: "Piloto recebida / em prova",       test: entre(3, 4) },
-      { key: "laudo",     label: "Laudo enviado / ficha p/ compras", test: entre(5, 6) },
+      { key: "laudo",     label: "Laudo de mostruário enviado",      test: entre(5, 5) },
     ]},
     { grupo: "Mostruário", cor: FASES[1].cor, itens: [
+      { key: "ficha_comp", label: "Ficha entregue p/ compras",       test: entre(6, 6) },
       { key: "linx",       label: "Cadastro no Linx OK",             test: entre(7, 7) },
       { key: "ag_most",    label: "Aguardando mostruário",           test: entre(8, 8) },
       { key: "most_ent",   label: "Mostruário entregue",             test: entre(9, 9) },
