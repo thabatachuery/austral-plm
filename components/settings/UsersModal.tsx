@@ -22,7 +22,10 @@ const BASE_GROUPS: PermGroup[] = [
 ];
 
 // Permissões ESTILO usam chaves diretas; COMPRAS usam prefixo "compras_"
-const ESTILO_GROUPS: PermGroup[] = BASE_GROUPS;
+const ESTILO_GROUPS: PermGroup[] = [
+  ...BASE_GROUPS,
+  { label: "Kanban de Fluxo", fields: [{ key: "fluxo_estilo", label: "Mover cards nas etapas de Estilo" }] },
+];
 const COMPRAS_BASE = BASE_GROUPS.map(g => ({
   ...g,
   fields: g.fields.map(f => ({ key: `compras_${f.key}`, label: f.label })),
@@ -35,6 +38,7 @@ const COMPRAS_GROUPS: PermGroup[] = [
   ]},
   { label: "Preços",  fields: [{ key: "compras_precos",  label: "Editar preços (custo / markup / target / varejo)" }] },
   { label: "Pedidos", fields: [{ key: "compras_pedidos", label: "Editar pedidos (qtd / pedido / data de entrega)" }] },
+  { label: "Kanban de Fluxo", fields: [{ key: "compras_fluxo", label: "Mover cards nas etapas de Compras" }] },
 ];
 
 const ALL_ESTILO_KEYS  = ESTILO_GROUPS.flatMap(g  => g.fields.map(f => f.key));

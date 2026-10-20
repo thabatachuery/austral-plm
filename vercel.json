@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/fluxo", "schedule": "0 9 * * *" }
+  ]
+}

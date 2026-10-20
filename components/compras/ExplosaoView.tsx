@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { fetchExplosaoData } from "@/lib/db";
+import { fetchExplosaoData, avancarFluxoDaEtapa } from "@/lib/db";
+import { useAuth } from "@/lib/auth-context";
+import { nomeUsuario } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export-excel";
 import { exportExplosaoPDF } from "@/lib/export-pdf-explosao";
 import { fmtBRL } from "@/lib/utils";
@@ -306,11 +308,22 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
   )).sort() as string[], [comprasRows, modoInfo]);
   const uvFornAvi = useMemo(() => Array.from(new Set(Object.values(avLibMap).map(a => a.fornecedor).filter(Boolean))).sort(), [avLibMap]);
 
+  // Kanban de Fluxo: exportar a explosão de PRODUÇÃO leva as refs que estão em
+  // "Pedido emitido" (16) para "Explosão de aviamentos" (17). Desenvolvimento e
+  // mostruário não mexem no kanban.
+  const { user } = useAuth();
+  const avancarKanban = () => {
+    if (modo !== "producao") return;
+    const refs = Array.from(new Set(sorted.flatMap((r: any) => String(r.refs || "").split(",").map((x: string) => x.trim()).filter(Boolean))));
+    avancarFluxoDaEtapa(refs, 16, 17, "Explosão de produção exportada", nomeUsuario(user)).catch(() => {});
+  };
+
   const handleExportPdf = async () => {
     setGeneratingPdf(true);
     try {
       const date = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
       await exportExplosaoPDF(sorted, { fornProd: flFornProd, status: flStatus, colecao: flColecao, fornAvi: flFornAvi, etapa: modoInfo.label }, `explosao_aviamentos_${modo}_${date}`);
+      avancarKanban();
     } finally {
       setGeneratingPdf(false);
     }
@@ -321,6 +334,7 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
     const dataRows = sorted.map(r => [r.codigo, r.cor, r.nome, r.codForn, r.fornecedor, r.fornProd, r.qtd, r.valorUnit, r.valorTotal, r.refs]);
     const date = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
     exportToExcel(`explosao_aviamentos_${modo}_${date}`, headers, dataRows);
+    avancarKanban();
   };
 
   const COLS = [

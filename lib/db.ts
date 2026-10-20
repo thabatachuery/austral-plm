@@ -1,4 +1,5 @@
 import { getSupabase } from "./supabase";
+import { gravarMovimento, hojeISO, type FluxoEstado, type FluxoMeta, type FluxoEvento, type Movimento } from "./fluxo";
 const sb = () => getSupabase();
 
 // ── Cache simples em memória com TTL de 5 minutos ─────────────────────────
@@ -1279,4 +1280,57 @@ export async function aplicarMostruarioLiberadoNoFluxo(produtoRef: string): Prom
   if (!Object.keys(patch).length) return {};
   const err = await upsertControleFluxoCampos(produtoRef, patch);
   return err ? {} : patch;
+}
+
+// ══ KANBAN DE FLUXO ══
+// Regras e gravação em lib/fluxo.ts (compartilhadas com a rotina diária).
+export async function fetchFluxoKanban(): Promise<{
+  erro: string | null;
+  estados: Record<string, FluxoEstado>;
+  eventos: FluxoEvento[];
+  provaInfos: Record<string, any[]>;
+}> {
+  // Sonda as colunas novas: sem a migration 037 o quadro avisa em vez de
+  // abrir tudo em "Desenvolvimento" e gravar em coluna que não existe.
+  const sonda = await sb().from("controle_fluxo").select("etapa").limit(1);
+  if (sonda.error) return { erro: sonda.error.message, estados: {}, eventos: [], provaInfos: {} };
+  const [cf, ev, fichas] = await Promise.all([
+    selectAll((de, ate) => sb().from("controle_fluxo").select("produto_ref, etapa, ciclo, etapa_desde, fluxo_meta, data_desenvolvimento").range(de, ate), "fetchFluxoKanban/controle"),
+    selectAll((de, ate) => sb().from("fluxo_eventos").select("produto_ref, etapa, ciclo, data, por, auto, obs, created_at").order("created_at").range(de, ate), "fetchFluxoKanban/eventos"),
+    selectAll((de, ate) => sb().from("fichas_tecnicas").select("produto_ref, prova_info").not("prova_info", "is", null).range(de, ate), "fetchFluxoKanban/fichas"),
+  ]);
+  const estados: Record<string, FluxoEstado> = {};
+  cf.forEach((r: any) => {
+    const ref = String(r.produto_ref).trim();
+    estados[ref] = { ref, etapa: r.etapa || 1, ciclo: r.ciclo || 1, desde: r.etapa_desde || (r.etapa ? null : r.data_desenvolvimento) || null, meta: r.fluxo_meta || {} };
+  });
+  const provaInfos: Record<string, any[]> = {};
+  fichas.forEach((f: any) => { const ref = String(f.produto_ref).trim(); (provaInfos[ref] ||= []).push(f.prova_info); });
+  return { erro: null, estados, eventos: ev as FluxoEvento[], provaInfos };
+}
+
+export async function moverFluxo(ref: string, m: Movimento): Promise<string | null> {
+  const err = await gravarMovimento(sb(), ref, m);
+  if (err && err !== "ja-movido") console.error("moverFluxo:", err);
+  return err;
+}
+
+// Avança refs que estão exatamente na etapa `de` (ex.: explosão de produção
+// exportada leva quem está em "Pedido emitido" para "Explosão de aviamentos").
+export async function avancarFluxoDaEtapa(refs: string[], de: number, para: number, obs: string, por: string): Promise<number> {
+  if (!refs.length) return 0;
+  const { data, error } = await sb().from("controle_fluxo").select("produto_ref, ciclo, fluxo_meta").in("produto_ref", refs).eq("etapa", de);
+  if (error || !data) return 0;
+  const hoje = hojeISO();
+  let n = 0;
+  for (const r of data as any[]) {
+    const err = await gravarMovimento(sb(), r.produto_ref, { de, para, ciclo: r.ciclo || 1, data: hoje, por, auto: true, obs, meta: r.fluxo_meta || {} });
+    if (!err) n++;
+  }
+  return n;
+}
+
+export async function salvarFluxoMeta(ref: string, etapa: number, meta: FluxoMeta): Promise<void> {
+  const { error } = await sb().from("controle_fluxo").update({ fluxo_meta: meta }).eq("produto_ref", ref).eq("etapa", etapa);
+  if (error) console.error("salvarFluxoMeta:", error);
 }
