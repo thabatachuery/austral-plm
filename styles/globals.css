@@ -338,6 +338,12 @@ input:focus, select:focus, textarea:focus {
   flex: 1;
   padding: 0 10px;
 }
+/* Traço depois do último item e espaço até o fim da página */
+.plm-nav-fim {
+  margin: 12px 10px 0;
+  padding-bottom: 32px;
+  border-top: 1px solid var(--separator-opaque);
+}
 .plm-nav-label {
   font-size: 10px;
   font-weight: 600;

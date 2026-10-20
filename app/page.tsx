@@ -292,6 +292,8 @@ export default function Home() {
                 ))}
             </div>
           ))}
+          {/* Fim do menu: traço + respiro, para não parecer cortado */}
+          <div className="plm-nav-fim" aria-hidden="true" />
         </nav>
 
       </aside>
