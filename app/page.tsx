@@ -40,9 +40,9 @@ const TABS = [
 ] as const;
 
 const COMPRAS_TABS = [
-  { id: "compras_dev",       label: "Desenvolvimento", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
-  { id: "compras_variantes", label: "Variantes",       icon: "M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" },
-  { id: "compras_explosao",  label: "Explosão",        icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
+  { id: "compras_dev",       label: "Preços", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
+  { id: "compras_variantes", label: "Compra x Variante", icon: "M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" },
+  { id: "compras_explosao",  label: "Explosão de Aviamentos", icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
   { id: "compras_entregas",  label: "Mapa de Entregas", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
 ];
 
@@ -266,41 +266,31 @@ export default function Home() {
         </div>
 
         <nav className="plm-nav">
-          <div className="plm-nav-label">{!sidebarCollapsed && "Menu"}</div>
-          {/* Dashboard */}
-          {TABS.filter(t => t.id === "dashboard").map(t => (
-            <button key={t.id} onClick={() => { setTab(t.id); setMobileOpen(false); }} className={`plm-nav-item ${tab === t.id ? "active" : ""}`}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={t.icon} /></svg>
-              {!sidebarCollapsed && <span>{t.label}</span>}
-            </button>
-          ))}
-          {/* Calendário */}
-          {TABS.filter(t => t.id === "calendario").map(t => (
-            <button key={t.id} onClick={() => { setTab(t.id); setMobileOpen(false); }} className={`plm-nav-item ${tab === t.id ? "active" : ""}`}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={t.icon} /></svg>
-              {!sidebarCollapsed && <span>{t.label}</span>}
-            </button>
-          ))}
-          {/* Grupo Estilo */}
-          <div className="plm-nav-label" style={{ marginTop: 8 }}>{!sidebarCollapsed && "Estilo"}</div>
-          {TABS.filter(t => t.id !== "dashboard" && t.id !== "calendario").filter(t => {
-            if (t.id === "cad")     return canSection("can_cadastros");
-            if (t.id === "medidas") return canSection("can_medidas");
-            if (t.id === "preprod") return canSection("can_preproducao");
-            return true;
-          }).map(t => (
-            <button key={t.id} onClick={() => { setTab(t.id); setMobileOpen(false); }} className={`plm-nav-item ${tab === t.id ? "active" : ""}`}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={t.icon} /></svg>
-              {!sidebarCollapsed && <span>{t.label}</span>}
-            </button>
-          ))}
-          {/* Grupo Compras */}
-          <div className="plm-nav-label" style={{ marginTop: 8 }}>{!sidebarCollapsed && "Compras"}</div>
-          {COMPRAS_TABS.map(t => (
-            <button key={t.id} onClick={() => { setTab(t.id as Tab); setMobileOpen(false); }} className={`plm-nav-item ${tab === t.id ? "active" : ""}`}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={t.icon} /></svg>
-              {!sidebarCollapsed && <span>{t.label}</span>}
-            </button>
+          {/* Menu lateral em setores. A ordem de cada setor é a lista de ids abaixo. */}
+          {([
+            { titulo: "Menu",        ids: ["dashboard", "calendario", "dev_fluxo"] },
+            { titulo: "Estilo",      ids: ["dev", "variantes", "dev_mapa", "preprod"] },
+            { titulo: "Compras",     ids: ["compras_dev", "compras_variantes", "compras_explosao", "compras_entregas"] },
+            { titulo: "Organização", ids: ["envios", "cad", "medidas", "dev_etiquetas"] },
+          ]).map((grupo, gi) => (
+            <div key={grupo.titulo}>
+              <div className="plm-nav-label" style={gi ? { marginTop: 8 } : undefined}>{!sidebarCollapsed && grupo.titulo}</div>
+              {grupo.ids
+                .map(id => [...TABS, ...COMPRAS_TABS].find(t => t.id === id))
+                .filter((t): t is NonNullable<typeof t> => !!t)
+                .filter(t => {
+                  if (t.id === "cad")     return canSection("can_cadastros");
+                  if (t.id === "medidas") return canSection("can_medidas");
+                  if (t.id === "preprod") return canSection("can_preproducao");
+                  return true;
+                })
+                .map(t => (
+                  <button key={t.id} onClick={() => { setTab(t.id as Tab); setMobileOpen(false); }} className={`plm-nav-item ${tab === t.id ? "active" : ""}`}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={t.icon} /></svg>
+                    {!sidebarCollapsed && <span>{t.label}</span>}
+                  </button>
+                ))}
+            </div>
           ))}
         </nav>
 
