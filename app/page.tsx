@@ -256,9 +256,9 @@ export default function Home() {
         <div className="plm-sidebar-header">
           <div className="plm-logo">
             <div className="plm-logo-icon">
-              <img src="/logo-austral.png" alt="Austral" style={{ width: 50, height: 50, objectFit: "contain", filter: "invert(1)", mixBlendMode: "screen" }} />
+              <img src="/logo-austral.png" alt="Austral" style={{ objectFit: "contain", filter: "invert(1)", mixBlendMode: "screen" }} />
             </div>
-            {!sidebarCollapsed && <div><span className="plm-logo-text">Austral</span><span className="plm-logo-sub">PLM</span></div>}
+            {!sidebarCollapsed && <span className="plm-logo-text">PLM</span>}
           </div>
           <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label={sidebarCollapsed ? "Expandir menu" : "Recolher menu"} className="plm-sidebar-toggle">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d={sidebarCollapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} /></svg>
