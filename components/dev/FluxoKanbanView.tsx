@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import COLUMNS from "@/lib/columns";
-import { fetchFluxoKanban, fetchMapaColecao, moverFluxo, salvarFluxoMeta } from "@/lib/db";
+import { fetchFluxoKanban, fetchMapaColecao, moverFluxo, salvarFluxoMeta, atualizarPrevisaoFluxo } from "@/lib/db";
 import {
   ETAPAS, TOTAL_ETAPAS, etapaInfo, AREA_NOME, podeMoverPara, hojeISO, addDias, diasEntre, fmtBR,
   prazoPreProducao, provasDaFicha, encadearAutomaticos, metaAoEntrar,
@@ -26,6 +26,13 @@ const FASES = [
   { nome: "Pré-produção", de: 18, ate: 19, cor: "#7e22ce" },
 ];
 const faseDe = (n: number) => FASES.find(f => n >= f.de && n <= f.ate) || FASES[0];
+
+// Datas que podem ser informadas ou corrigidas com o card parado na etapa.
+const CAMPO_PREVISAO: Record<number, { meta: "prevPiloto" | "prevMost" | "preEntrega"; coluna: string; rotulo: string }> = {
+  2:  { meta: "prevPiloto", coluna: "prev_entrega_piloto",       rotulo: "Previsão do piloto" },
+  8:  { meta: "prevMost",   coluna: "prev_entrega_mostruario",   rotulo: "Previsão do mostruário" },
+  18: { meta: "preEntrega", coluna: "data_entrega_pre_producao", rotulo: "Entrega da pré-produção" },
+};
 
 interface Props {
   rows: any[];
@@ -52,6 +59,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
   const [selecionando, setSelecionando] = useState(false);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [dlgLote, setDlgLote] = useState<number | null>(null);
+  const [dlgPrev, setDlgPrev] = useState<string | null>(null);
   const alternar = (ref: string) => setSel(prev => { const n = new Set(prev); if (n.has(ref)) n.delete(ref); else n.add(ref); return n; });
   const sairDaSelecao = () => { setSelecionando(false); setSel(new Set()); setDlgLote(null); };
   const [arrastando, setArrastando] = useState<string | null>(null);
@@ -233,6 +241,23 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     if (err) { showError(`Não foi possível mover: ${err}`); return; }
     setDlg(null);
     success(`${ref} → ${etapaInfo(dados.repilotar ? 3 : alvo).t}`);
+  };
+
+  // Previsão informada depois de o card já estar na etapa (o fornecedor
+  // costuma passar a data mais tarde). Vale para 2 (piloto), 8 (mostruário)
+  // e 18 (entrega da pré-produção, que move o prazo de 3 a 5 dias úteis).
+  const salvarPrevisao = async (ref: string, valor: string) => {
+    const e = estadoDe(ref);
+    const campo = CAMPO_PREVISAO[e.etapa];
+    if (!campo) return;
+    const meta: FluxoMeta = { ...e.meta, [campo.meta]: valor || undefined };
+    const obs = valor ? `${campo.rotulo}: ${fmtBR(valor)}` : `${campo.rotulo} apagada`;
+    const err = await atualizarPrevisaoFluxo(ref, e.etapa, e.ciclo, meta, { [campo.coluna]: valor || null }, obs, userNome);
+    if (err) { showError(`Não foi possível salvar: ${err}`); return; }
+    setEstados(prev => ({ ...prev, [ref]: { ...e, meta } }));
+    setEventos(prev => [...prev, { produto_ref: ref, etapa: e.etapa, ciclo: e.ciclo, data: hoje, por: userNome, auto: false, obs }]);
+    setDlgPrev(null);
+    success(`${ref} · ${obs}`);
   };
 
   // Lote: mesma data e mesmas respostas para todos. No mostruário, "todas as
@@ -449,7 +474,8 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
                       estado={estadoDe(String(r.ref).trim())} hoje={hoje} perm={perm} arrastavel={!!ponteiroFino}
                       onDragStart={() => setArrastando(String(r.ref).trim())} onDragEnd={() => { setArrastando(null); setSobre(null); }}
                       onAvancar={(alvo) => abrirMover(String(r.ref).trim(), alvo)} onDetalhe={() => setDetalhe(String(r.ref).trim())}
-                      selecionando={selecionando} marcado={sel.has(String(r.ref).trim())} onAlternar={() => alternar(String(r.ref).trim())} />
+                      selecionando={selecionando} marcado={sel.has(String(r.ref).trim())} onAlternar={() => alternar(String(r.ref).trim())}
+                      onPrevisao={() => setDlgPrev(String(r.ref).trim())} />
                   ))}
                 </div>
               </section>
@@ -466,10 +492,15 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
         <DialogoMover ref_="" lote={Array.from(sel).filter(r => estadoDe(r).etapa !== dlgLote).length} alvo={dlgLote} row={null} estado={{ ref: "", etapa: 0, ciclo: 1, desde: null, meta: {} }}
           cores={[]} hoje={hoje} onCancel={() => setDlgLote(null)} onConfirm={dados => confirmarLote(dlgLote, dados)} />
       )}
+      {dlgPrev && CAMPO_PREVISAO[estadoDe(dlgPrev).etapa] && (
+        <DialogoPrevisao ref_={dlgPrev} row={ativos.find((r: any) => String(r.ref).trim() === dlgPrev)} estado={estadoDe(dlgPrev)} hoje={hoje}
+          onCancel={() => setDlgPrev(null)} onSalvar={v => salvarPrevisao(dlgPrev, v)} />
+      )}
       {detalhe && (
         <Detalhe ref_={detalhe} row={ativos.find((r: any) => String(r.ref).trim() === detalhe)} mapa={mapa[detalhe]} cores={coresDe(detalhe)}
           estado={estadoDe(detalhe)} eventos={eventos.filter(e => String(e.produto_ref).trim() === detalhe)} perm={perm}
           onClose={() => setDetalhe(null)} onMover={alvo => abrirMover(detalhe, alvo)}
+          onPrevisao={() => { setDlgPrev(detalhe); setDetalhe(null); }}
           onOpenFicha={onOpenFicha ? (row) => { setDetalhe(null); onOpenFicha(row); } : undefined} />
       )}
       <ToastContainer />
@@ -478,10 +509,10 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
 }
 
 /* ── card (mesmas informações do Mapa de Coleção) ── */
-function Cartao({ row, mapa, cores, estado, hoje, perm, arrastavel, onDragStart, onDragEnd, onAvancar, onDetalhe, selecionando, marcado, onAlternar }: {
+function Cartao({ row, mapa, cores, estado, hoje, perm, arrastavel, onDragStart, onDragEnd, onAvancar, onDetalhe, selecionando, marcado, onAlternar, onPrevisao }: {
   row: any; mapa: any; cores: string[]; estado: FluxoEstado; hoje: string; perm: PermFluxo; arrastavel: boolean;
   onDragStart: () => void; onDragEnd: () => void; onAvancar: (alvo: number) => void; onDetalhe: () => void;
-  selecionando: boolean; marcado: boolean; onAlternar: () => void;
+  selecionando: boolean; marcado: boolean; onAlternar: () => void; onPrevisao: () => void;
 }) {
   const img = mapa?.imagem_url || mapa?.imagem_frente || mapa?.imagem_modelo || "";
   const tecido = row.tecido || mapa?.tecido || "";
@@ -493,8 +524,6 @@ function Cartao({ row, mapa, cores, estado, hoje, perm, arrastavel, onDragStart,
   const tags: { t: string; tom?: "ok" | "warn" | "bad" }[] = [];
   if (dias !== null) tags.push({ t: `${dias} ${dias === 1 ? "dia" : "dias"} aqui`, tom: dias > 14 ? "bad" : dias > 7 ? "warn" : undefined });
   if (estado.ciclo > 1) tags.push({ t: `Repilotagem ${estado.ciclo}`, tom: "warn" });
-  if (estado.etapa === 2 && estado.meta.prevPiloto) { const atr = estado.meta.prevPiloto < hoje; tags.push({ t: `Piloto prev. ${fmtBR(estado.meta.prevPiloto)}${atr ? " · atrasado" : ""}`, tom: atr ? "bad" : undefined }); }
-  if (estado.etapa === 8 && estado.meta.prevMost) { const atr = estado.meta.prevMost < hoje; tags.push({ t: `Mostr. prev. ${fmtBR(estado.meta.prevMost)}${atr ? " · atrasado" : ""}`, tom: atr ? "bad" : undefined }); }
   if (estado.etapa >= 9 && estado.meta.coresEntregues && cores.length) {
     const n = estado.meta.coresEntregues.length;
     tags.push({ t: `${n} de ${cores.length} ${cores.length === 1 ? "cor entregue" : "cores entregues"}`, tom: n < cores.length ? "warn" : "ok" });
@@ -542,6 +571,20 @@ function Cartao({ row, mapa, cores, estado, hoje, perm, arrastavel, onDragStart,
             {cores.map(c => <span key={c} className="text-[9.5px] font-semibold px-1.5 py-[1px] rounded border border-[var(--separator)] bg-[var(--bg-secondary)] text-[var(--label-secondary)] whitespace-nowrap">{c}</span>)}
           </div>
         )}
+        {CAMPO_PREVISAO[estado.etapa] && estado.etapa !== 18 && (() => {
+          const c = CAMPO_PREVISAO[estado.etapa];
+          const v = estado.meta[c.meta] as string | undefined;
+          const atr = !!v && v < hoje;
+          const podeEditar = podeMoverPara(estado.etapa, perm);
+          return (
+            <button type="button" disabled={!podeEditar} onClick={onPrevisao}
+              title={podeEditar ? "Informar ou alterar a previsão" : `Só ${AREA_NOME[etapaInfo(estado.etapa).a]} altera`}
+              className={`self-start mt-1 text-[10.5px] font-semibold px-1.5 py-[2px] rounded-md tabnum inline-flex items-center gap-1 disabled:cursor-default ${atr ? TOM.bad : v ? "bg-[var(--bg-secondary)] text-[var(--label-secondary)]" : "border border-dashed border-[var(--separator-opaque)] text-[var(--system-blue)]"}`}>
+              {v ? `${estado.etapa === 2 ? "Piloto" : "Mostr."} prev. ${fmtBR(v)}${atr ? " · atrasado" : ""}` : "+ Informar previsão"}
+              {v && podeEditar && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>}
+            </button>
+          );
+        })()}
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {tags.map(t => <span key={t.t} className={`text-[10.5px] font-semibold px-1.5 py-[2px] rounded-md tabnum ${t.tom ? TOM[t.tom] : "bg-[var(--bg-secondary)] text-[var(--label-secondary)]"}`}>{t.t}</span>)}
@@ -594,7 +637,7 @@ function DialogoMover({ ref_, alvo, row, estado, cores, hoje, onCancel, onConfir
   const [todasCores, setTodasCores] = useState(true);
   const et = etapaInfo(alvo);
   const [data, setData] = useState(hoje);
-  const [prev, setPrev] = useState(addDias(hoje, alvo === 8 ? 20 : 15));
+  const [prev, setPrev] = useState("");
   const [marcadas, setMarcadas] = useState<string[]>(estado.meta.coresEntregues?.length ? estado.meta.coresEntregues : cores);
   const [preEntrega, setPreEntrega] = useState(hoje);
   const [resultado, setResultado] = useState<"ok" | "repil" | null>(null);
@@ -605,8 +648,8 @@ function DialogoMover({ ref_, alvo, row, estado, cores, hoje, onCancel, onConfir
   const confirmar = async () => {
     setSalvando(true);
     const meta: Partial<FluxoMeta> = {};
-    if (et.ask === "prevPiloto") meta.prevPiloto = prev;
-    if (et.ask === "prevMost") meta.prevMost = prev;
+    if (et.ask === "prevPiloto") meta.prevPiloto = prev || undefined;
+    if (et.ask === "prevMost") meta.prevMost = prev || undefined;
     if (et.ask === "cores") meta.coresEntregues = marcadas;
     if (et.ask === "preprod") meta.preEntrega = preEntrega;
     await onConfirm({ data, meta, repilotar: et.ask === "aprovacao" && resultado === "repil", todasCores });
@@ -627,6 +670,7 @@ function DialogoMover({ ref_, alvo, row, estado, cores, hoje, onCancel, onConfir
         <div className="flex flex-col gap-1.5">
           <Rotulo htmlFor="fx-prev">{et.ask === "prevPiloto" ? "Previsão de entrega do piloto" : "Previsão de entrega do mostruário"}</Rotulo>
           <input id="fx-prev" type="date" value={prev} onChange={e => setPrev(e.target.value)} className="apple-input" />
+          <p className="text-[12px] text-[var(--label-secondary)]">Opcional. Se ainda não tiver, deixe em branco e informe depois pelo card.</p>
         </div>
       )}
       {et.ask === "cores" && lote !== undefined && (
@@ -679,10 +723,37 @@ function DialogoMover({ ref_, alvo, row, estado, cores, hoje, onCancel, onConfir
   );
 }
 
-function Detalhe({ ref_, row, mapa, cores, estado, eventos, perm, onClose, onMover, onOpenFicha }: {
-  ref_: string; row: any; mapa: any; cores: string[]; estado: FluxoEstado; eventos: FluxoEvento[]; perm: PermFluxo;
-  onClose: () => void; onMover: (alvo: number) => void; onOpenFicha?: (row: any) => void;
+function DialogoPrevisao({ ref_, row, estado, hoje, onCancel, onSalvar }: {
+  ref_: string; row: any; estado: FluxoEstado; hoje: string; onCancel: () => void; onSalvar: (v: string) => Promise<void>;
 }) {
+  const campo = CAMPO_PREVISAO[estado.etapa];
+  const atual = (estado.meta[campo.meta] as string | undefined) || "";
+  const [v, setV] = useState(atual);
+  const [salvando, setSalvando] = useState(false);
+  const prazo = estado.etapa === 18 && v ? prazoPreProducao(v, hoje) : null;
+  return (
+    <Folha titulo={campo.rotulo} sub={`${ref_} · ${row?.desc || row?.descricao || ""}`} onClose={onCancel}>
+      <div className="flex flex-col gap-1.5">
+        <Rotulo htmlFor="fx-prev-ed">{atual ? `Atual: ${fmtBR(atual)}` : "Ainda não informada"}</Rotulo>
+        <input id="fx-prev-ed" type="date" value={v} onChange={e => setV(e.target.value)} className="apple-input" />
+        {prazo && <p className="text-[12px] text-[var(--label-secondary)]">Prazo: de {fmtBR(prazo.de)} a {fmtBR(prazo.ate)}.</p>}
+        <p className="text-[12px] text-[var(--label-secondary)]">A mudança fica registrada no histórico do card.</p>
+      </div>
+      <div className="flex justify-end gap-2">
+        {atual && <button type="button" disabled={salvando} onClick={async () => { setSalvando(true); await onSalvar(""); setSalvando(false); }} className="apple-btn-secondary text-[13px] mr-auto">Apagar</button>}
+        <button type="button" onClick={onCancel} className="apple-btn-secondary text-[13px]">Cancelar</button>
+        <button type="button" disabled={salvando || !v || v === atual} onClick={async () => { setSalvando(true); await onSalvar(v); setSalvando(false); }} className="apple-btn-primary text-[13px] disabled:opacity-40">{salvando ? "Salvando…" : "Salvar"}</button>
+      </div>
+    </Folha>
+  );
+}
+
+function Detalhe({ ref_, row, mapa, cores, estado, eventos, perm, onClose, onMover, onOpenFicha, onPrevisao }: {
+  ref_: string; row: any; mapa: any; cores: string[]; estado: FluxoEstado; eventos: FluxoEvento[]; perm: PermFluxo;
+  onClose: () => void; onMover: (alvo: number) => void; onOpenFicha?: (row: any) => void; onPrevisao: () => void;
+}) {
+  const campoPrev = CAMPO_PREVISAO[estado.etapa];
+  const valorPrev = campoPrev ? (estado.meta[campoPrev.meta] as string | undefined) : undefined;
   const img = mapa?.imagem_url || mapa?.imagem_frente || mapa?.imagem_modelo || "";
   const hist = [...eventos].reverse();
   return (
@@ -698,6 +769,12 @@ function Detalhe({ ref_, row, mapa, cores, estado, eventos, perm, onClose, onMov
         {[row?.tecido, row?.composicao, row?.forn_tecido].filter(Boolean).join(" · ")}
         {cores.length > 0 && <div>Cores: {cores.join(", ")}</div>}
         {estado.meta.coresEntregues && <div>Mostruário entregue: {estado.meta.coresEntregues.join(", ") || "nenhuma cor"}</div>}
+        {campoPrev && (
+          <div className="flex items-center gap-2 mt-1">
+            <span>{campoPrev.rotulo}: <b className="text-[var(--label-primary)]">{valorPrev ? fmtBR(valorPrev) : "não informada"}</b></span>
+            {podeMoverPara(estado.etapa, perm) && <button type="button" onClick={onPrevisao} className="text-[12px] font-semibold text-[var(--system-blue)]">{valorPrev ? "Alterar" : "Informar"}</button>}
+          </div>
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
         <Rotulo>Histórico</Rotulo>

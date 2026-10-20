@@ -1334,3 +1334,15 @@ export async function salvarFluxoMeta(ref: string, etapa: number, meta: FluxoMet
   const { error } = await sb().from("controle_fluxo").update({ fluxo_meta: meta }).eq("produto_ref", ref).eq("etapa", etapa);
   if (error) console.error("salvarFluxoMeta:", error);
 }
+
+// Previsão (piloto / mostruário) ou entrega da pré-produção alterada depois que
+// o card já está na etapa — o fornecedor costuma passar a data depois. Atualiza
+// o card, espelha no Controle de Fluxo e registra no histórico.
+export async function atualizarPrevisaoFluxo(ref: string, etapa: number, ciclo: number, meta: FluxoMeta, campos: Record<string, string | null>, obs: string, por: string): Promise<string | null> {
+  const { data, error } = await sb().from("controle_fluxo").update({ fluxo_meta: meta, ...campos, updated_at: new Date().toISOString() }).eq("produto_ref", ref).eq("etapa", etapa).select("produto_ref");
+  if (error) { console.error("atualizarPrevisaoFluxo:", error); return error.message; }
+  if (!data?.length) return "O card mudou de etapa. Recarregue a página.";
+  const ev = await sb().from("fluxo_eventos").insert({ produto_ref: ref, etapa, ciclo, data: hojeISO(), por, auto: false, obs });
+  if (ev.error) console.error("atualizarPrevisaoFluxo/evento:", ev.error);
+  return null;
+}
