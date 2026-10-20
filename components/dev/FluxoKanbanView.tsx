@@ -86,7 +86,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
   const [sf, setSf] = useState(false);
   const ac = Object.values(fl).filter(Boolean).length;
   useEffect(() => {
-    try { localStorage.setItem(FILTERS_KEY, JSON.stringify({ q: search, fl, colecaoAtiva })); } catch {}
+    try { const v = JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}"); localStorage.setItem(FILTERS_KEY, JSON.stringify({ ...v, q: search, fl, colecaoAtiva })); } catch {}
   }, [search, fl, colecaoAtiva]);
 
   const ativos = useMemo(() => rows.filter((r: any) => String(r.status || "").toUpperCase() !== "CANCELADO"), [rows]);
@@ -111,6 +111,50 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     if (colecaoAtiva && m.fichas_por_colecao?.[colecaoAtiva]?.length) return m.fichas_por_colecao[colecaoAtiva];
     return m.cores || [];
   };
+
+  /* ── mini dashboard do fluxo ──
+     Conta sobre o recorte dos filtros; clicar num item restringe o quadro
+     àquelas refs (e clicar de novo solta). */
+  const [resumoAtivo, setResumoAtivo] = useState<string | null>(null);
+  const [mostrarResumo, setMostrarResumo] = useState<boolean>(saved.resumo !== false);
+  useEffect(() => {
+    try { const v = JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}"); localStorage.setItem(FILTERS_KEY, JSON.stringify({ ...v, resumo: mostrarResumo })); } catch {}
+  }, [mostrarResumo]);
+  type Teste = (e: FluxoEstado, ref: string) => boolean;
+  const entre = (a: number, b: number): Teste => e => e.etapa >= a && e.etapa <= b;
+  const parado = (e: FluxoEstado) => e.etapa < TOTAL_ETAPAS && !!e.desde && diasEntre(e.desde, hoje) > 14;
+  const atrasado = (e: FluxoEstado) => (e.etapa === 2 && !!e.meta.prevPiloto && e.meta.prevPiloto < hoje) || (e.etapa === 8 && !!e.meta.prevMost && e.meta.prevMost < hoje);
+  const preVencida = (e: FluxoEstado) => e.etapa === 18 && !!e.meta.preEntrega && prazoPreProducao(e.meta.preEntrega, hoje).situacao === "vencido";
+  const RESUMO: { grupo: string; cor: string; itens: { key: string; label: string; test: Teste }[] }[] = [
+    { grupo: "Pilotagem", cor: "#1d4ed8", itens: [
+      { key: "dev",       label: "Em desenvolvimento",               test: entre(1, 1) },
+      { key: "ag_piloto", label: "Aguardando piloto",                test: entre(2, 2) },
+      { key: "em_prova",  label: "Piloto recebido / em prova",       test: entre(3, 4) },
+      { key: "laudo",     label: "Laudo enviado / ficha p/ compras", test: entre(5, 6) },
+    ]},
+    { grupo: "Mostruário", cor: "#b45309", itens: [
+      { key: "linx",       label: "Cadastro no Linx OK",             test: entre(7, 7) },
+      { key: "ag_most",    label: "Aguardando mostruário",           test: entre(8, 8) },
+      { key: "most_ent",   label: "Mostruário entregue",             test: entre(9, 9) },
+      { key: "cores_pend", label: "Com cores ainda não entregues",   test: (e, ref) => e.etapa >= 9 && !!e.meta.coresEntregues && e.meta.coresEntregues.length < coresDe(ref).length },
+    ]},
+    { grupo: "Produção", cor: "#15803d", itens: [
+      { key: "prova_prod", label: "Prova de produção",               test: entre(10, 10) },
+      { key: "aprovada",   label: "Aprovada / laudo / ficha p/ compras", test: entre(11, 13) },
+      { key: "repil",      label: "Repilotando",                     test: e => e.ciclo > 1 && e.etapa <= 10 },
+      { key: "compras",    label: "Em compras (Linx, pedido, explosão)", test: entre(14, 17) },
+    ]},
+    { grupo: "Pré-produção", cor: "#7e22ce", itens: [
+      { key: "pre",      label: "Em pré-produção",                   test: entre(18, 18) },
+      { key: "liberada", label: "Produção liberada",                 test: entre(19, 19) },
+    ]},
+    { grupo: "Atenção", cor: "#d70015", itens: [
+      { key: "atrasado", label: "Previsão de piloto ou mostruário vencida", test: e => atrasado(e) },
+      { key: "parado",   label: "Parados há mais de 14 dias",        test: e => parado(e) },
+      { key: "pre_venc", label: "Pré-produção com prazo vencido",    test: e => preVencida(e) },
+    ]},
+  ];
+  const itemAtivo = RESUMO.flatMap(g => g.itens).find(i => i.key === resumoAtivo);
 
   /* ── regras automáticas ao abrir (ficha e Linx) ── */
   const autoFeito = useRef(false);
@@ -183,12 +227,13 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     </div>
   );
 
+  const noQuadro = itemAtivo ? filtrados.filter((r: any) => { const ref = String(r.ref).trim(); return itemAtivo.test(estadoDe(ref), ref); }) : filtrados;
   const porEtapa: Record<number, any[]> = {};
-  filtrados.forEach((r: any) => { const n = estadoDe(String(r.ref).trim()).etapa; (porEtapa[n] ||= []).push(r); });
+  noQuadro.forEach((r: any) => { const n = estadoDe(String(r.ref).trim()).etapa; (porEtapa[n] ||= []).push(r); });
   const ponteiroFino = typeof window !== "undefined" && window.matchMedia?.("(pointer: fine)").matches;
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 150px)", minHeight: 480 }}>
+    <div className="flex flex-col">
       {colecoes.length > 0 && (
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mr-1">Coleção</span>
@@ -255,8 +300,54 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
         </div>
       )}
 
+      {/* Mini dashboard do fluxo */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)]">Resumo do fluxo</span>
+        <button type="button" onClick={() => setMostrarResumo(v => !v)} className="text-[12px] text-[var(--system-blue)] font-medium">{mostrarResumo ? "Ocultar resumo" : "Mostrar resumo"}</button>
+      </div>
+      {mostrarResumo && (
+        <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+          {RESUMO.map(g => (
+            <div key={g.grupo} className="apple-card p-3" style={{ borderTop: `3px solid ${g.cor}` }}>
+              <div className="text-[11px] font-bold uppercase tracking-[0.06em] mb-2" style={{ color: g.cor }}>{g.grupo}</div>
+              <div className="flex flex-col gap-1">
+                {g.itens.map(it => {
+                  const n = filtrados.filter((x: any) => { const ref = String(x.ref).trim(); return it.test(estadoDe(ref), ref); }).length;
+                  const pct = filtrados.length ? Math.round((n / filtrados.length) * 100) : 0;
+                  const ativo = resumoAtivo === it.key;
+                  return (
+                    <button key={it.key} type="button" onClick={() => setResumoAtivo(ativo ? null : it.key)}
+                      title={ativo ? "Mostrar todos" : "Mostrar só estas refs no quadro"}
+                      className="text-left rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--bg-secondary)]"
+                      style={ativo ? { background: g.cor + "18", boxShadow: `inset 0 0 0 1.5px ${g.cor}` } : undefined}>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-[20px] font-bold tabnum tracking-[-0.02em]" style={{ color: n ? g.cor : "var(--label-quaternary)", minWidth: 34 }}>{n}</span>
+                        <span className="text-[12px] text-[var(--label-primary)] font-medium flex-1">{it.label}</span>
+                        <span className="text-[11px] text-[var(--label-tertiary)] tabnum">{pct}%</span>
+                      </div>
+                      <div className="h-[4px] rounded-full bg-[var(--bg-secondary)] overflow-hidden mt-1">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: g.cor }} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {itemAtivo && (
+        <div className="flex items-center gap-2 mb-3 text-[12px]">
+          <span className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 font-medium">
+            <span className="text-blue-300">Resumo:</span>{itemAtivo.label}
+            <button onClick={() => setResumoAtivo(null)} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]" aria-label="Remover filtro do resumo">×</button>
+          </span>
+          <span className="text-[var(--label-tertiary)]">{noQuadro.length} de {filtrados.length}</span>
+        </div>
+      )}
+
       {/* Quadro: rolagem lateral própria; no celular cada coluna quase ocupa a tela e encaixa. */}
-      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden pb-2" style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}>
+      <div className="overflow-x-auto overflow-y-hidden pb-2" style={{ height: "max(520px, calc(100vh - 140px))", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}>
         <div className="flex gap-2.5 h-full" style={{ width: "max-content" }}>
           {ETAPAS.map(et => {
             const cards = porEtapa[et.n] || [];

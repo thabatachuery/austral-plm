@@ -46,7 +46,7 @@ export const COMPRAS_STATUS_ALLOW = [
 ];
 
 // Status do laudo de pré-produção — mesmas opções do campo status_pre_producao
-// do Controle de Fluxo (components/dev/ControleFluxoView.tsx), reaproveitadas
+// do Controle de Fluxo (tabela antiga, hoje substituída pelo kanban), reaproveitadas
 // dentro de cada laudo/pedido (components/preproducao).
 export const STATUS_PRE_PRODUCAO_OPTS = ["", "LIBERADA", "LIBERADA COM RESTRIÇÃO", "REPROVADA - CORRIGIR", "REPROVADA - NEGOCIAR"];
 

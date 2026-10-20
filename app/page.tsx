@@ -13,7 +13,6 @@ import SetNewPasswordModal from "@/components/auth/SetNewPasswordModal";
 import UsersModal from "@/components/settings/UsersModal";
 import AlertaFichaModal, { type Alerta } from "@/components/ui/AlertaFichaModal";
 import ExplosaoView from "@/components/compras/ExplosaoView";
-import ControleFluxoView from "@/components/dev/ControleFluxoView";
 import FluxoKanbanView from "@/components/dev/FluxoKanbanView";
 import MapaColecaoView from "@/components/dev/MapaColecaoView";
 import MapaEntregasView from "@/components/dev/MapaEntregasView";
@@ -31,7 +30,6 @@ const TABS = [
   { id: "calendario",  label: "Calendário",    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { id: "dev",        label: "Desenvolvimento", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
   { id: "dev_fluxo",  label: "Controle de Fluxo", icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
-  { id: "dev_kanban", label: "Kanban de Fluxo", icon: "M4 5a1 1 0 011-1h3a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM10.5 5a1 1 0 011-1h3a1 1 0 011 1v9a1 1 0 01-1 1h-3a1 1 0 01-1-1V5zM17 5a1 1 0 011-1h1a1 1 0 011 1v6a1 1 0 01-1 1h-1a1 1 0 01-1-1V5z" },
   { id: "dev_mapa",      label: "Mapa de Coleção",   icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" },
   { id: "dev_etiquetas", label: "Etiquetas Line",    icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" },
   { id: "variantes",  label: "Variantes",       icon: "M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" },
@@ -381,8 +379,8 @@ export default function Home() {
           {!loading && tab === "dashboard" && <DashboardView rows={rows} variantes={variantes} variantesPorColecao={variantesPorColecao} />}
           {!loading && tab === "calendario" && <CalendarioView />}
           {!loading && tab === "dev" && <DevTable rows={rows} setRows={setRows} onOpenFicha={setFichaRow} userEmail={user.email!} temporadasPorRef={temporadasPorRef} />}
-          {!loading && tab === "dev_fluxo" && <ControleFluxoView rows={rows} temporadasPorRef={temporadasPorRef} />}
-          {!loading && tab === "dev_kanban" && <FluxoKanbanView rows={rows} temporadasPorRef={temporadasPorRef} onOpenFicha={setFichaRow} userNome={nomeUsuario(user)} perm={{ isAdmin, estilo: perms["fluxo_estilo"] === true, compras: perms["compras_fluxo"] === true }} />}
+          {/* Controle de Fluxo = kanban de etapas (substituiu a tabela de datas) */}
+          {!loading && tab === "dev_fluxo" && <FluxoKanbanView rows={rows} temporadasPorRef={temporadasPorRef} onOpenFicha={setFichaRow} userNome={nomeUsuario(user)} perm={{ isAdmin, estilo: perms["fluxo_estilo"] === true, compras: perms["compras_fluxo"] === true }} />}
           {!loading && tab === "variantes" && <VariantesTable rows={rows} variantes={variantes} variantesPorColecao={variantesPorColecao} onOpenFicha={setFichaRow} />}
           {!loading && tab === "preprod" && canSection("can_preproducao") && <PreProducaoView rows={rows} onOpenLaudo={setLaudoRow} />}
           {!loading && tab === "envios" && <EnviosView />}
