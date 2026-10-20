@@ -294,20 +294,6 @@ export default function Home() {
           ))}
         </nav>
 
-        {!sidebarCollapsed && (
-          <div className="plm-sidebar-footer">
-            <div className="plm-sidebar-stats">
-              <div className="plm-stat-mini">
-                <span className="plm-stat-mini-value">{rows.length}</span>
-                <span className="plm-stat-mini-label">SKUs</span>
-              </div>
-              <div className="plm-stat-mini">
-                <span className="plm-stat-mini-value">{rows.filter(r => r.status === "DESENVOLVIMENTO").length}</span>
-                <span className="plm-stat-mini-label">Em desenv.</span>
-              </div>
-            </div>
-          </div>
-        )}
       </aside>
 
       {/* ═══ MAIN ═══ */}
