@@ -17,10 +17,15 @@ import { useToast } from "@/components/ui/Toast";
 const FC = COLUMNS.filter(c => (c.type === "select" && c.cad && c.key !== "colecao") || c.key === "forn_tecido");
 const FILTERS_KEY = "plm_filters_kanban";
 
-const COR_AREA: Record<string, { bg: string; fg: string }> = {
-  E: { bg: "rgba(175,82,222,0.12)", fg: "#8e44c9" },
-  C: { bg: "rgba(15,138,107,0.12)", fg: "#0f8a6b" },
-};
+// Fases do fluxo, com as cores que a tabela do Controle de Fluxo usava —
+// o resumo e as colunas do quadro falam a mesma cor.
+const FASES = [
+  { nome: "Pilotagem",    de: 1,  ate: 6,  cor: "#1d4ed8" },
+  { nome: "Mostruário",   de: 7,  ate: 9,  cor: "#b45309" },
+  { nome: "Produção",     de: 10, ate: 17, cor: "#15803d" },
+  { nome: "Pré-produção", de: 18, ate: 19, cor: "#7e22ce" },
+];
+const faseDe = (n: number) => FASES.find(f => n >= f.de && n <= f.ate) || FASES[0];
 
 interface Props {
   rows: any[];
@@ -126,25 +131,25 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
   const atrasado = (e: FluxoEstado) => (e.etapa === 2 && !!e.meta.prevPiloto && e.meta.prevPiloto < hoje) || (e.etapa === 8 && !!e.meta.prevMost && e.meta.prevMost < hoje);
   const preVencida = (e: FluxoEstado) => e.etapa === 18 && !!e.meta.preEntrega && prazoPreProducao(e.meta.preEntrega, hoje).situacao === "vencido";
   const RESUMO: { grupo: string; cor: string; itens: { key: string; label: string; test: Teste }[] }[] = [
-    { grupo: "Pilotagem", cor: "#1d4ed8", itens: [
+    { grupo: "Pilotagem", cor: FASES[0].cor, itens: [
       { key: "dev",       label: "Em desenvolvimento",               test: entre(1, 1) },
       { key: "ag_piloto", label: "Aguardando piloto",                test: entre(2, 2) },
       { key: "em_prova",  label: "Piloto recebido / em prova",       test: entre(3, 4) },
       { key: "laudo",     label: "Laudo enviado / ficha p/ compras", test: entre(5, 6) },
     ]},
-    { grupo: "Mostruário", cor: "#b45309", itens: [
+    { grupo: "Mostruário", cor: FASES[1].cor, itens: [
       { key: "linx",       label: "Cadastro no Linx OK",             test: entre(7, 7) },
       { key: "ag_most",    label: "Aguardando mostruário",           test: entre(8, 8) },
       { key: "most_ent",   label: "Mostruário entregue",             test: entre(9, 9) },
       { key: "cores_pend", label: "Com cores ainda não entregues",   test: (e, ref) => e.etapa >= 9 && !!e.meta.coresEntregues && e.meta.coresEntregues.length < coresDe(ref).length },
     ]},
-    { grupo: "Produção", cor: "#15803d", itens: [
+    { grupo: "Produção", cor: FASES[2].cor, itens: [
       { key: "prova_prod", label: "Prova de produção",               test: entre(10, 10) },
       { key: "aprovada",   label: "Aprovada / laudo / ficha p/ compras", test: entre(11, 13) },
       { key: "repil",      label: "Repilotando",                     test: e => e.ciclo > 1 && e.etapa <= 10 },
       { key: "compras",    label: "Em compras (Linx, pedido, explosão)", test: entre(14, 17) },
     ]},
-    { grupo: "Pré-produção", cor: "#7e22ce", itens: [
+    { grupo: "Pré-produção", cor: FASES[3].cor, itens: [
       { key: "pre",      label: "Em pré-produção",                   test: entre(18, 18) },
       { key: "liberada", label: "Produção liberada",                 test: entre(19, 19) },
     ]},
@@ -352,21 +357,23 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
           {ETAPAS.map(et => {
             const cards = porEtapa[et.n] || [];
             const areas = et.a === "EC" ? ["E", "C"] : [et.a];
+            const fase = faseDe(et.n);
             return (
               <section key={et.n} aria-label={et.t}
                 onDragOver={e => { if (arrastando) { e.preventDefault(); setSobre(et.n); } }}
                 onDragLeave={() => setSobre(s => s === et.n ? null : s)}
                 onDrop={e => { e.preventDefault(); const ref = arrastando; setArrastando(null); setSobre(null); if (ref && estadoDe(ref).etapa !== et.n) abrirMover(ref, et.n); }}
-                className="flex flex-col rounded-[14px] bg-[var(--bg-secondary)] w-[calc(100vw-56px)] sm:w-[272px]"
-                style={{ scrollSnapAlign: "start", maxHeight: "100%", outline: sobre === et.n ? "2px dashed var(--system-blue)" : undefined, outlineOffset: -2 }}>
-                <div className="px-3 pt-2.5 pb-2">
+                className="flex flex-col rounded-[14px] overflow-hidden w-[calc(100vw-56px)] sm:w-[272px]"
+                style={{ scrollSnapAlign: "start", maxHeight: "100%", background: `${fase.cor}0f`, borderTop: `3px solid ${fase.cor}`, outline: sobre === et.n ? `2px dashed ${fase.cor}` : undefined, outlineOffset: -2 }}>
+                <div className="px-3 pt-2 pb-2" style={{ background: `${fase.cor}14` }}>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.06em] mb-1 ml-6" style={{ color: fase.cor }}>{fase.nome}</div>
                   <div className="flex items-start gap-2">
-                    <span className="text-[11px] text-[var(--label-tertiary)] tabnum pt-[2px]">{String(et.n).padStart(2, "0")}</span>
+                    <span className="text-[11px] font-bold tabnum pt-[2px]" style={{ color: fase.cor }}>{String(et.n).padStart(2, "0")}</span>
                     <span className="flex-1 text-[13px] font-semibold leading-tight">{et.t}</span>
                     <span className="text-[12px] text-[var(--label-secondary)] tabnum bg-[var(--bg-primary)] rounded-full px-2">{cards.length}</span>
                   </div>
                   <div className="flex flex-wrap gap-1 mt-1.5 ml-6">
-                    {areas.map(a => <span key={a} className="text-[10px] font-semibold px-2 py-[1px] rounded-full" style={{ background: COR_AREA[a].bg, color: COR_AREA[a].fg }}>{AREA_NOME[a as "E" | "C"]}</span>)}
+                    {areas.map(a => <span key={a} className="text-[10px] font-semibold px-2 py-[1px] rounded-full bg-[var(--bg-primary)] text-[var(--label-secondary)] border border-[var(--separator)]">{AREA_NOME[a as "E" | "C"]}</span>)}
                     {et.auto && et.n !== 1 && <span title={et.auto} className="text-[10px] font-semibold px-2 py-[1px] rounded-full bg-[rgba(0,122,255,0.10)] text-[var(--system-blue)]">automático</span>}
                   </div>
                 </div>
