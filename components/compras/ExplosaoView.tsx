@@ -16,22 +16,22 @@ const VAR_KEYS = ["var01","var02","var03","var04","var05","var06"] as const;
 // quantidade de cada aviamento é multiplicada.
 type Modo = "desenvolvimento" | "mostruario" | "producao";
 const MODOS: { key: Modo; label: string; regra: string; statusMatch: (s: string) => boolean }[] = [
-  { key: "desenvolvimento", label: "Desenvolvimento", regra: "2 peças por variante + 10%, arredondado por variante",
+  { key: "desenvolvimento", label: "Desenvolvimento", regra: "2 peças por variante",
     statusMatch: s => s.includes("DESENVOLVIMENTO") },
-  { key: "mostruario",      label: "Mostruário",      regra: "quantidade de mostruário da variante + 10%, arredondado por variante",
+  { key: "mostruario",      label: "Mostruário",      regra: "quantidade de mostruário da variante",
     statusMatch: s => s.includes("MOSTRUÁRIO") || s.includes("MOSTRUARIO") },
-  { key: "producao",        label: "Produção",        regra: "compra da variante (pedidos não entregues) + 10%, arredondado na dezena — acima de 1000, de 50 em 50",
+  { key: "producao",        label: "Produção",        regra: "compra da variante (pedidos não entregues)",
     statusMatch: s => s.includes("PRODUÇÃO") || s.includes("PRODUCAO") },
 ];
 
-// +10% arredondado para cima: na unidade em desenvolvimento/mostruário; na
-// produção, na dezena até 1000 e de 50 em 50 acima disso.
-// O Math.round tira o resíduo de ponto flutuante (1600 × 1,1 = 1760,0000000002,
-// que subiria para 1761 / 1800 errado em outros casos).
-function comMargem(q: number, modo: Modo): number {
+// Total da linha (aviamento + cor, somado em todas as refs) + 10%, arredondado
+// para cima na dezena até 1000 e de 50 em 50 acima disso:
+// 12 → 13,2 → 20 · 792 → 800 · 1020 → 1050 · 1060 → 1100.
+// O Math.round tira o resíduo de ponto flutuante (1600 × 1,1 = 1760,0000000002).
+function comMargem(q: number): number {
   if (q <= 0) return 0;
   const m = Math.round(q * 1.1 * 1e6) / 1e6;
-  const passo = modo !== "producao" ? 1 : m > 1000 ? 50 : 10;
+  const passo = m > 1000 ? 50 : 10;
   return Math.ceil(m / passo) * passo;
 }
 
@@ -227,50 +227,45 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
       const coresAviamento = VAR_KEYS.map(k => av[k] || "");
       const coresProduto = fichaCoresMap[av.ficha_id] || [];
 
-      // Regras da compra (valem em todas as etapas), calculadas em CADA
-      // variante de cada ref, com a cor do aviamento escolhida nela:
-      //   qtd do aviamento × peças da variante + 10%, arredondado para cima.
+      // Regras da compra (valem em todas as etapas): em cada variante
+      // solicitada de cada ref, a cor do aviamento escolhida nela recebe
+      //   qtd do aviamento × peças da variante.
       // Peças da variante: desenvolvimento = 2; mostruário = qtd de mostruário
       // da variante; produção = compra pendente da cor da peça.
-      // Arredondamento: desenvolvimento/mostruário na unidade; produção na
-      // dezena até 1000 e de 50 em 50 acima (1020 → 1050, 1060 → 1100, 792 → 800).
+      // Depois de somar todas as refs, cada linha (aviamento + cor) leva +10%
+      // e arredonda para cima — ver comMargem.
       //
-      // Só conta variante solicitada: a que tem cor de peça no 1º tecido da
-      // ficha. Ficha sem cor nenhuma no tecido conta pelas cores do aviamento.
+      // Variante solicitada = a que tem cor de peça no 1º tecido da ficha.
       const temCorProduto = coresProduto.some(Boolean);
-      const varianteAtiva = (i: number) => !temCorProduto || !!coresProduto[i];
       const pecasNaVariante = (i: number) =>
         modo === "producao"    ? comprasPorCorMap.get(`${prodId}:${coresProduto[i] || ""}`) || 0
         : modo === "mostruario" ? Number(qtdMosts[i]) || 0
         : 2;
 
-      if (!coresAviamento.some(Boolean)) {
-        // Sem cor por variante (ex. adesivo, tag genérico): mesma conta, em
-        // cada variante solicitada.
-        if (!temCorProduto) {
-          // Sem cores de peça não dá para separar por variante.
-          const pecas = modo === "producao" ? productTotalComprasMap[prodId] || 0
-            : modo === "mostruario" ? qtdMosts.reduce((s: number, v) => s + (Number(v) || 0), 0)
-            : 2;
-          addQty(av, "", ref, comMargem(qtdItem * pecas, modo));
-          return;
-        }
-        coresProduto.forEach((c, i) => {
-          if (!c || i >= VAR_KEYS.length) return;
-          addQty(av, "", ref, comMargem(qtdItem * pecasNaVariante(i), modo));
-        });
+      if (!temCorProduto) {
+        // Ficha sem cor no tecido: conta como UMA variante (a cor do aviamento
+        // é a primeira preenchida). Antes contava cada VAR com cor de
+        // aviamento — e o aviamento costuma vir com a mesma cor repetida nas 6,
+        // então uma ref de 1 variante virava 6 (TA0003 da HABIB, ref 20060349).
+        const pecas = modo === "producao" ? productTotalComprasMap[prodId] || 0
+          : modo === "mostruario" ? qtdMosts.reduce((s: number, v) => s + (Number(v) || 0), 0)
+          : 2;
+        addQty(av, coresAviamento.find(Boolean) || "", ref, qtdItem * pecas);
         return;
       }
 
-      coresAviamento.forEach((corAv, i) => {
-        if (!corAv || !varianteAtiva(i)) return;
-        addQty(av, corAv, ref, comMargem(qtdItem * pecasNaVariante(i), modo));
+      coresProduto.forEach((corProd, i) => {
+        if (!corProd || i >= VAR_KEYS.length) return;
+        const semCorPorVariante = !coresAviamento.some(Boolean);
+        // Aviamento sem cor (adesivo, tag genérico) vale em toda variante;
+        // com cor, só onde a cor foi escolhida.
+        if (!semCorPorVariante && !coresAviamento[i]) return;
+        addQty(av, semCorPorVariante ? "" : coresAviamento[i], ref, qtdItem * pecasNaVariante(i));
       });
     });
 
     let rows = Object.values(byKey).map(r => {
-      // Os +10% e o arredondamento já entraram por variante.
-      const qtdComMargem = r.qtd;
+      const qtdComMargem = comMargem(r.qtd);
       return {
         ...r,
         qtd: qtdComMargem,
@@ -359,7 +354,7 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
             ))}
           </div>
           <span className="text-[11px] text-[var(--label-tertiary)]">
-            quantidade do aviamento na variante × <span className="font-semibold text-[var(--label-secondary)]">{modoInfo.regra}</span>
+            quantidade do aviamento na variante × <span className="font-semibold text-[var(--label-secondary)]">{modoInfo.regra}</span>, somado nas refs, + 10% arredondado para cima (dezena até 1000; acima, de 50 em 50)
           </span>
         </div>
       </div>
