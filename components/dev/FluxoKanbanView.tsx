@@ -148,7 +148,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     { grupo: "Pilotagem", cor: FASES[0].cor, itens: [
       { key: "dev",       label: "Em desenvolvimento",               test: entre(1, 1) },
       { key: "ag_piloto", label: "Aguardando piloto",                test: entre(2, 2) },
-      { key: "em_prova",  label: "Piloto recebido / em prova",       test: entre(3, 4) },
+      { key: "em_prova",  label: "Piloto recebida / em prova",       test: entre(3, 4) },
       { key: "laudo",     label: "Laudo enviado / ficha p/ compras", test: entre(5, 6) },
     ]},
     { grupo: "Mostruário", cor: FASES[1].cor, itens: [
@@ -711,7 +711,7 @@ function DialogoMover({ ref_, alvo, row, estado, cores, hoje, onCancel, onConfir
                 className={`py-3 rounded-xl border text-[13px] font-semibold ${resultado === k ? "border-[var(--system-blue)] bg-[rgba(0,122,255,0.08)] text-[var(--system-blue)]" : "border-[var(--separator-opaque)]"}`}>{l}</button>
             ))}
           </div>
-          <p className="text-[12px] text-[var(--label-secondary)]">Normalmente vem sozinho do status da prova na ficha. Repilotando volta o card para “Piloto recebido” no ciclo seguinte, sem apagar as datas do anterior.</p>
+          <p className="text-[12px] text-[var(--label-secondary)]">Normalmente vem sozinho do status da prova na ficha. Repilotando volta o card para “PILOTO RECEBIDA” no ciclo seguinte, sem apagar as datas do anterior.</p>
         </div>
       )}
       {et.auto && et.n !== 1 && <p className="text-[12px] text-[var(--label-secondary)]"><b>Esta etapa também avança sozinha:</b> {et.auto.replace(/^[^:]+: /, "")}.</p>}
