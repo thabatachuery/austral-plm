@@ -20,9 +20,9 @@ import { pdfEmImagens } from "@/lib/pdf-paginas";
 // Status em que qualquer alteração de cor/tecido/aviamento dispara o popup de alerta.
 const STATUS_ALERTA = [STATUS_ESTILO.MOSTARIO_LIBERADO, STATUS_ESTILO.PRODUCAO_LIBERADA, STATUS_ESTILO.REPILOTANDO_PRODUCAO] as string[];
 
-type Props = { row: any; onClose: () => void; onSave: (r: any, variantesChanged?: boolean) => void; temTemporadas?: boolean };
+type Props = { row: any; onClose: () => void; onSave: (r: any, variantesChanged?: boolean) => void; temTemporadas?: boolean; somenteLeitura?: boolean };
 
-export default function FichaModal({ row, onClose, onSave, temTemporadas = false }: Props) {
+export default function FichaModal({ row, onClose, onSave, temTemporadas = false, somenteLeitura = false }: Props) {
   const [tab, setTab] = useState<"ficha" | "estamparia" | "liberacao" | "graduacao">("ficha");
   const [img, setImg] = useState<string | null>(null);
   const [imgModelo, setImgModelo] = useState<string | null>(null);
@@ -527,6 +527,8 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   };
 
   const save = async (confirmed = false) => {
+    // Aberta só para consulta (aba Preços): nada é gravado, nem o auto-save.
+    if (somenteLeitura) return;
     const autoStatus = autoStatusFor(statusLib);
     // Se vai mudar o status do produto automaticamente, pedir confirmação (só no save manual)
     if (autoStatus && autoStatus !== row.status && !confirmed) {
@@ -960,6 +962,14 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
           </div>
         )}
 
+        {/* Somente leitura: o conteúdo das abas não recebe clique nem digitação.
+            Abas, exportar PDF e fechar ficam fora deste bloco e seguem funcionando. */}
+        {somenteLeitura && (
+          <div className="mx-3 sm:mx-6 mt-3 text-[12px] font-medium text-[var(--label-secondary)] bg-[var(--bg-secondary)] rounded-lg px-3 py-2">
+            Somente visualização — para alterar a ficha, abra pelo Desenvolvimento.
+          </div>
+        )}
+        <div className={somenteLeitura ? "pointer-events-none" : undefined} aria-readonly={somenteLeitura || undefined}>
         {/* ═══ FICHA TÉCNICA ═══ */}
         {tab === "ficha" && (<div className="px-3 sm:px-6 py-4 sm:py-6 space-y-5">
           <div style={{ background: fichaColor }} className="text-white rounded-xl px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
@@ -982,6 +992,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
                 >
                   <button onClick={() => { if (!editandoTemporadas) { setSelectedColecao(c); setNewColecaoMode(false); } }}
                     style={{
+                      pointerEvents: "auto",
                       fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 20, border: "1.5px solid",
                       cursor: editandoTemporadas ? "grab" : "pointer", transition: "all .15s",
                       background: selectedColecao === c ? "var(--system-blue)" : "var(--bg-primary)",
@@ -2134,6 +2145,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
           );
         })()}
 
+        </div>
         </div>
         )}
         {/* Fica fora das tabs (sempre montado) mas dentro do diálogo: como filho

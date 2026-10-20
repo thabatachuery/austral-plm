@@ -27,6 +27,8 @@ type Props = { rows: any[]; setRows: (fn: any) => void; onOpenFicha: (row: any) 
 // Forn. tecido é só leitura (vem do cadastro do tecido), mas também filtra.
 const FC = COLUMNS.filter(c => (c.type === "select" && c.cad && c.key !== "colecao") || c.key === "forn_tecido");
 const ALWAYS_VISIBLE = ["ref"];
+// Em Preços estas colunas começam ocultas (dá para ligar em "Colunas").
+const OCULTAS_PADRAO_COMPRAS = ["tecido", "composicao", "forn_tecido", "subgrupo", "operacao"];
 
 // ── Colunas de status exclusivas de Compras ───────────────────────────────
 const STATUS_PRECO_OPTS = ["SEM CUSTO","CUSTO SOLICITADO","EM NEGOCIAÇÃO","CUSTO FECHADO"];
@@ -150,6 +152,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
   const isColVisible = (key: string) => {
     if (ALWAYS_VISIBLE.includes(key)) return true;
     if (hiddenColumns.includes(key)) return false;
+    if (visibleCols[key] === undefined && permPrefix === "compras_" && OCULTAS_PADRAO_COMPRAS.includes(key)) return false;
     return visibleCols[key] !== false;
   };
   const toggleCol = (key: string) => setVisibleCols(p => ({ ...p, [key]: !isColVisible(key) }));
@@ -163,7 +166,31 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
   // ficam travadas na esquerda ao rolar pro lado — no celular é o que se usa
   // pra achar o produto e abrir a ficha. O deslocamento de cada coluna travada
   // depende da largura real das anteriores, então é medido no cabeçalho.
-  const COLS_TABELA = [...COLUMNS.filter(c => c.key === "link_ficha"), ...COLUMNS.filter(c => c.key !== "link_ficha")];
+  const COLS_TABELA = permPrefix === "compras_"
+    // Preços: Ficha (travada à esquerda, como no Desenvolvimento), Referência,
+    // Descrição, status/campos de preço e depois o resto.
+    ? ["link_ficha", "ref", "desc"].map(k => COLUMNS.find(c => c.key === k)!).concat(COLUMNS.filter(c => !["link_ficha", "ref", "desc"].includes(c.key)))
+    : [...COLUMNS.filter(c => c.key === "link_ficha"), ...COLUMNS.filter(c => c.key !== "link_ficha")];
+  const posPrecos = permPrefix === "compras_" ? "desc" : null;
+  const precoTds = (row: any) => PRICE_COLS.filter(c => isColVisible(c.key)).map(c => {
+          const isMult = MULT_KEYS.has(c.key);
+          if (c.computed) {
+            const val = getPriceVal(c.key, row);
+            return <td key={c.key} style={{width:c.width,minWidth:c.width,textAlign:"right"}}><span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-tertiary)] italic tabnum">{fmtBRL(val,{mult:isMult})}</span></td>;
+          }
+          const rawVal = row[c.key];
+          const canEditPrice = isAdmin || perms["compras_precos"] === true;
+          const dispFn = isMult
+            ? (v: number) => v.toFixed(2).replace(".", ",") + "×"
+            : (v: number) => "R$ " + v.toFixed(2).replace(".", ",");
+          return <td key={c.key} style={{width:c.width,minWidth:c.width,textAlign:"right"}}>
+            {canEditPrice
+              ? <InlineCell value={rawVal ?? ""} type="number" displayFn={dispFn} onChange={v => upd(row.id, c.key, v)} />
+              : <span className="text-[13px] px-2.5 py-1.5 block tabnum">{fmtBRL(rawVal != null && rawVal !== "" ? Number(rawVal) : null, {mult:isMult})}</span>
+            }
+          </td>;
+  });
+
   const thCheckRef = useRef<HTMLTableCellElement>(null);
   const thFichaRef = useRef<HTMLTableCellElement>(null);
   const [stickyLeft, setStickyLeft] = useState({ link_ficha: 0, ref: 0 });
@@ -640,7 +667,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
             ) : c.label}
           </th>
         );
-        if (c.key === "ref" && permPrefix === "compras_") {
+        if (c.key === posPrecos) {
           return [mainTh, ...COMPRAS_STATUS_COLS.filter(sc => isColVisible(sc.key)).map(sc => (
             <th key={sc.key} style={{width:sc.width,minWidth:sc.width}}>
               <button onClick={() => toggleSort(sc.key)} className={`inline-flex items-center gap-1 select-none cursor-pointer hover:text-[var(--label-primary)] transition-colors ${sort?.key===sc.key?"text-[var(--system-blue)]":""}`}>
@@ -650,15 +677,14 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
                 </svg>
               </button>
             </th>
+          )), ...PRICE_COLS.filter(pc => isColVisible(pc.key)).map(pc => (
+            <th key={pc.key} style={{width:pc.width,minWidth:pc.width,textAlign:"right"}}>
+              <span className={pc.computed ? "text-[var(--label-tertiary)] italic" : ""}>{pc.label}</span>
+            </th>
           ))];
         }
         return [mainTh];
       })}
-      {permPrefix === "compras_" && PRICE_COLS.filter(c => isColVisible(c.key)).map(c => (
-        <th key={c.key} style={{width:c.width,minWidth:c.width,textAlign:"right"}}>
-          <span className={c.computed ? "text-[var(--label-tertiary)] italic" : ""}>{c.label}</span>
-        </th>
-      ))}
       <th style={{width:120,minWidth:120,textAlign:"right"}}>
         <span className="inline-flex items-center gap-1" title="Estoque atual no Linx (todas as cores e filiais). Em verde, o que está a receber (pedidos de compra/produção pendentes).">
           Estoque
@@ -670,8 +696,8 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
           {!readOnly && canAdd && <td style={{width:36,padding:"0 8px",position:"sticky",left:0,zIndex:2,background:"var(--bg-primary)"}}><input type="checkbox" aria-label={`Selecionar SKU ${row.ref}`} checked={selected.has(row.id)} onChange={()=>toggleSelect(row.id)} style={{cursor:"pointer"}}/></td>}
           {COLS_TABELA.filter(c=>isColVisible(c.key)).flatMap(c=>{
           const isSticky = isStickyCol(c.key);
-          const mainTd = <td key={c.key} style={{width:c.width,minWidth:c.width,...(isSticky?{position:"sticky",left:stickyLeft[c.key as "ref"|"link_ficha"],zIndex:2,background:"var(--bg-primary)",...(c.key===ultimaSticky?{boxShadow:"2px 0 4px rgba(0,0,0,0.04)"}:{})}:{})}}>{c.type==="action"?<div style={{display:"flex",gap:4}}><button onClick={()=>onOpenFicha(colecaoAtiva&&row.colecao!==colecaoAtiva?{...row,_temporada:colecaoAtiva}:row)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir</button>{!readOnly&&canAdd&&<button onClick={()=>{setCloneSource(row);setCloneRef("");}} title="Clonar SKU" className="apple-btn-secondary text-[12px] py-1 px-2" style={{color:"var(--system-blue)"}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>}</div>:c.type==="readonly"?<span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-secondary)]">{row[c.key]||"—"}</span>:(readOnly||permPrefix==="compras_")?<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-secondary)"}}>{row[c.key]||"—"}</span>:canEdit(c.key)?<InlineCell value={row[c.key]} type={c.type} options={c.cad?opts(c.cad):undefined} isStatus={c.key==="status"} onChange={v=>upd(row.id,c.key,v)}/>:<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-tertiary)",cursor:"default"}} title="Sem permissão para editar">{row[c.key]||"—"}</span>}</td>;
-          if (c.key === "ref" && permPrefix === "compras_") {
+          const mainTd = <td key={c.key} style={{width:c.width,minWidth:c.width,...(isSticky?{position:"sticky",left:stickyLeft[c.key as "ref"|"link_ficha"],zIndex:2,background:"var(--bg-primary)",...(c.key===ultimaSticky?{boxShadow:"2px 0 4px rgba(0,0,0,0.04)"}:{})}:{})}}>{c.type==="action"?<div style={{display:"flex",gap:4}}><button onClick={()=>onOpenFicha(colecaoAtiva&&row.colecao!==colecaoAtiva?{...row,_temporada:colecaoAtiva}:row)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir</button>{!readOnly&&canAdd&&permPrefix!=="compras_"&&<button onClick={()=>{setCloneSource(row);setCloneRef("");}} title="Clonar SKU" className="apple-btn-secondary text-[12px] py-1 px-2" style={{color:"var(--system-blue)"}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>}</div>:c.type==="readonly"?<span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-secondary)]">{row[c.key]||"—"}</span>:(readOnly||permPrefix==="compras_")?<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-secondary)"}}>{row[c.key]||"—"}</span>:canEdit(c.key)?<InlineCell value={row[c.key]} type={c.type} options={c.cad?opts(c.cad):undefined} isStatus={c.key==="status"} onChange={v=>upd(row.id,c.key,v)}/>:<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-tertiary)",cursor:"default"}} title="Sem permissão para editar">{row[c.key]||"—"}</span>}</td>;
+          if (c.key === posPrecos) {
             return [mainTd, ...COMPRAS_STATUS_COLS.filter(sc => isColVisible(sc.key)).map(sc => {
               const sv = row[sc.key] || "";
               const ss = sc.styles[sv];
@@ -681,27 +707,9 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
                   ? <InlineCell value={sv} type="select" options={sc.opts} displayEl={pill} onChange={v=>upd(row.id,sc.key,String(v))}/>
                   : <div className="px-1 py-0.5">{pill}</div>}
               </td>;
-            })];
+            }), ...precoTds(row)];
           }
           return [mainTd];
-        })}
-        {permPrefix === "compras_" && PRICE_COLS.filter(c => isColVisible(c.key)).map(c => {
-          const isMult = MULT_KEYS.has(c.key);
-          if (c.computed) {
-            const val = getPriceVal(c.key, row);
-            return <td key={c.key} style={{width:c.width,minWidth:c.width,textAlign:"right"}}><span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-tertiary)] italic tabnum">{fmtBRL(val,{mult:isMult})}</span></td>;
-          }
-          const rawVal = row[c.key];
-          const canEditPrice = isAdmin || perms["compras_precos"] === true;
-          const dispFn = isMult
-            ? (v: number) => v.toFixed(2).replace(".", ",") + "×"
-            : (v: number) => "R$ " + v.toFixed(2).replace(".", ",");
-          return <td key={c.key} style={{width:c.width,minWidth:c.width,textAlign:"right"}}>
-            {canEditPrice
-              ? <InlineCell value={rawVal ?? ""} type="number" displayFn={dispFn} onChange={v => upd(row.id, c.key, v)} />
-              : <span className="text-[13px] px-2.5 py-1.5 block tabnum">{fmtBRL(rawVal != null && rawVal !== "" ? Number(rawVal) : null, {mult:isMult})}</span>
-            }
-          </td>;
         })}
         <td style={{textAlign:"right"}}>{(() => {
           if (estoqueMap === null) return <span className="text-[12px] text-[var(--label-quaternary)] px-2.5 tabnum">…</span>;
