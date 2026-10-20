@@ -16,9 +16,9 @@ const VAR_KEYS = ["var01","var02","var03","var04","var05","var06"] as const;
 // quantidade de cada aviamento é multiplicada.
 type Modo = "desenvolvimento" | "mostruario" | "producao";
 const MODOS: { key: Modo; label: string; regra: string; statusMatch: (s: string) => boolean }[] = [
-  { key: "desenvolvimento", label: "Desenvolvimento", regra: "1 peça por variante",
+  { key: "desenvolvimento", label: "Desenvolvimento", regra: "1 peça por variante + 10%, arredondado por variante",
     statusMatch: s => s.includes("DESENVOLVIMENTO") },
-  { key: "mostruario",      label: "Mostruário",      regra: "quantidade de mostruário da variante",
+  { key: "mostruario",      label: "Mostruário",      regra: "quantidade de mostruário da variante + 10%, arredondado por variante",
     statusMatch: s => s.includes("MOSTRUÁRIO") || s.includes("MOSTRUARIO") },
   { key: "producao",        label: "Produção",        regra: "compra da variante, só pedidos não entregues",
     statusMatch: s => s.includes("PRODUÇÃO") || s.includes("PRODUCAO") },
@@ -214,39 +214,54 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
       const qtdItem = Number(av.qtd) || 0;
       const qtdMosts = fichaQtdMostMap[av.ficha_id] || [];
       const coresAviamento = VAR_KEYS.map(k => av[k] || "");
+      const coresProduto = fichaCoresMap[av.ficha_id] || [];
+
+      // Desenvolvimento e mostruário: os +10% são arredondados para cima em
+      // CADA variante de cada ref (8 × 1 peça → 9; 1 × 1 → 2), como pedido pela
+      // compra. Somar tudo antes de arredondar (o que vale para produção) dava
+      // menos — 2 refs com 1 unidade viravam 3 em vez de 4.
+      //
+      // Só conta variante solicitada: a que tem cor de peça no 1º tecido da
+      // ficha. Ficha sem cor nenhuma no tecido conta pelas cores do aviamento.
+      const temCorProduto = coresProduto.some(Boolean);
+      const varianteAtiva = (i: number) => !temCorProduto || !!coresProduto[i];
+      const pecasNaVariante = (i: number) => modo === "mostruario" ? Number(qtdMosts[i]) || 0 : 1;
+      const comMargem = (q: number) => Math.ceil(q * 1.1);
 
       if (!coresAviamento.some(Boolean)) {
         // Sem cor por variante (ex. adesivo, tag genérico): vale pra peça
         // inteira, então soma todas as cores do produto.
-        let multiplier = 0;
-        if (modo === "producao")        multiplier = productTotalComprasMap[prodId] || 0;
-        else if (modo === "mostruario") multiplier = qtdMosts.reduce((s: number, v) => s + (Number(v) || 0), 0);
-        else                            multiplier = Math.max(variantes[ref]?.length ?? 0, 1);
-        addQty(av, "", ref, qtdItem * multiplier);
+        if (modo === "producao") {
+          addQty(av, "", ref, qtdItem * (productTotalComprasMap[prodId] || 0));
+          return;
+        }
+        const slots = temCorProduto
+          ? coresProduto.map((c, i) => (c ? i : -1)).filter(i => i >= 0 && i < VAR_KEYS.length)
+          : modo === "mostruario"
+          ? qtdMosts.map((_, i) => i)
+          : [0];
+        slots.forEach(i => addQty(av, "", ref, comMargem(qtdItem * pecasNaVariante(i))));
         return;
       }
 
       // Com cor por variante: cada variante (slot) casa a cor do aviamento
       // ali escolhida com a quantidade da cor DA PEÇA nesse mesmo slot — é por
       // isso que precisa das cores do tecido, não só do total.
-      const coresProduto = fichaCoresMap[av.ficha_id] || [];
       coresAviamento.forEach((corAv, i) => {
         if (!corAv) return;
-        let multiplier = 0;
         if (modo === "producao") {
           const corProd = coresProduto[i] || "";
-          multiplier = comprasPorCorMap.get(`${prodId}:${corProd}`) || 0;
-        } else if (modo === "mostruario") {
-          multiplier = Number(qtdMosts[i]) || 0;
-        } else {
-          multiplier = 1; // 1 peça-amostra dessa variante, em desenvolvimento
+          addQty(av, corAv, ref, qtdItem * (comprasPorCorMap.get(`${prodId}:${corProd}`) || 0));
+          return;
         }
-        addQty(av, corAv, ref, qtdItem * multiplier);
+        if (!varianteAtiva(i)) return;
+        addQty(av, corAv, ref, comMargem(qtdItem * pecasNaVariante(i)));
       });
     });
 
     let rows = Object.values(byKey).map(r => {
-      const qtdComMargem = Math.ceil(r.qtd * 1.1);
+      // Em desenvolvimento/mostruário os +10% já entraram por variante.
+      const qtdComMargem = modo === "producao" ? Math.ceil(r.qtd * 1.1) : r.qtd;
       return {
         ...r,
         qtd: qtdComMargem,
