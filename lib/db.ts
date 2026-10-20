@@ -870,8 +870,17 @@ export async function upsertLaudoPPMedidas(laudoPedidoId: number, medidas: Recor
 }
 
 // Fetch all product variants (ref -> cores[]) from ficha_tecidos
+// Variante = cor da peça, que é a cor do 1º tecido da ficha (Tec.01). Os
+// tecidos secundários (forro, correntinha, ribana...) têm cor por variante
+// também, mas não criam variante nova — antes a cor "PT" de uma correntinha
+// aparecia como variante da calça (22010021).
+function soTecidoPrincipal<T extends { ficha_id?: number }>(linhas: T[]): T[] {
+  const vistas = new Set<number>();
+  return linhas.filter(t => { const id = Number(t.ficha_id); if (vistas.has(id)) return false; vistas.add(id); return true; });
+}
+
 export async function fetchAllVariantes(): Promise<Record<string, string[]>> {
-  const tecidos = await selectAll((de, ate) => sb().from("ficha_tecidos").select("ficha_id, cores, fichas_tecnicas!inner(produto_ref, colecao)").order("id").range(de, ate), "fetchAllVariantes");
+  const tecidos = soTecidoPrincipal(await selectAll((de, ate) => sb().from("ficha_tecidos").select("ficha_id, cores, fichas_tecnicas!inner(produto_ref, colecao)").order("id").range(de, ate), "fetchAllVariantes"));
   const result: Record<string, string[]> = {};
   tecidos.forEach((t: any) => {
     const ref = t.fichas_tecnicas?.produto_ref;
@@ -884,7 +893,7 @@ export async function fetchAllVariantes(): Promise<Record<string, string[]>> {
 
 // Fetch season-specific variants for classic refs: ref -> colecao -> cores[]
 export async function fetchVariantesPorColecao(): Promise<Record<string, Record<string, string[]>>> {
-  const tecidos = await selectAll((de, ate) => sb().from("ficha_tecidos").select("cores, fichas_tecnicas!inner(produto_ref, colecao)").order("id").range(de, ate), "fetchVariantesPorColecao");
+  const tecidos = soTecidoPrincipal(await selectAll((de, ate) => sb().from("ficha_tecidos").select("ficha_id, cores, fichas_tecnicas!inner(produto_ref, colecao)").order("id").range(de, ate), "fetchVariantesPorColecao"));
   const result: Record<string, Record<string, string[]>> = {};
   tecidos.forEach((t: any) => {
     const ref = t.fichas_tecnicas?.produto_ref;
@@ -970,7 +979,7 @@ export async function fetchMapaColecao() {
     selectAll((de, ate) => sb().from("produtos").select("*").order("grupo").order("ref").range(de, ate), "fetchMapaColecao/produtos"),
     selectAll((de, ate) => sb().from("fichas_tecnicas").select("produto_ref, imagem_url, imagem_modelo, imagem_frente, imagem_costas").range(de, ate), "fetchMapaColecao/fichas"),
     selectAll((de, ate) => sb().from("tecidos").select("nome, composicao, imagem").range(de, ate), "fetchMapaColecao/tecidos"),
-    selectAll((de, ate) => sb().from("ficha_tecidos").select("ficha_id, cores, fichas_tecnicas!inner(produto_ref, colecao)").range(de, ate), "fetchMapaColecao/ficha_tecidos"),
+    selectAll((de, ate) => sb().from("ficha_tecidos").select("ficha_id, cores, fichas_tecnicas!inner(produto_ref, colecao)").order("id").range(de, ate), "fetchMapaColecao/ficha_tecidos").then(soTecidoPrincipal),
   ]);
 
   const imgMap: Record<string, string> = {};
