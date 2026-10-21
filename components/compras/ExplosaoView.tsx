@@ -315,7 +315,7 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
   const avancarKanban = () => {
     if (modo !== "producao") return;
     const refs = Array.from(new Set(sorted.flatMap((r: any) => String(r.refs || "").split(",").map((x: string) => x.trim()).filter(Boolean))));
-    avancarFluxoDaEtapa(refs, 16, 17, "Explosão de produção exportada", nomeUsuario(user)).catch(() => {});
+    avancarFluxoDaEtapa(refs, 17, 18, "Explosão de produção exportada", nomeUsuario(user)).catch(() => {});
   };
 
   const handleExportPdf = async () => {

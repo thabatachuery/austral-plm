@@ -1,5 +1,5 @@
 // Kanban de etapas (aba "Kanban de Fluxo"): cada ref é um card que anda por
-// 19 etapas, de Desenvolvimento a Produção liberada.
+// 20 etapas, de Desenvolvimento a Produção liberada.
 //
 // A etapa atual mora em controle_fluxo (etapa, ciclo, etapa_desde, fluxo_meta)
 // e cada movimento vira uma linha em fluxo_eventos. Mover o card também
@@ -14,7 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type Area = "E" | "C" | "EC";
-export type Pergunta = "prevPiloto" | "prevMost" | "cores" | "preprod" | "aprovacao";
+export type Pergunta = "prevPiloto" | "prevMost" | "cores" | "preprod";
 export type Etapa = { n: number; t: string; a: Area; auto?: string; ask?: Pergunta };
 
 export const ETAPAS: Etapa[] = [
@@ -28,15 +28,16 @@ export const ETAPAS: Etapa[] = [
   { n: 8,  t: "PEDIDO EMITIDO / AGUARDANDO MOSTRUÁRIO", a: "C", ask: "prevMost" },
   { n: 9,  t: "MOSTRUÁRIO ENTREGUE", a: "E", ask: "cores" },
   { n: 10, t: "PROVA DE PRODUÇÃO", a: "E", auto: "Da ficha: prova do tipo PRODUÇÃO com data" },
-  { n: 11, t: "PRODUÇÃO APROVADA", a: "E", auto: "Da ficha: status da prova de produção", ask: "aprovacao" },
-  { n: 12, t: "LAUDO DE PRODUÇÃO ENVIADO AO FORNECEDOR", a: "E" },
-  { n: 13, t: "FICHA PRODUÇÃO ENTREGUE P/ COMPRAS", a: "E" },
-  { n: 14, t: "CADASTRO LINX CORRIGIDO", a: "C" },
-  { n: 15, t: "COMPRA DEFINIDA", a: "C" },
-  { n: 16, t: "PEDIDO EMITIDO", a: "C", auto: "Do Linx: quando aparece um pedido novo da ref" },
-  { n: 17, t: "EXPLOSÃO DE AVIAMENTOS", a: "C", auto: "Quando a ref entra numa explosão de produção exportada" },
-  { n: 18, t: "PRÉ-PRODUÇÃO", a: "C", ask: "preprod" },
-  { n: 19, t: "PRODUÇÃO LIBERADA", a: "EC" },
+  { n: 11, t: "PRODUÇÃO REPILOTANDO", a: "E", auto: "Da ficha: prova de produção reprovada" },
+  { n: 12, t: "PRODUÇÃO APROVADA", a: "E", auto: "Da ficha: prova de produção liberada" },
+  { n: 13, t: "LAUDO DE PRODUÇÃO ENVIADO AO FORNECEDOR", a: "E" },
+  { n: 14, t: "FICHA PRODUÇÃO ENTREGUE P/ COMPRAS", a: "E" },
+  { n: 15, t: "CADASTRO LINX CORRIGIDO", a: "C" },
+  { n: 16, t: "COMPRA DEFINIDA", a: "C" },
+  { n: 17, t: "PEDIDO EMITIDO", a: "C", auto: "Do Linx: quando aparece um pedido novo da ref" },
+  { n: 18, t: "EXPLOSÃO DE AVIAMENTOS", a: "C", auto: "Quando a ref entra numa explosão de produção exportada" },
+  { n: 19, t: "PRÉ-PRODUÇÃO", a: "C", ask: "preprod" },
+  { n: 20, t: "PRODUÇÃO LIBERADA", a: "EC" },
 ];
 export const TOTAL_ETAPAS = ETAPAS.length;
 
@@ -51,8 +52,8 @@ export type FluxoMeta = {
   prevPiloto?: string;          // previsão de entrega do piloto (etapa 2)
   prevMost?: string;            // previsão de entrega do mostruário (etapa 8)
   coresEntregues?: string[];    // cores do mostruário que chegaram (etapa 9)
-  preEntrega?: string;          // entrega da pré-produção (etapa 18)
-  pedidosVistos?: string[];     // pedidos do Linx que já existiam ao entrar em 15
+  preEntrega?: string;          // entrega da pré-produção (etapa 19)
+  pedidosVistos?: string[];     // pedidos do Linx que já existiam ao entrar em 16
 };
 
 export type FluxoEstado = { ref: string; etapa: number; ciclo: number; desde: string | null; meta: FluxoMeta };
@@ -104,7 +105,7 @@ export function camposControleFluxo(etapa: number, ciclo: number, data: string, 
     case 8:  return meta.prevMost ? { prev_entrega_mostruario: meta.prevMost } : {};
     case 9:  return { data_entrega_mostruario: data };
     case 10: return ciclo > 1 ? { data_prova_producao_2: data } : { data_prova_producao_1: data };
-    case 18: return { data_entrega_pre_producao: meta.preEntrega || data };
+    case 19: return { data_entrega_pre_producao: meta.preEntrega || data };
     default: return {};
   }
 }
@@ -146,23 +147,29 @@ export function proximaPorFicha(e: FluxoEstado, provas: ProvaFicha[], hoje = hoj
     const p = [...provas].reverse().find(x => ehProducao(x) && x.data >= desde && x.status);
     if (p) {
       const st = norm(p.status);
-      if (st.startsWith("LIBERADO")) return { etapa: 11, data: hoje, obs: `Prova de produção ${p.status.toLowerCase()} na ficha` };
-      if (st === "REPROVADO") return { etapa: 3, data: hoje, ciclo: e.ciclo + 1, obs: `Prova de produção reprovada — repilotando (ciclo ${e.ciclo + 1})` };
+      if (st.startsWith("LIBERADO")) return { etapa: 12, data: hoje, obs: `Prova de produção ${p.status.toLowerCase()} na ficha` };
+      if (st === "REPROVADO") return { etapa: 11, data: hoje, ciclo: e.ciclo + 1, obs: `Prova de produção reprovada — repilotando (ciclo ${e.ciclo + 1})` };
     }
+  }
+  // Repilotando: a prova nova (com data, ainda não reprovada) devolve o card
+  // para Prova de produção. A reprovada que trouxe o card até aqui não conta.
+  if (e.etapa === 11) {
+    const p = provas.find(x => ehProducao(x) && x.data >= desde && norm(x.status) !== "REPROVADO");
+    if (p) return { etapa: 10, data: p.data, obs: `Nova prova de produção (ciclo ${e.ciclo}) com data na ficha` };
   }
   return null;
 }
 
 export type LinxFluxo = { cadastrados: string[]; pedidos: Record<string, string[]> };
 
-// Cadastro no Linx (6 → 7) e pedido novo (15 → 16). "Pedido novo" é um número
+// Cadastro no Linx (6 → 7) e pedido novo (16 → 17). "Pedido novo" é um número
 // que não existia quando o card entrou em Compra definida: pedidos de
 // mostruário ainda abertos não contam.
 export function proximaPorLinx(e: FluxoEstado, linx: LinxFluxo, cadastrados: Set<string>, hoje = hojeISO()): Sugestao | null {
   if (e.etapa === 6 && cadastrados.has(e.ref)) return { etapa: 7, data: hoje, obs: "Ref encontrada cadastrada no Linx" };
-  if (e.etapa === 15 && e.meta.pedidosVistos) {
+  if (e.etapa === 16 && e.meta.pedidosVistos) {
     const novo = (linx.pedidos[e.ref] || []).find(n => !e.meta.pedidosVistos!.includes(n));
-    if (novo) return { etapa: 16, data: hoje, obs: `Pedido ${novo} no Linx` };
+    if (novo) return { etapa: 17, data: hoje, obs: `Pedido ${novo} no Linx` };
   }
   return null;
 }
@@ -187,22 +194,22 @@ export async function gravarMovimento(client: SupabaseClient, ref: string, m: Mo
   return error ? error.message : null;
 }
 
-// Meta ao entrar numa etapa: 15 guarda os pedidos já existentes no Linx.
+// Meta ao entrar numa etapa: 16 guarda os pedidos já existentes no Linx.
 export function metaAoEntrar(para: number, meta: FluxoMeta, ref: string, linx: LinxFluxo | null): FluxoMeta {
-  if (para === 15) return { ...meta, pedidosVistos: linx ? (linx.pedidos[ref] || []) : undefined };
+  if (para === 16) return { ...meta, pedidosVistos: linx ? (linx.pedidos[ref] || []) : undefined };
   return meta;
 }
 
 // Aplica todas as regras automáticas (ficha e Linx) em sequência para um card
-// — uma prova já aprovada leva o card de 9 a 11 numa passada só.
+// — uma prova já aprovada leva o card de 9 a 12 numa passada só.
 export function encadearAutomaticos(e: FluxoEstado, provas: ProvaFicha[], linx: LinxFluxo | null, cadastrados: Set<string>, hoje = hojeISO()): { estado: FluxoEstado; movimentos: Movimento[]; fotoPedidos: boolean } {
   let atual = { ...e, meta: { ...e.meta } };
   const movimentos: Movimento[] = [];
   let fotoPedidos = false;
   for (let i = 0; i < 6; i++) {
-    // Ao chegar em 15 sem fotografia dos pedidos (Linx fora do ar na hora),
+    // Ao chegar em 16 sem fotografia dos pedidos (Linx fora do ar na hora),
     // tira a foto agora em vez de tratar todo pedido como novo.
-    if (atual.etapa === 15 && !atual.meta.pedidosVistos && linx) {
+    if (atual.etapa === 16 && !atual.meta.pedidosVistos && linx) {
       atual = { ...atual, meta: { ...atual.meta, pedidosVistos: linx.pedidos[atual.ref] || [] } };
       fotoPedidos = true;
     }

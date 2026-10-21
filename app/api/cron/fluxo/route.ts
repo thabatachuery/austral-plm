@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
   const db = adminClient();
-  const { data: linhas, error } = await db.from("controle_fluxo").select("produto_ref, etapa, ciclo, etapa_desde, fluxo_meta").in("etapa", [3, 6, 9, 10, 15]);
+  const { data: linhas, error } = await db.from("controle_fluxo").select("produto_ref, etapa, ciclo, etapa_desde, fluxo_meta").in("etapa", [3, 6, 9, 10, 11, 16]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!linhas?.length) return NextResponse.json({ movidos: 0 });
 
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     if (canceladas.has(l.produto_ref)) continue;
     const e: FluxoEstado = { ref: l.produto_ref, etapa: l.etapa, ciclo: l.ciclo || 1, desde: l.etapa_desde, meta: l.fluxo_meta || {} };
     const { movimentos, estado, fotoPedidos } = encadearAutomaticos(e, provasDaFicha(provas[e.ref] || []), linx, cadastrados);
-    if (fotoPedidos) await db.from("controle_fluxo").update({ fluxo_meta: estado.meta }).eq("produto_ref", e.ref).eq("etapa", 15);
+    if (fotoPedidos) await db.from("controle_fluxo").update({ fluxo_meta: estado.meta }).eq("produto_ref", e.ref).eq("etapa", 16);
     for (const m of movimentos) {
       const err = await gravarMovimento(db, e.ref, m);
       if (err) break;

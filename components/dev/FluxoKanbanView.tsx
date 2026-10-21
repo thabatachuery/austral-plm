@@ -22,8 +22,8 @@ const FILTERS_KEY = "plm_filters_kanban";
 const FASES = [
   { nome: "Pilotagem",    de: 1,  ate: 5,  cor: "#1d4ed8" },
   { nome: "Mostruário",   de: 6,  ate: 9,  cor: "#b45309" },
-  { nome: "Produção",     de: 10, ate: 17, cor: "#15803d" },
-  { nome: "Pré-produção", de: 18, ate: 19, cor: "#7e22ce" },
+  { nome: "Produção",     de: 10, ate: 18, cor: "#15803d" },
+  { nome: "Pré-produção", de: 19, ate: 20, cor: "#7e22ce" },
 ];
 const faseDe = (n: number) => FASES.find(f => n >= f.de && n <= f.ate) || FASES[0];
 
@@ -31,7 +31,7 @@ const faseDe = (n: number) => FASES.find(f => n >= f.de && n <= f.ate) || FASES[
 const CAMPO_PREVISAO: Record<number, { meta: "prevPiloto" | "prevMost" | "preEntrega"; coluna: string; rotulo: string }> = {
   2:  { meta: "prevPiloto", coluna: "prev_entrega_piloto",       rotulo: "Previsão do piloto" },
   8:  { meta: "prevMost",   coluna: "prev_entrega_mostruario",   rotulo: "Previsão do mostruário" },
-  18: { meta: "preEntrega", coluna: "data_entrega_pre_producao", rotulo: "Entrega da pré-produção" },
+  19: { meta: "preEntrega", coluna: "data_entrega_pre_producao", rotulo: "Entrega da pré-produção" },
 };
 
 interface Props {
@@ -143,7 +143,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
   const entre = (a: number, b: number): Teste => e => e.etapa >= a && e.etapa <= b;
   const parado = (e: FluxoEstado) => e.etapa < TOTAL_ETAPAS && !!e.desde && diasEntre(e.desde, hoje) > 14;
   const atrasado = (e: FluxoEstado) => (e.etapa === 2 && !!e.meta.prevPiloto && e.meta.prevPiloto < hoje) || (e.etapa === 8 && !!e.meta.prevMost && e.meta.prevMost < hoje);
-  const preVencida = (e: FluxoEstado) => e.etapa === 18 && !!e.meta.preEntrega && prazoPreProducao(e.meta.preEntrega, hoje).situacao === "vencido";
+  const preVencida = (e: FluxoEstado) => e.etapa === 19 && !!e.meta.preEntrega && prazoPreProducao(e.meta.preEntrega, hoje).situacao === "vencido";
   const RESUMO: { grupo: string; cor: string; itens: { key: string; label: string; test: Teste }[] }[] = [
     { grupo: "Pilotagem", cor: FASES[0].cor, itens: [
       { key: "dev",       label: "Em desenvolvimento",               test: entre(1, 1) },
@@ -160,13 +160,13 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     ]},
     { grupo: "Produção", cor: FASES[2].cor, itens: [
       { key: "prova_prod", label: "Prova de produção",               test: entre(10, 10) },
-      { key: "aprovada",   label: "Aprovada / laudo / ficha p/ compras", test: entre(11, 13) },
-      { key: "repil",      label: "Repilotando",                     test: e => e.ciclo > 1 && e.etapa <= 10 },
-      { key: "compras",    label: "Em compras (Linx, pedido, explosão)", test: entre(14, 17) },
+      { key: "aprovada",   label: "Aprovada / laudo / ficha p/ compras", test: entre(12, 14) },
+      { key: "repil",      label: "Repilotando",                     test: entre(11, 11) },
+      { key: "compras",    label: "Em compras (Linx, pedido, explosão)", test: entre(15, 18) },
     ]},
     { grupo: "Pré-produção", cor: FASES[3].cor, itens: [
-      { key: "pre",      label: "Em pré-produção",                   test: entre(18, 18) },
-      { key: "liberada", label: "Produção liberada",                 test: entre(19, 19) },
+      { key: "pre",      label: "Em pré-produção",                   test: entre(19, 19) },
+      { key: "liberada", label: "Produção liberada",                 test: entre(20, 20) },
     ]},
     { grupo: "Atenção", cor: "#d70015", itens: [
       { key: "atrasado", label: "Previsão de piloto ou mostruário vencida", test: e => atrasado(e) },
@@ -191,7 +191,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
       for (const r of ativos) {
         const ref = String(r.ref).trim();
         const e = estados[ref];
-        if (!e || ![3, 6, 9, 10, 15].includes(e.etapa)) continue;
+        if (!e || ![3, 6, 9, 10, 11, 16].includes(e.etapa)) continue;
         const { estado, movimentos, fotoPedidos } = encadearAutomaticos(e, provasDaFicha(provaInfos[ref] || []), linx, cadastrados, hoje);
         if (fotoPedidos) { await salvarFluxoMeta(ref, 15, estado.meta); novosEstados[ref] = estado; }
         let ok = true;
@@ -218,16 +218,19 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     setDlg({ ref, alvo });
   };
 
-  type DadosMover = { data: string; meta: Partial<FluxoMeta>; repilotar?: boolean; todasCores?: boolean };
+  type DadosMover = { data: string; meta: Partial<FluxoMeta>; todasCores?: boolean };
   const moverUm = async (ref: string, alvo: number, dados: DadosMover): Promise<string | null> => {
     const e = estadoDe(ref);
-    let para = alvo, ciclo = e.ciclo, obs = "";
+    const para = alvo;
+    let ciclo = e.ciclo, obs = "";
     let meta: FluxoMeta = { ...e.meta, ...dados.meta };
-    if (dados.repilotar) { para = 3; ciclo = e.ciclo + 1; obs = `Repilotando — ciclo ${ciclo}`; }
+    // Produção repilotando abre um ciclo novo: a próxima prova de produção
+    // grava na coluna da 2ª prova e o card ganha a tag "Repilotagem".
+    if (alvo === 11) { ciclo = e.ciclo + 1; obs = `Repilotando — ciclo ${ciclo}`; }
     if (alvo === 9) obs = `Cores entregues: ${(meta.coresEntregues || []).join(", ") || "nenhuma"}`;
     if (alvo === 2 && meta.prevPiloto) obs = `Previsão do piloto ${fmtBR(meta.prevPiloto)}`;
     if (alvo === 8 && meta.prevMost) obs = `Previsão do mostruário ${fmtBR(meta.prevMost)}`;
-    if (alvo === 18 && meta.preEntrega) obs = `Entrega da pré-produção ${fmtBR(meta.preEntrega)}`;
+    if (alvo === 19 && meta.preEntrega) obs = `Entrega da pré-produção ${fmtBR(meta.preEntrega)}`;
     meta = metaAoEntrar(para, meta, ref, linx);
     const m: Movimento = { de: e.etapa, para, ciclo, data: dados.data, por: userNome, auto: false, obs, meta };
     const err = await moverFluxo(ref, m);
@@ -241,12 +244,12 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     const err = await moverUm(ref, alvo, dados);
     if (err) { showError(`Não foi possível mover: ${err}`); return; }
     setDlg(null);
-    success(`${ref} → ${etapaInfo(dados.repilotar ? 3 : alvo).t}`);
+    success(`${ref} → ${etapaInfo(alvo).t}`);
   };
 
   // Previsão informada depois de o card já estar na etapa (o fornecedor
   // costuma passar a data mais tarde). Vale para 2 (piloto), 8 (mostruário)
-  // e 18 (entrega da pré-produção, que move o prazo de 3 a 5 dias úteis).
+  // e 19 (entrega da pré-produção, que move o prazo de 3 a 5 dias úteis).
   const salvarPrevisao = async (ref: string, valor: string) => {
     const e = estadoDe(ref);
     const campo = CAMPO_PREVISAO[e.etapa];
@@ -273,7 +276,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
       if (err) falhas.push(ref); else ok++;
     }
     sairDaSelecao();
-    if (ok) success(`${ok} ${ok === 1 ? "ref movida" : "refs movidas"} para “${etapaInfo(dados.repilotar ? 3 : alvo).t}”.`);
+    if (ok) success(`${ok} ${ok === 1 ? "ref movida" : "refs movidas"} para “${etapaInfo(alvo).t}”.`);
     if (falhas.length) showError(`Não foi possível mover: ${falhas.join(", ")}`);
   };
 
@@ -529,7 +532,7 @@ function Cartao({ row, mapa, cores, estado, hoje, perm, arrastavel, onDragStart,
     const n = estado.meta.coresEntregues.length;
     tags.push({ t: `${n} de ${cores.length} ${cores.length === 1 ? "cor entregue" : "cores entregues"}`, tom: n < cores.length ? "warn" : "ok" });
   }
-  if (estado.etapa === 18 && estado.meta.preEntrega) {
+  if (estado.etapa === 19 && estado.meta.preEntrega) {
     const p = prazoPreProducao(estado.meta.preEntrega, hoje);
     tags.push({ t: `Prazo ${fmtBR(p.de).slice(0, 5)}–${fmtBR(p.ate).slice(0, 5)}${p.situacao === "vencido" ? " · vencido" : ""}`, tom: p.situacao === "vencido" ? "bad" : p.situacao === "atencao" ? "warn" : "ok" });
   }
@@ -572,7 +575,7 @@ function Cartao({ row, mapa, cores, estado, hoje, perm, arrastavel, onDragStart,
             {cores.map(c => <span key={c} className="text-[9.5px] font-semibold px-1.5 py-[1px] rounded border border-[var(--separator)] bg-[var(--bg-secondary)] text-[var(--label-secondary)] whitespace-nowrap">{c}</span>)}
           </div>
         )}
-        {CAMPO_PREVISAO[estado.etapa] && estado.etapa !== 18 && (() => {
+        {CAMPO_PREVISAO[estado.etapa] && estado.etapa !== 19 && (() => {
           const c = CAMPO_PREVISAO[estado.etapa];
           const v = estado.meta[c.meta] as string | undefined;
           const atr = !!v && v < hoje;
@@ -633,7 +636,7 @@ const Rotulo = ({ children, htmlFor }: { children: React.ReactNode; htmlFor?: st
 
 function DialogoMover({ ref_, alvo, row, estado, cores, hoje, onCancel, onConfirm, lote }: {
   ref_: string; alvo: number; row: any; estado: FluxoEstado; cores: string[]; hoje: string; lote?: number;
-  onCancel: () => void; onConfirm: (d: { data: string; meta: Partial<FluxoMeta>; repilotar?: boolean; todasCores?: boolean }) => Promise<void>;
+  onCancel: () => void; onConfirm: (d: { data: string; meta: Partial<FluxoMeta>; todasCores?: boolean }) => Promise<void>;
 }) {
   const [todasCores, setTodasCores] = useState(true);
   const et = etapaInfo(alvo);
@@ -641,10 +644,9 @@ function DialogoMover({ ref_, alvo, row, estado, cores, hoje, onCancel, onConfir
   const [prev, setPrev] = useState("");
   const [marcadas, setMarcadas] = useState<string[]>(estado.meta.coresEntregues?.length ? estado.meta.coresEntregues : cores);
   const [preEntrega, setPreEntrega] = useState(hoje);
-  const [resultado, setResultado] = useState<"ok" | "repil" | null>(null);
   const [salvando, setSalvando] = useState(false);
   const prazo = preEntrega ? prazoPreProducao(preEntrega, hoje) : null;
-  const bloqueado = salvando || !data || (et.ask === "aprovacao" && !resultado) || lote === 0;
+  const bloqueado = salvando || !data || lote === 0;
 
   const confirmar = async () => {
     setSalvando(true);
@@ -653,7 +655,7 @@ function DialogoMover({ ref_, alvo, row, estado, cores, hoje, onCancel, onConfir
     if (et.ask === "prevMost") meta.prevMost = prev || undefined;
     if (et.ask === "cores") meta.coresEntregues = marcadas;
     if (et.ask === "preprod") meta.preEntrega = preEntrega;
-    await onConfirm({ data, meta, repilotar: et.ask === "aprovacao" && resultado === "repil", todasCores });
+    await onConfirm({ data, meta, todasCores });
     setSalvando(false);
   };
 
@@ -703,17 +705,8 @@ function DialogoMover({ ref_, alvo, row, estado, cores, hoje, onCancel, onConfir
           {prazo && <p className="text-[12px] text-[var(--label-secondary)]">Prazo: de {fmtBR(prazo.de)} a {fmtBR(prazo.ate)} (3 a 5 dias úteis inteiros depois da entrega).</p>}
         </div>
       )}
-      {et.ask === "aprovacao" && (
-        <div className="flex flex-col gap-1.5">
-          <Rotulo>Resultado da prova de produção</Rotulo>
-          <div className="grid grid-cols-2 gap-2">
-            {([["ok", "Aprovada"], ["repil", "Repilotando"]] as const).map(([k, l]) => (
-              <button key={k} type="button" onClick={() => setResultado(k)} aria-pressed={resultado === k}
-                className={`py-3 rounded-xl border text-[13px] font-semibold ${resultado === k ? "border-[var(--system-blue)] bg-[rgba(0,122,255,0.08)] text-[var(--system-blue)]" : "border-[var(--separator-opaque)]"}`}>{l}</button>
-            ))}
-          </div>
-          <p className="text-[12px] text-[var(--label-secondary)]">Normalmente vem sozinho do status da prova na ficha. Repilotando volta o card para “PILOTO RECEBIDA” no ciclo seguinte, sem apagar as datas do anterior.</p>
-        </div>
+      {alvo === 11 && (
+        <p className="text-[12px] text-[var(--label-secondary)]">Abre o ciclo {lote !== undefined ? "seguinte de cada ref" : estado.ciclo + 1} de prova de produção, sem apagar as datas do anterior. Quando a nova prova ganhar data na ficha, o card volta sozinho para “PROVA DE PRODUÇÃO”.</p>
       )}
       {et.auto && et.n !== 1 && <p className="text-[12px] text-[var(--label-secondary)]"><b>Esta etapa também avança sozinha:</b> {et.auto.replace(/^[^:]+: /, "")}.</p>}
       <div className="flex justify-end gap-2">
@@ -731,7 +724,7 @@ function DialogoPrevisao({ ref_, row, estado, hoje, onCancel, onSalvar }: {
   const atual = (estado.meta[campo.meta] as string | undefined) || "";
   const [v, setV] = useState(atual);
   const [salvando, setSalvando] = useState(false);
-  const prazo = estado.etapa === 18 && v ? prazoPreProducao(v, hoje) : null;
+  const prazo = estado.etapa === 19 && v ? prazoPreProducao(v, hoje) : null;
   return (
     <Folha titulo={campo.rotulo} sub={`${ref_} · ${row?.desc || row?.descricao || ""}`} onClose={onCancel}>
       <div className="flex flex-col gap-1.5">
