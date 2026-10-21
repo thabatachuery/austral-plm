@@ -771,13 +771,27 @@ export async function deleteTabelaMedidas(id: number) {
   const { error } = await sb().from("tabelas_medidas").delete().eq("id", id);
   if (error) console.error("deleteTabelaMedidas:", error);
 }
+// Pontos e graduação são regravados por inteiro (apaga + insere). Se o insert
+// falhar depois do delete, a tabela ficava vazia e as fichas abriam sem medidas
+// (05 - CASACO MOLETOM CAPUZ perdeu os pontos assim). Agora as linhas antigas
+// voltam quando o insert falha.
+async function regravarLinhasDaTabela(table: string, tabelaId: number, rows: any[]) {
+  const { data: antigas } = await sb().from(table).select("*").eq("tabela_id", tabelaId);
+  const { error: delErr } = await sb().from(table).delete().eq("tabela_id", tabelaId);
+  if (delErr) { console.error(`${table} (delete):`, delErr); return; }
+  if (!rows.length) return;
+  const { error } = await sb().from(table).insert(rows);
+  if (!error) return;
+  console.error(`${table} (insert):`, error);
+  if (antigas?.length) await sb().from(table).insert(antigas.map(({ id, created_at, ...r }: any) => r));
+}
 export async function upsertPontos(tabelaId: number, pontos: any[]) {
-  await sb().from("tabela_medida_pontos").delete().eq("tabela_id", tabelaId);
-  if (pontos.length) { const rows = pontos.map((p, i) => ({ tabela_id: tabelaId, cod: p.cod, descricao: p.desc || p.descricao, valor_base: p.tabela || p.valor_base || "", tolerancia: p.tol || p.tolerancia || "1,0 + OU -", ordem: i })); await sb().from("tabela_medida_pontos").insert(rows); }
+  const rows = pontos.map((p, i) => ({ tabela_id: tabelaId, cod: p.cod, descricao: p.desc || p.descricao, valor_base: p.tabela || p.valor_base || "", tolerancia: p.tol || p.tolerancia || "1,0 + OU -", ordem: i }));
+  await regravarLinhasDaTabela("tabela_medida_pontos", tabelaId, rows);
 }
 export async function upsertGraduacoes(tabelaId: number, grads: any[]) {
-  await sb().from("graduacoes").delete().eq("tabela_id", tabelaId);
-  if (grads.length) { const rows = grads.map((g, i) => ({ tabela_id: tabelaId, descricao: g.desc || g.descricao, valores: g.valores || {}, ampliacoes: g.ampliacoes || {}, tolerancia: g.tol || g.tolerancia || "1,0 + OU -", ordem: i })); await sb().from("graduacoes").insert(rows); }
+  const rows = grads.map((g, i) => ({ tabela_id: tabelaId, descricao: g.desc || g.descricao, valores: g.valores || {}, ampliacoes: g.ampliacoes || {}, tolerancia: g.tol || g.tolerancia || "1,0 + OU -", ordem: i }));
+  await regravarLinhasDaTabela("graduacoes", tabelaId, rows);
 }
 export async function fetchPontosByTabelaNome(nome: string) {
   const { data: tab } = await sb().from("tabelas_medidas").select("id").eq("nome", nome).maybeSingle();
