@@ -438,6 +438,15 @@ export async function reorderFichaColecoes(ref: string, colecoesEmOrdem: string[
   ));
 }
 
+// Primeira temporada de uma ref que não é clássico: a ficha dela (salva sem
+// temporada) passa a ser a temporada da coleção original, como já era feito à
+// mão (ex.: 21050015 VERÃO 27 + INVERNO 27). Só mexe se ainda estiver sem.
+export async function rotularFichaComTemporada(fichaId: number, colecao: string): Promise<string | null> {
+  const { error } = await sb().from("fichas_tecnicas").update({ colecao, ordem: 0 }).eq("id", fichaId).is("colecao", null);
+  if (error) { console.error("rotularFichaComTemporada:", error); return error.message || "Erro ao criar temporada"; }
+  return null;
+}
+
 // Exclui a ficha de uma temporada específica de um clássico (tecidos,
 // aviamentos, provas etc. são apagados via ON DELETE CASCADE).
 export async function deleteFichaColecao(ref: string, colecao: string): Promise<string | null> {

@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, Fragment } from "react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 import { uploadImage, uploadArquivo, deleteImage } from "@/lib/storage";
-import { fetchFicha, fetchFichasColecoes, reorderFichaColecoes, deleteFichaColecao, upsertFicha, saveFichaImagem, imagemUsadaEmOutraFicha, updateProdutoField, fetchPontosByTabelaNome, fetchGraduacoesByTabelaNome, fetchCadastros, fetchAviamentos, fetchTecidos, fetchVarianteCompras, fetchTabelasMedidas, criarAlertas, novoGrupoAlerta, aplicarMostruarioLiberadoNoFluxo, type NovoAlerta } from "@/lib/db";
+import { fetchFicha, fetchFichasColecoes, reorderFichaColecoes, deleteFichaColecao, rotularFichaComTemporada, upsertFicha, saveFichaImagem, imagemUsadaEmOutraFicha, updateProdutoField, fetchPontosByTabelaNome, fetchGraduacoesByTabelaNome, fetchCadastros, fetchAviamentos, fetchTecidos, fetchVarianteCompras, fetchTabelasMedidas, criarAlertas, novoGrupoAlerta, aplicarMostruarioLiberadoNoFluxo, type NovoAlerta } from "@/lib/db";
 import { classificarNCM } from "@/lib/ncm";
 import { calcularPesoPeca, type ResultadoPeso } from "@/lib/peso";
 import { fotosParaExibir } from "@/lib/aviamento-fotos";
@@ -135,7 +135,10 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   /* Clássicos: seleção de temporada */
   // Também vale para ref de outra coleção que tem ficha por temporada (ex.:
   // VERÃO 27 com temporada INVERNO 27): mostra o seletor de temporada.
-  const isClassic = (row.ref || "").startsWith("11") || /cl.ssic/i.test(row.colecao || "") || temTemporadas;
+  // A barra aparece em toda ficha; ref comum ganha o modo de temporadas ao
+  // adicionar a primeira (viraTemporadas), sem esperar a página recarregar.
+  const [viraTemporadas, setViraTemporadas] = useState(false);
+  const isClassic = (row.ref || "").startsWith("11") || /cl.ssic/i.test(row.colecao || "") || temTemporadas || viraTemporadas;
   const [selectedColecao, setSelectedColecao] = useState<string | null>(null);
   const [colecaoOpts, setColecaoOpts] = useState<string[]>([]);
   const [newColecaoMode, setNewColecaoMode] = useState(false);
@@ -146,10 +149,11 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
 
   /* Carrega temporadas disponíveis e opções de cadastro para refs clássicas */
   useEffect(() => {
-    if (!isClassic) return;
     Promise.all([fetchFichasColecoes(row.ref), fetchCadastros()]).then(([opts, cad]) => {
-      setColecaoOpts(opts);
       setColecaoCadOpts(cad.colecao || []);
+      if (!isClassic) return;
+      // Mantém a temporada recém-adicionada que ainda não foi salva.
+      setColecaoOpts(prev => [...opts, ...prev.filter(c => !opts.includes(c))]);
       // Aberta de um filtro de coleção: já cai na temporada filtrada.
       if (opts.length > 0 && selectedColecao === null) setSelectedColecao(opts.includes(row._temporada) ? row._temporada : opts[0]);
     });
@@ -192,7 +196,14 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
      que é justamente o que muda de uma temporada pra outra. O seed entra no
      lugar da ficha no carregamento abaixo e o auto-save grava como ficha nova,
      sem tocar na temporada de origem (o fichaId é zerado na troca). */
-  const adicionarTemporada = (nova: string) => {
+  const adicionarTemporada = async (nova: string) => {
+    if (!isClassic) {
+      const original = row.colecao || "";
+      if (!original || nova === original) return;
+      if (fichaId) { const err = await rotularFichaComTemporada(fichaId, original); if (err) return; }
+      setColecaoOpts([original]);
+      setViraTemporadas(true);
+    }
     // fichaId só existe quando há uma ficha salva na tela pra servir de origem.
     if (fichaId && isDataLoaded) {
       seedTemporadaRef.current = {
@@ -968,11 +979,15 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
             <span className="text-[12px]"><span className="text-white/50">{tr("Coleção")}</span> <span className="font-semibold ml-1">{row.colecao}</span></span>
           </div>
 
-          {/* Seletor de temporada — apenas para refs clássicas */}
-          {isClassic && (
+          {/* Seletor de temporada — em toda ficha. Ref comum mostra a coleção
+              dela como temporada única até ganhar a segunda. */}
+          {(isClassic || row.colecao) && (
             <div style={{ background: "var(--bg-secondary)", border: "1px solid var(--separator)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--label-tertiary)", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>Temporada:</span>
-              {colecaoOpts.map(c => (
+              {!isClassic && (
+                <span style={{ fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 20, border: "1.5px solid var(--system-blue)", background: "var(--system-blue)", color: "#fff" }}>{row.colecao}</span>
+              )}
+              {isClassic && colecaoOpts.map(c => (
                 <div key={c}
                   draggable={editandoTemporadas}
                   onDragStart={() => { draggedTemporadaRef.current = c; }}
@@ -1001,13 +1016,13 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
                   )}
                 </div>
               ))}
-              <button onClick={() => setEditandoTemporadas(p => !p)}
+              {isClassic && <button onClick={() => setEditandoTemporadas(p => !p)}
                 title={editandoTemporadas ? "Concluir edição" : "Reordenar/excluir temporadas"}
                 style={{
                   fontSize: 12, padding: "4px 10px", borderRadius: 20, border: "1.5px solid var(--separator)",
                   background: editandoTemporadas ? "var(--system-blue)" : "transparent",
                   color: editandoTemporadas ? "#fff" : "var(--label-secondary)", cursor: "pointer",
-                }}>{editandoTemporadas ? "Concluir" : "✎ Editar"}</button>
+                }}>{editandoTemporadas ? "Concluir" : "✎ Editar"}</button>}
               {!newColecaoMode ? (
                 <button onClick={() => setNewColecaoMode(true)}
                   style={{ fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 20, border: "1.5px dashed var(--separator)", background: "transparent", color: "var(--system-blue)", cursor: "pointer" }}>
@@ -1022,7 +1037,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
                     style={{ fontSize: 12, padding: "4px 10px", borderRadius: 8, border: "1px solid var(--system-blue)", background: "var(--bg-primary)", color: "var(--label-primary)", outline: "none" }}
                   >
                     <option value="">Selecionar coleção…</option>
-                    {colecaoCadOpts.filter(c => !colecaoOpts.includes(c)).map(c => (
+                    {colecaoCadOpts.filter(c => !colecaoOpts.includes(c) && (isClassic || c !== row.colecao)).map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
@@ -1030,7 +1045,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
                     style={{ fontSize: 11, padding: "4px 8px", borderRadius: 8, background: "var(--bg-tertiary)", color: "var(--label-secondary)", border: "1px solid var(--separator)", cursor: "pointer" }}>✕</button>
                 </div>
               )}
-              {colecaoOpts.length === 0 && !newColecaoMode && (
+              {isClassic && colecaoOpts.length === 0 && !newColecaoMode && (
                 <span style={{ fontSize: 11, color: "var(--label-tertiary)", fontStyle: "italic" }}>Nenhuma temporada criada ainda</span>
               )}
             </div>
