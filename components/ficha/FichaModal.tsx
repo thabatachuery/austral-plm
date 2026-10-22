@@ -7,7 +7,7 @@ import { fetchFicha, fetchFichasColecoes, reorderFichaColecoes, deleteFichaColec
 import { classificarNCM } from "@/lib/ncm";
 import { calcularPesoPeca, type ResultadoPeso } from "@/lib/peso";
 import { fotosParaExibir } from "@/lib/aviamento-fotos";
-import { aviamentosAutomaticos, custoAviamentosPorPeca } from "@/lib/etiquetas-tamanho";
+import { montarAviamentosDaFicha, custoAviamentosPorPeca } from "@/lib/etiquetas-tamanho";
 import { COR_PALETTE } from "@/lib/cor-palette";
 import { useAuth } from "@/lib/auth-context";
 import { nomeUsuario } from "@/lib/utils";
@@ -258,19 +258,9 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
       setAvCad(aviCad);
       setTecCad(tecs);
       const mkAvi = (cod: string) => { const c = aviCad.find((x: any) => x.cod === cod); return c ? { item: c.nome, cod: c.cod, qtd: 1, valor: c.preco, local: c.localizacao_padrao || "", var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" } : null; };
-      const aviBase = (() => {
-        // Aviamentos automáticos: tag da linha + etiquetas de tamanho da grade×linha
-        // (comparação normalizada — "PP AO GG"/"PP - GG"/"PP-GG" equivalem). Regras
-        // em lib/etiquetas-tamanho. Cada código faltante é adicionado individualmente.
-        const autoCodes: string[] = aviamentosAutomaticos(row.grade, row.linha);
-        let base: any[] = ficha?.aviamentos?.length ? [...ficha.aviamentos] : [];
-        if (!base.some((a: any) => a.cod === "AD0001"))
-          base = [mkAvi("AD0001") || DEFAULT_AVI[0], ...base];
-        const faltantes = autoCodes.filter(cod => !base.some((a: any) => a.cod === cod));
-        if (faltantes.length)
-          base = [...base, ...faltantes.map(mkAvi).filter(Boolean)];
-        return base.length ? base : [mkAvi("AD0001") || DEFAULT_AVI[0]];
-      })();
+      // Fixos no topo (EMBALAGEM, COMPOSIÇÃO, AD0001), depois os salvos e os
+      // automáticos da grade×linha que faltarem — regras em lib/etiquetas-tamanho.
+      const aviBase = montarAviamentosDaFicha<any>(ficha?.aviamentos || [], row.grade, row.linha, cod => mkAvi(cod) || (cod === "AD0001" ? DEFAULT_AVI[0] : null));
       const aviComputed = aviBase.map((a: any) => {
         const cat = aviCad.find((c: any) => c.cod === a.cod);
         const cores = cat?.cores_disponiveis || [];

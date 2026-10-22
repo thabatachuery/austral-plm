@@ -56,6 +56,20 @@ export function aviamentosAutomaticos(grade?: string, linha?: string): string[] 
   return [...(tag ? [tag] : []), ...etiquetasParaGradeLinha(grade, linha)];
 }
 
+// Aviamentos que toda ficha leva, sempre no topo e nesta ordem.
+export const AVIAMENTOS_FIXOS = ["EMBALAGEM", "COMPOSIÇÃO", "AD0001"];
+
+// Lista de aviamentos da ficha: os fixos no topo (a linha salva, se existir,
+// senão a do cadastro), depois os demais salvos na ordem em que estavam e por
+// fim os automáticos da grade/linha que faltarem. Nada salvo é descartado.
+export function montarAviamentosDaFicha<T extends { cod?: string }>(salvos: T[], grade: string | undefined, linha: string | undefined, mkAvi: (cod: string) => T | null): T[] {
+  const fixos = AVIAMENTOS_FIXOS.map(cod => salvos.find(a => a.cod === cod) || mkAvi(cod)).filter(Boolean) as T[];
+  const resto = salvos.filter(a => !fixos.includes(a));
+  const base = [...fixos, ...resto];
+  const faltantes = aviamentosAutomaticos(grade, linha).filter(cod => !base.some(a => a.cod === cod));
+  return [...base, ...(faltantes.map(mkAvi).filter(Boolean) as T[])];
+}
+
 // Custo de aviamentos por peça produzida. A ficha lista uma etiqueta de
 // tamanho por tamanho da grade (ET0057..ET0061, uma por tamanho) porque é
 // preciso comprar todas elas — mas cada peça, sendo de um tamanho só, leva

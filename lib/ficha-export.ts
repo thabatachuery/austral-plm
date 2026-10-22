@@ -15,7 +15,7 @@ import {
   fetchVarianteCompras, fetchTabelasMedidas, fetchPontosByTabelaNome,
   fetchGraduacoesByTabelaNome,
 } from "@/lib/db";
-import { aviamentosAutomaticos } from "@/lib/etiquetas-tamanho";
+import { montarAviamentosDaFicha } from "@/lib/etiquetas-tamanho";
 import { tamanhosParaExibir } from "@/lib/tamanhos";
 
 const DEFAULT_AVI = [{ item: "ADESIVO DE CÓDIGO DE BARRAS", cod: "AD0001", qtd: 1, valor: 0.10, local: "COLADO NO VERSO DO TAG", var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" }];
@@ -76,14 +76,7 @@ export async function carregarFichaParaPDF(row: any): Promise<DadosFichaPDF> {
     const c = aviCad.find((x: any) => x.cod === cod);
     return c ? { item: c.nome, cod: c.cod, qtd: 1, valor: c.preco, local: c.localizacao_padrao || "", var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" } : null;
   };
-  const aviBase = (() => {
-    const autoCodes: string[] = aviamentosAutomaticos(row.grade, row.linha);
-    let base: any[] = ficha?.aviamentos?.length ? [...ficha.aviamentos] : [];
-    if (!base.some((a: any) => a.cod === "AD0001")) base = [mkAvi("AD0001") || DEFAULT_AVI[0], ...base];
-    const faltantes = autoCodes.filter(cod => !base.some((a: any) => a.cod === cod));
-    if (faltantes.length) base = [...base, ...faltantes.map(mkAvi).filter(Boolean)];
-    return base.length ? base : [mkAvi("AD0001") || DEFAULT_AVI[0]];
-  })();
+  const aviBase = montarAviamentosDaFicha<any>(ficha?.aviamentos || [], row.grade, row.linha, cod => mkAvi(cod) || (cod === "AD0001" ? DEFAULT_AVI[0] : null));
   const avi = aviBase.map((a: any) => {
     const cat = aviCad.find((c: any) => c.cod === a.cod);
     const cores = cat?.cores_disponiveis || [];
