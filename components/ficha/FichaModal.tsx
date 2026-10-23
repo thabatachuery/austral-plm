@@ -32,6 +32,13 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   const [up, setUp] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fichaId, setFichaId] = useState<number | null>(null);
+  // Temporada dos dados que estão na tela (null = ficha sem temporada) e
+  // undefined enquanto a ficha carrega. O save grava nela, e não na temporada
+  // selecionada: trocar de pill muda a seleção na hora, mas os dados só chegam
+  // depois — gravar pela seleção punha uma temporada por cima da outra.
+  const [colecaoCarregada, setColecaoCarregada] = useState<string | null | undefined>(undefined);
+  // Conta os carregamentos: um que terminou depois de outro mais novo é descartado.
+  const cargaRef = useRef(0);
   // Referência de onde esta ficha foi clonada — aviso só na tela, não vai pro PDF.
   const [clonadaDe, setClonadaDe] = useState("");
   const [showPrint, setShowPrint] = useState(false);
@@ -219,9 +226,6 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
         qtdMost: { var01: null, var02: null, var03: null, var04: null, var05: null, var06: null },
         tabelaEspecialAtiva: tEsp, pontosEspeciais: ptsEsp, gradEspecial: gradEsp,
       };
-      // O tingimento é reaplicado por merge no carregamento, então um valor nulo
-      // no seed não limparia nada — zera aqui pra não vazar da temporada anterior.
-      setVarTingimento({ var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" });
     }
     setColecaoOpts(prev => prev.includes(nova) ? prev : [...prev, nova]);
     setSelectedColecao(nova);
@@ -252,12 +256,21 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
     (async () => {
       // Para clássicos: carrega a ficha da temporada selecionada (ou null se nenhuma ainda)
       const fichaColecao = isClassic ? selectedColecao : null;
+      // Edição da temporada anterior ainda esperando o auto-save: grava agora,
+      // enquanto a tela e colecaoCarregada ainda são dela. Antes o timer
+      // disparava no meio da troca e gravava na temporada errada.
+      if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; saveRef.current?.(true); }
+      const carga = ++cargaRef.current;
+      setColecaoCarregada(undefined);
       setFichaId(null);
       setClonadaDe("");
       // Trocar de temporada não pode herdar a marcação da anterior: quem tem
       // ficha salva (ou seed) recebe o valor certo mais abaixo.
       setImportado(false);
       const [fichaSalva, cadastros, aviCad, tecs, vcAll, tabs] = await Promise.all([fetchFicha(row.ref, fichaColecao), fetchCadastros(), fetchAviamentos(), fetchTecidos(), fetchVarianteCompras(), fetchTabelasMedidas()]);
+      // A ficha abre sem temporada e logo pula pra temporada certa: se a
+      // primeira leitura chegar por último, mostraria (e gravaria) a outra.
+      if (carga !== cargaRef.current) return;
       // Temporada recém-adicionada ainda não tem ficha salva: usa a cópia da
       // temporada anterior montada em adicionarTemporada.
       const seed = seedTemporadaRef.current;
@@ -308,17 +321,23 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
         if (ficha.pilotagem?.length) setPil(ficha.pilotagem);
         setObs(ficha.observacoes || "");
         if (ficha.provas) setPv(ficha.provas);
-        if (ficha.anotacoes) setAn(prev => ({ ...prev, ...ficha.anotacoes }));
+        // Prova, anotação, liberação e estágio partem do vazio, não do que está
+        // na tela: trocando de temporada, o que a outra tinha e esta não tem
+        // continuava aparecendo aqui — e o auto-save gravava nesta temporada.
+        setAn({ p1: { texto: "", video: "" }, p2: { texto: "", video: "" }, p3: { texto: "", video: "" }, ...(ficha.anotacoes || {}) });
         if (ficha.estamparia) { setEstamparia((prev: any) => ({ ...prev, ...ficha.estamparia, artes: ficha.estamparia.artes?.length ? ficha.estamparia.artes : prev.artes, simulacoes: ficha.estamparia.simulacoes || prev.simulacoes })); if (ficha.estamparia.numVariantes) setNumVars(Math.max(4, ficha.estamparia.numVariantes)); }
         if (ficha.pantones) setVarCodigos({ var01: ficha.pantones.var01 || "", var02: ficha.pantones.var02 || "", var03: ficha.pantones.var03 || "", var04: ficha.pantones.var04 || "", var05: ficha.pantones.var05 || "", var06: ficha.pantones.var06 || "" });
         if (ficha.tingimento) setVarTingimento(prev => ({ ...prev, ...ficha.tingimento }));
+        // Temporada nova: o tingimento é por variante, não vem da anterior.
+        else if (!fichaSalva) setVarTingimento({ var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" });
         if (ficha.qtdMost) setQtdMost(prev => ({ ...prev, ...ficha.qtdMost }));
-        if (ficha.statusLiberacao) setStatusLib(ficha.statusLiberacao);
-        if (ficha.estagio) setEstagio(ficha.estagio);
+        setStatusLib(ficha.statusLiberacao || "");
+        setEstagio(ficha.estagio || "");
         setImportado(!!ficha.importado);
-        if (ficha.provaInfo) {
-          const migrated = Object.fromEntries(Object.entries(ficha.provaInfo).map(([k, v]: [string, any]) => [k, { data: v.data || "", status: v.status || "", link: v.link || "", fotoFrente: v.fotoFrente || v.foto || "", fotoLado: v.fotoLado || "", fotoCostas: v.fotoCostas || "", tipo: v.tipo || "", videoArquivo: v.videoArquivo || "" }]));
-          setProvaInfo(prev => ({ ...prev, ...migrated }));
+        {
+          const vazia = { data: "", status: "", link: "", fotoFrente: "", fotoLado: "", fotoCostas: "", tipo: "" };
+          const migrated = Object.fromEntries(Object.entries(ficha.provaInfo || {}).map(([k, v]: [string, any]) => [k, { data: v.data || "", status: v.status || "", link: v.link || "", fotoFrente: v.fotoFrente || v.foto || "", fotoLado: v.fotoLado || "", fotoCostas: v.fotoCostas || "", tipo: v.tipo || "", videoArquivo: v.videoArquivo || "" }]));
+          setProvaInfo({ p1: vazia, p2: vazia, p3: vazia, ...migrated });
         }
         if (ficha.custoDet) setCustoDet(ficha.custoDet);
         if (ficha.obsCusto) setObsCusto(ficha.obsCusto);
@@ -332,11 +351,13 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
         setTec(tecComputed);
       }
       baselineRef.current = { tec: tecComputed, avi: aviComputed };
+      setColecaoCarregada(fichaColecao);
       if (row.tab_medidas) {
         const [p, g] = await Promise.all([
           fetchPontosByTabelaNome(row.tab_medidas),
           fetchGraduacoesByTabelaNome(row.tab_medidas),
         ]);
+        if (carga !== cargaRef.current) return;
         setPts(p);
         setGrad(g.linhas);
         setTabTamanhos(g.tamanhos);
@@ -530,6 +551,11 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   const save = async (confirmed = false) => {
     // Aberta só para consulta (aba Preços): nada é gravado, nem o auto-save.
     if (somenteLeitura) return;
+    // Ficha carregando (abrindo ou trocando de temporada): a tela ainda tem os
+    // dados da temporada anterior, ou os vazios iniciais — gravar agora
+    // sobrescreveria a ficha com eles.
+    if (colecaoCarregada === undefined) return;
+    const carga = cargaRef.current;
     const autoStatus = autoStatusFor(statusLib);
     // Se vai mudar o status do produto automaticamente, pedir confirmação (só no save manual)
     if (autoStatus && autoStatus !== row.status && !confirmed) {
@@ -557,9 +583,10 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
     setAutoSaveStatus("saving");
     try {
       const fichaData = { id: fichaId, tecidos: tec, aviamentos: avi, pilotagem: pil, observacoes: obs, imagem_url: img, imagem_modelo: imgModelo, imagem_modo_medir: imgModoMedir, imagem_frente: imgFrente, imagem_costas: imgCostas, provas: pv, anotacoes: an, pantones: { ...varCodigos, porTecido: tec.map((t: any, i: number) => i === 0 ? {} : (t.pantones || {})) }, tingimento: varTingimento, qtdMost, statusLiberacao: statusLib, estagio, importado, ncm, estamparia: { ...estamparia, numVariantes: numVars }, provaInfo, custoDet, obsCusto, pesoCalculo: peso, tabelaEspecialAtiva: tEsp, pontosEspeciais: tEsp ? ptsEsp : undefined, gradEspecial: tEsp ? gradEsp : undefined };
-      const newId = await upsertFicha(row.ref, fichaData, isClassic ? selectedColecao : null);
+      const newId = await upsertFicha(row.ref, fichaData, colecaoCarregada);
       if (!newId) throw new Error("Falha ao salvar a ficha técnica.");
-      setFichaId(newId);
+      // Save da temporada anterior que terminou depois da troca: o id é dela.
+      if (carga === cargaRef.current) setFichaId(newId);
       // O aviso não sai daqui: o save roda a cada 1,5s de digitação, e avisar
       // no save era o que enchia a tela de todo mundo. Sai no fechamento da
       // ficha, por enviarAlertasDaSessao().
@@ -617,9 +644,10 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
     setAutoSaveStatus("pending");
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
+      autoSaveTimer.current = null;
       saveRef.current?.(true);
     }, 1500);
-    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+    return () => { if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; } };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // ptsEsp/gradEsp entram aqui: sem eles, editar a tabela especial não
   // disparava o save — só o ato de ativar gravava (a cópia da base), e ao

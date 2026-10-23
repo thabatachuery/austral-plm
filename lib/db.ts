@@ -583,6 +583,8 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
     imagem_costas: f.imagem_costas || "",
   };
   let fid = f.id;
+  // Qualquer parte que não gravou faz o save voltar null (erro na tela).
+  let falhou = false;
   if (!fid) {
     // Antes de criar, confere se já existe ficha pra essa (ref, coleção): se a
     // leitura falhou ou dois salvamentos correram juntos, criar de novo geraria
@@ -598,6 +600,8 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
       produto_ref: ref, colecao: colecao || null, ...fichaBase, ...fichaExtras,
     }).select().single();
     if (result.error) {
+      console.error("upsertFicha insert sem os campos extras (prova, custo, imagens):", result.error.message);
+      falhou = true;
       result = await sb().from("fichas_tecnicas").insert({
         produto_ref: ref, colecao: colecao || null, ...fichaBase,
       }).select().single();
@@ -607,8 +611,11 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
   } else {
     // Update com todos os campos
     let { error } = await sb().from("fichas_tecnicas").update({ ...fichaBase, ...fichaExtras }).eq("id", fid);
-    // Se falhou (coluna não existe), tenta só com campos base
+    // Se falhou (coluna não existe), tenta só com campos base — mas aí as
+    // informações de prova, custo e fotos não gravaram, e a tela tem que saber.
     if (error) {
+      console.error("upsertFicha update sem os campos extras (prova, custo, imagens):", error.message);
+      falhou = true;
       const retry = await sb().from("fichas_tecnicas").update(fichaBase).eq("id", fid);
       error = retry.error;
     }
@@ -670,11 +677,13 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
       }
     })(),
   ]);
-  // Verificar se houve erros nos inserts
+  // Verificar se houve erros nos inserts. Antes só ia pro console e a tela
+  // mostrava "salvo" — a ficha reabria sem a alteração e ninguém sabia por quê.
   insertResults.forEach((result: any, idx: number) => {
     if (result?.error) {
       const tableName = ["ficha_tecidos", "ficha_aviamentos", "ficha_pilotagem", "ficha_provas"][idx];
       console.error(`Erro ao salvar ${tableName}:`, result.error.message);
+      falhou = true;
     }
   });
   // Ficha de importado (rótulos em inglês) — gravado à parte de propósito: se
@@ -698,7 +707,7 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
     await gravarLinhasEspeciais("ficha_graduacao_especial", fid, "descricao",
       f.gradEspecial.map((g: any, i: number) => ({ ficha_id: fid, descricao: g.desc, valores: g.valores || {}, ampliacoes: g.ampliacoes || {}, tolerancia: g.tol || "1,0 + OU -", ordem: i })));
   }
-  return fid;
+  return falhou ? null : fid;
 }
 
 async function gravarLinhasEspeciais(tabela: string, fid: number, chave: "cod" | "descricao", linhas: any[]) {
