@@ -29,6 +29,10 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   const [imgModoMedir, setImgModoMedir] = useState<string | null>(null);
   const [imgFrente, setImgFrente] = useState<string | null>(null);
   const [imgCostas, setImgCostas] = useState<string | null>(null);
+  // Foto do catálogo Teceo (app/api/teceo/foto): entra na liberação quando a
+  // ficha não tem foto própria. Não é gravada na ficha — subir uma foto aqui
+  // continua mandando.
+  const [fotoTeceo, setFotoTeceo] = useState<{ frente: string | null; costas: string | null; cor: string | null } | null>(null);
   const [up, setUp] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fichaId, setFichaId] = useState<number | null>(null);
@@ -166,6 +170,14 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.ref, isClassic]);
+
+  useEffect(() => {
+    setFotoTeceo(null);
+    fetch(`/api/teceo/foto?ref=${encodeURIComponent(row.ref)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(f => setFotoTeceo(f && (f.frente || f.costas) ? f : null))
+      .catch(() => {});
+  }, [row.ref]);
 
   const moverTemporada = (destino: string) => {
     const origem = draggedTemporadaRef.current;
@@ -878,7 +890,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   if (showPrint) {
     return (
       <div className="print-overlay">
-        <FichaPDF row={row} tec={tec} avi={avi} pil={pil} pts={tEsp ? ptsEsp : pts} grad={tEsp ? gradEsp : grad} pv={pv} an={an} img={img} imgModelo={imgModelo} imgModoMedir={imgModoMedir} imgFrente={imgFrente} imgCostas={imgCostas} hasEstamparia={hasEstamparia} estamparia={estamparia} pantones={{ ...varCodigos, porTecido: tec.map((t: any, i: number) => i === 0 ? {} : (t.pantones || {})) }} tingimento={varTingimento} obs={obs} statusLib={statusLib} estagio={estagio} tecCad={tecCad} tabelaEspecial={tEsp} sections={exportSections} ncm={ncm} peso={peso} vcCompras={vcCompras} provaInfo={provaInfo} gradTamanhos={gradTamanhos} gradBase={gradBase} tabTamanhos={tabTamanhos} importado={importado} fichasTecido={fichasTecido} />
+        <FichaPDF row={row} tec={tec} avi={avi} pil={pil} pts={tEsp ? ptsEsp : pts} grad={tEsp ? gradEsp : grad} pv={pv} an={an} img={img} imgModelo={imgModelo} imgModoMedir={imgModoMedir} imgFrente={imgFrente || fotoTeceo?.frente || null} imgCostas={imgCostas || fotoTeceo?.costas || null} hasEstamparia={hasEstamparia} estamparia={estamparia} pantones={{ ...varCodigos, porTecido: tec.map((t: any, i: number) => i === 0 ? {} : (t.pantones || {})) }} tingimento={varTingimento} obs={obs} statusLib={statusLib} estagio={estagio} tecCad={tecCad} tabelaEspecial={tEsp} sections={exportSections} ncm={ncm} peso={peso} vcCompras={vcCompras} provaInfo={provaInfo} gradTamanhos={gradTamanhos} gradBase={gradBase} tabTamanhos={tabTamanhos} importado={importado} fichasTecido={fichasTecido} />
       </div>
     );
   }
@@ -1691,12 +1703,14 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
             <input ref={frenteRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_frente", setImgFrente, imgFrente)} />
             <input ref={costasRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_costas", setImgCostas, imgCostas)} />
             <div className="grid grid-cols-2 gap-4">
-              {([["Frente", imgFrente, setImgFrente, frenteRef, "imagem_frente"], ["Costas", imgCostas, setImgCostas, costasRef, "imagem_costas"]] as [string, string|null, (v:any)=>void, any, string][]).map(([lbl, url, setter, ref, field]) => (
+              {([["Frente", imgFrente, setImgFrente, frenteRef, "imagem_frente", fotoTeceo?.frente], ["Costas", imgCostas, setImgCostas, costasRef, "imagem_costas", fotoTeceo?.costas]] as [string, string|null, (v:any)=>void, any, string, string|null|undefined][]).map(([lbl, url, setter, ref, field, teceo]) => (
                 <div key={field}>
                   <div className="text-[11px] font-medium text-[var(--label-tertiary)] mb-1.5 text-center">{lbl}</div>
                   <div onClick={() => ref.current?.click()} className="relative border border-[var(--separator)] rounded-xl overflow-hidden cursor-pointer hover:border-[var(--system-blue)] transition-colors aspect-[3/4] flex items-center justify-center bg-[var(--bg-secondary)]">
                     {url
                       ? <img src={url} alt={lbl} className="w-full h-full object-contain" />
+                      : teceo
+                      ? <><img src={teceo} alt={lbl} className="w-full h-full object-contain" /><span className="absolute bottom-1.5 left-1.5 right-1.5 text-center text-[10px] text-white bg-black/50 rounded-md px-1.5 py-0.5 truncate">Catálogo Teceo{fotoTeceo?.cor ? ` · ${fotoTeceo.cor}` : ""}</span></>
                       : <div className="text-center text-[var(--label-quaternary)]"><svg className="mx-auto mb-1" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><span className="text-[11px]">Adicionar foto</span></div>}
                     {url && <button onClick={e => { e.stopPropagation(); setter(null); if (fichaId) saveFichaImagem(fichaId, field, ""); }} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center" title="Remover"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
                   </div>
