@@ -80,28 +80,63 @@ export default function MedidasView() {
   // Um timer por tipo: editar o valor base salva pontos E graduação (que dele
   // deriva) — com um timer só, o segundo agendamento cancelaria o primeiro.
   const saveTimers = useRef<Record<string, any>>({});
+  // Gravação em andamento por tabela+tipo, o dado mais novo esperando a vez e
+  // quando a última terminou. O upsert apaga e reinsere tudo: duas gravações
+  // ao mesmo tempo se atropelavam, então elas vão uma de cada vez e só a mais
+  // nova que chegou durante a anterior é gravada em seguida.
+  const gravandoRef = useRef<Record<string, boolean>>({});
+  const proximoRef = useRef<Record<string, any[] | null>>({});
+  const fimGravacaoRef = useRef<Record<string, number>>({});
+  const recargaTimers = useRef<Record<string, any>>({});
+  const selIdRef = useRef<number | null>(null);
+  selIdRef.current = sel?.id ?? null;
 
   useEffect(() => { loadTabelas(); }, []);
 
+  // Edição local que o realtime não pode atropelar: save agendado, gravando,
+  // ou gravação que acabou há pouco (os eventos dela ainda estão chegando).
+  const ocupado = (type: "pontos" | "grad", tabelaId: number) =>
+    !!saveTimers.current[type] || !!gravandoRef.current[`${type}:${tabelaId}`] ||
+    Date.now() - (fimGravacaoRef.current[`${type}:${tabelaId}`] || 0) < 3000;
+
+  // Recarrega do banco o que outra pessoa alterou. Antes cada evento recarregava
+  // na hora — inclusive os do PRÓPRIO save, que apaga e reinsere tudo: a linha
+  // recém-adicionada sumia, o que estava sendo digitado se perdia e, lida no
+  // meio da regravação, a tabela aparecia vazia. Agora espera a rajada de
+  // eventos acabar, ignora a própria gravação e descarta a leitura se houve
+  // edição local nesse meio-tempo.
+  const recarregar = (type: "pontos" | "grad", tabelaId: number) => {
+    if (recargaTimers.current[type]) clearTimeout(recargaTimers.current[type]);
+    recargaTimers.current[type] = setTimeout(async () => {
+      recargaTimers.current[type] = null;
+      if (ocupado(type, tabelaId)) return;
+      const linhas = type === "pontos" ? mapPontos(await fetchTabelaPontos(tabelaId)) : mapGrads(await fetchGraduacoes(tabelaId));
+      if (ocupado(type, tabelaId) || selIdRef.current !== tabelaId) return;
+      if (type === "pontos") setPontos(linhas as Ponto[]); else setGrad(linhas as Grad[]);
+    }, 1000);
+  };
+
   /* Realtime: sincroniza tabelas entre usuários */
   useEffect(() => {
+    const doSel = (row: any) => sel && (!row?.tabela_id || row.tabela_id === sel.id);
     const unsub = subscribeRealtime("medidas-sync", [
       { table: "tabelas_medidas", onInsert: () => loadTabelas(), onDelete: () => loadTabelas() },
       {
         table: "tabela_medida_pontos",
-        onUpdate: (row) => { if (sel && row.tabela_id === sel.id) fetchTabelaPontos(sel.id).then(pts => setPontos(mapPontos(pts))); },
-        onInsert: (row) => { if (sel && row.tabela_id === sel.id) fetchTabelaPontos(sel.id).then(pts => setPontos(mapPontos(pts))); },
-        onDelete: () => { if (sel) fetchTabelaPontos(sel.id).then(pts => setPontos(mapPontos(pts))); },
+        onUpdate: (row) => { if (doSel(row)) recarregar("pontos", sel!.id); },
+        onInsert: (row) => { if (doSel(row)) recarregar("pontos", sel!.id); },
+        onDelete: (row) => { if (doSel(row)) recarregar("pontos", sel!.id); },
       },
       {
         table: "graduacoes",
-        onUpdate: (row) => { if (sel && row.tabela_id === sel.id) fetchGraduacoes(sel.id).then(grd => setGrad(mapGrads(grd))); },
-        onInsert: (row) => { if (sel && row.tabela_id === sel.id) fetchGraduacoes(sel.id).then(grd => setGrad(mapGrads(grd))); },
-        onDelete: () => { if (sel) fetchGraduacoes(sel.id).then(grd => setGrad(mapGrads(grd))); },
+        onUpdate: (row) => { if (doSel(row)) recarregar("grad", sel!.id); },
+        onInsert: (row) => { if (doSel(row)) recarregar("grad", sel!.id); },
+        onDelete: (row) => { if (doSel(row)) recarregar("grad", sel!.id); },
       },
     ]);
     return unsub;
-  }, [sel]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel?.id]);
 
   const loadTabelas = async () => {
     setLoading(true);
@@ -111,10 +146,13 @@ export default function MedidasView() {
   };
 
   const selectTable = async (t: Tabela) => {
+    descarregar();
     setSel(t);
     setSec("base");
     setIm1((t as any).imagem_modo_medir || null);
     const [pts, grd] = await Promise.all([fetchTabelaPontos(t.id), fetchGraduacoes(t.id)]);
+    // Clicou em outra tabela antes desta carregar: não mostra pontos da errada.
+    if (selIdRef.current !== t.id) return;
     setPontos(mapPontos(pts));
     setGrad(mapGrads(grd));
   };
@@ -134,15 +172,48 @@ export default function MedidasView() {
     await saveTabelaAreaMedia(sel.id, valor);
   };
 
+  const gravar = async (type: "pontos" | "grad", tabelaId: number, data: any[]) => {
+    const chave = `${type}:${tabelaId}`;
+    proximoRef.current[chave] = data;
+    if (gravandoRef.current[chave]) return;
+    gravandoRef.current[chave] = true;
+    setSaving(true);
+    while (proximoRef.current[chave]) {
+      const linhas = proximoRef.current[chave]!;
+      proximoRef.current[chave] = null;
+      if (type === "pontos") await upsertPontos(tabelaId, linhas);
+      else await upsertGraduacoes(tabelaId, linhas);
+    }
+    gravandoRef.current[chave] = false;
+    fimGravacaoRef.current[chave] = Date.now();
+    if (!Object.values(gravandoRef.current).some(Boolean)) setSaving(false);
+  };
+
+  // O que está esperando os 800ms do save, pra poder gravar já ao trocar de
+  // tabela ou de aba — antes o timer era cancelado e a última edição se perdia.
+  const pendenteRef = useRef<Record<string, { tabelaId: number; data: any[] } | null>>({});
+  const descarregar = () => {
+    for (const type of ["pontos", "grad"] as const) {
+      const p = pendenteRef.current[type];
+      if (saveTimers.current[type]) clearTimeout(saveTimers.current[type]);
+      saveTimers.current[type] = null;
+      pendenteRef.current[type] = null;
+      if (p) gravar(type, p.tabelaId, p.data);
+    }
+  };
+  useEffect(() => () => descarregar(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const scheduleSave = useCallback((type: "pontos" | "grad", data: any[]) => {
     if (!sel) return;
+    const tabelaId = sel.id;
     if (saveTimers.current[type]) clearTimeout(saveTimers.current[type]);
-    saveTimers.current[type] = setTimeout(async () => {
-      setSaving(true);
-      if (type === "pontos") await upsertPontos(sel.id, data);
-      else await upsertGraduacoes(sel.id, data);
-      setSaving(false);
+    pendenteRef.current[type] = { tabelaId, data };
+    saveTimers.current[type] = setTimeout(() => {
+      saveTimers.current[type] = null;
+      pendenteRef.current[type] = null;
+      gravar(type, tabelaId, data);
     }, 800);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel]);
 
   // A graduação é DERIVADA, não digitada: o valor do tamanho base vem da aba
@@ -209,6 +280,7 @@ export default function MedidasView() {
     const base = esq.tamanhos.includes(newBase) ? newBase : esq.base;
     const result = await createTabelaMedidas(name, esq.tamanhos, base);
     if (result) {
+      descarregar();
       await loadTabelas();
       setSel({ id: result.id, nome: result.nome, tamanhos: esq.tamanhos, tamanho_base: base });
       setPontos([]);
