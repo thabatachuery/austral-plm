@@ -1,0 +1,408 @@
+[
+  {
+    "id": 73,
+    "produto_ref": "11030102",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/217816/20260121_AUSTRAL_RM_36867.jpg?v=639063386226670000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/217817/20260121_AUSTRAL_RM_36876.jpg?v=639063386226670000"
+  },
+  {
+    "id": 60,
+    "produto_ref": "11010203",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/229606/image--2-.jpg?v=639119613800200000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/229607/image--4-.jpg?v=639119613800530000"
+  },
+  {
+    "id": 148,
+    "produto_ref": "11030102",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/217816/20260121_AUSTRAL_RM_36867.jpg?v=639063386226670000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/217817/20260121_AUSTRAL_RM_36876.jpg?v=639063386226670000"
+  },
+  {
+    "id": 64,
+    "produto_ref": "11020104",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/227428/20260123_AUSTRAL_RM_44839.jpg?v=639083220446870000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/227429/20260123_AUSTRAL_RM_44846.jpg?v=639083220446870000"
+  },
+  {
+    "id": 160,
+    "produto_ref": "11060301",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/218820/20260120_AUSTRAL_RM_34528.jpg?v=639064338732800000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/218821/20260120_AUSTRAL_RM_34537.jpg?v=639064338732800000"
+  },
+  {
+    "id": 59,
+    "produto_ref": "11010202",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/217326/20260123_AUSTRAL_RM_43129.jpg?v=639063367276170000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/217327/20260123_AUSTRAL_RM_43140.jpg?v=639063367276330000"
+  },
+  {
+    "id": 77,
+    "produto_ref": "11050103",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/218096/20260120_AUSTRAL_RM_33927.jpg?v=639063420979370000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/218097/20260120_AUSTRAL_RM_33944---Copia.jpg?v=639077306305970000"
+  },
+  {
+    "id": 126,
+    "produto_ref": "11010202",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/217326/20260123_AUSTRAL_RM_43129.jpg?v=639063367276170000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/217327/20260123_AUSTRAL_RM_43140.jpg?v=639063367276330000"
+  },
+  {
+    "id": 56,
+    "produto_ref": "11050104",
+    "colecao": null,
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/218246/20260120_AUSTRAL_RM_34230.jpg?v=639063432099330000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/218247/20260120_AUSTRAL_RM_34240.jpg?v=639063432099670000"
+  },
+  {
+    "id": 149,
+    "produto_ref": "11030102",
+    "colecao": "VERÃO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/217816/20260121_AUSTRAL_RM_36867.jpg?v=639063386226670000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/217817/20260121_AUSTRAL_RM_36876.jpg?v=639063386226670000"
+  },
+  {
+    "id": 127,
+    "produto_ref": "11010202",
+    "colecao": "VERÃO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/217326/20260123_AUSTRAL_RM_43129.jpg?v=639063367276170000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/217327/20260123_AUSTRAL_RM_43140.jpg?v=639063367276330000"
+  },
+  {
+    "id": 128,
+    "produto_ref": "11010203",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/229606/image--2-.jpg?v=639119613800200000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/229607/image--4-.jpg?v=639119613800530000"
+  },
+  {
+    "id": 367,
+    "produto_ref": "22010043",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010043/imagem_frente/1792417519213.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010043/imagem_costas/1792417543668.jpg"
+  },
+  {
+    "id": 88,
+    "produto_ref": "11080201",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/219110/20260122_AUSTRAL_RM40751.jpg?v=639064356142870000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/219111/20260122_AUSTRAL_RM40764.jpg?v=639064356142870000"
+  },
+  {
+    "id": 130,
+    "produto_ref": "11010203",
+    "colecao": "VERÃO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/229606/image--2-.jpg?v=639119613800200000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/229607/image--4-.jpg?v=639119613800530000"
+  },
+  {
+    "id": 133,
+    "produto_ref": "11020104",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/227428/20260123_AUSTRAL_RM_44839.jpg?v=639083220446870000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/227429/20260123_AUSTRAL_RM_44846.jpg?v=639083220446870000"
+  },
+  {
+    "id": 308,
+    "produto_ref": "11080201",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/219110/20260122_AUSTRAL_RM40751.jpg?v=639064356142870000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/219111/20260122_AUSTRAL_RM40764.jpg?v=639064356142870000"
+  },
+  {
+    "id": 134,
+    "produto_ref": "11020104",
+    "colecao": "VERÃO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/227428/20260123_AUSTRAL_RM_44839.jpg?v=639083220446870000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/227429/20260123_AUSTRAL_RM_44846.jpg?v=639083220446870000"
+  },
+  {
+    "id": 122,
+    "produto_ref": "11010101",
+    "colecao": "VERÃO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/217166/20260120_AUSTRAL_RM_34554.jpg?v=639063356782500000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/217167/20260120_AUSTRAL_RM_34566.jpg?v=639063356782670000"
+  },
+  {
+    "id": 72,
+    "produto_ref": "11030101",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/227724/20260121_AUSTRAL_RM_38662.jpg?v=639083255268800000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/227725/20260121_AUSTRAL_RM_38671.jpg?v=639083255269130000"
+  },
+  {
+    "id": 146,
+    "produto_ref": "11030101",
+    "colecao": "VERÃO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/227724/20260121_AUSTRAL_RM_38662.jpg?v=639083255268800000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/227725/20260121_AUSTRAL_RM_38671.jpg?v=639083255269130000"
+  },
+  {
+    "id": 107,
+    "produto_ref": "11010101",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/217166/20260120_AUSTRAL_RM_34554.jpg?v=639063356782500000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/217167/20260120_AUSTRAL_RM_34566.jpg?v=639063356782670000"
+  },
+  {
+    "id": 147,
+    "produto_ref": "11030101",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/227724/20260121_AUSTRAL_RM_38662.jpg?v=639083255268800000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/227725/20260121_AUSTRAL_RM_38671.jpg?v=639083255269130000"
+  },
+  {
+    "id": 436,
+    "produto_ref": "22080033",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22080033/imagem_frente/1792418284670.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22080033/imagem_costas/1792418305613.jpg"
+  },
+  {
+    "id": 387,
+    "produto_ref": "22030073",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030073/imagem_frente/1792421807959.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030073/imagem_costas/1792421843546.jpg"
+  },
+  {
+    "id": 369,
+    "produto_ref": "22010048",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010048/imagem_frente/1792416908160.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010048/imagem_costas/1792416938434.jpg"
+  },
+  {
+    "id": 300,
+    "produto_ref": "11050103",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/218096/20260120_AUSTRAL_RM_33927.jpg?v=639063420979370000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/218097/20260120_AUSTRAL_RM_33944---Copia.jpg?v=639077306305970000"
+  },
+  {
+    "id": 67,
+    "produto_ref": "11020206",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/214992/11020206_C11_4.jpg?v=638968398905430000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/214993/11020206_C11_7-min.jpg?v=638968398906070000"
+  },
+  {
+    "id": 366,
+    "produto_ref": "22010041",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010041/imagem_frente/1792415821684.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010041/imagem_costas/1792415836004.jpg"
+  },
+  {
+    "id": 388,
+    "produto_ref": "22040001",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040001/imagem_frente/1792423913243.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040001/imagem_costas/1792423934274.jpg"
+  },
+  {
+    "id": 348,
+    "produto_ref": "21060370",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/21060370/imagem_frente/1792772187572.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/21060370/imagem_costas/1792772191529.jpg"
+  },
+  {
+    "id": 434,
+    "produto_ref": "22080016",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22080016/imagem_frente/1792420780352.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22080016/imagem_costas/1792420806471.jpg"
+  },
+  {
+    "id": 57,
+    "produto_ref": "11010101",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/217166/20260120_AUSTRAL_RM_34554.jpg?v=639063356782500000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/217167/20260120_AUSTRAL_RM_34566.jpg?v=639063356782670000"
+  },
+  {
+    "id": 301,
+    "produto_ref": "11050104",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/218246/20260120_AUSTRAL_RM_34230.jpg?v=639063432099330000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/218247/20260120_AUSTRAL_RM_34240.jpg?v=639063432099670000"
+  },
+  {
+    "id": 377,
+    "produto_ref": "22030017",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030017/imagem_frente/1792421520501.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030017/imagem_costas/1792421539653.jpg"
+  },
+  {
+    "id": 295,
+    "produto_ref": "11020206",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/214992/11020206_C11_4.jpg?v=638968398905430000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/214993/11020206_C11_7-min.jpg?v=638968398906070000"
+  },
+  {
+    "id": 305,
+    "produto_ref": "11060301",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/218820/20260120_AUSTRAL_RM_34528.jpg?v=639064338732800000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/218821/20260120_AUSTRAL_RM_34537.jpg?v=639064338732800000"
+  },
+  {
+    "id": 79,
+    "produto_ref": "11060102",
+    "colecao": "CLÁSSICOS",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/218556/20260122_AUSTRAL_RM41034.jpg?v=639064332985630000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/218557/20260122_AUSTRAL_RM41028.jpg?v=639064332985970000"
+  },
+  {
+    "id": 383,
+    "produto_ref": "22030067",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030067/imagem_frente/1792422569797.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030067/imagem_costas/1792422590594.jpg"
+  },
+  {
+    "id": 362,
+    "produto_ref": "22010019",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010019/imagem_frente/1792418773059.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010019/imagem_costas/1792418790462.jpg"
+  },
+  {
+    "id": 368,
+    "produto_ref": "22010047",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010047/imagem_frente/1792416627165.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010047/imagem_costas/1792416637030.jpg"
+  },
+  {
+    "id": 303,
+    "produto_ref": "11060102",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://austral.vteximg.com.br/arquivos/ids/218556/20260122_AUSTRAL_RM41034.jpg?v=639064332985630000",
+    "imagem_costas": "https://austral.vteximg.com.br/arquivos/ids/218557/20260122_AUSTRAL_RM41028.jpg?v=639064332985970000"
+  },
+  {
+    "id": 370,
+    "produto_ref": "22010049",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010049/imagem_frente/1792417282048.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010049/imagem_costas/1792417298522.jpg"
+  },
+  {
+    "id": 379,
+    "produto_ref": "22030041",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030041/imagem_frente/1792425934759.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030041/imagem_costas/1792425966188.jpg"
+  },
+  {
+    "id": 391,
+    "produto_ref": "22040037",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040037/imagem_frente/1792419884517.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040037/imagem_costas/1792419904409.jpg"
+  },
+  {
+    "id": 390,
+    "produto_ref": "22040011",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040011/imagem_frente/1792426722796.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040011/imagem_costas/1792426757732.jpg"
+  },
+  {
+    "id": 365,
+    "produto_ref": "22010038",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010038/imagem_frente/1792426208423.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010038/imagem_costas/1792426243025.jpg"
+  },
+  {
+    "id": 282,
+    "produto_ref": "22040055",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040055/imagem_frente/1790346843843.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040055/imagem_costas/1790346848198.jpg"
+  },
+  {
+    "id": 283,
+    "produto_ref": "22040056",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040056/imagem_frente/1790349576205.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040056/imagem_costas/1790349578681.jpg"
+  },
+  {
+    "id": 281,
+    "produto_ref": "22040054",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040054/imagem_frente/1790345459744.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040054/imagem_costas/1790345465084.jpg"
+  },
+  {
+    "id": 280,
+    "produto_ref": "22040058",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040058/imagem_frente/1790342080129.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22040058/imagem_costas/1790342084918.jpg"
+  },
+  {
+    "id": 381,
+    "produto_ref": "22030064",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030064/imagem_frente/1792425346760.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030064/imagem_costas/1792425368424.jpg"
+  },
+  {
+    "id": 363,
+    "produto_ref": "22010021",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010021/imagem_frente/1792419542281.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010021/imagem_costas/1792419570202.jpg"
+  },
+  {
+    "id": 371,
+    "produto_ref": "22010051",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010051/imagem_frente/1792419199992.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22010051/imagem_costas/1792419229027.jpg"
+  },
+  {
+    "id": 380,
+    "produto_ref": "22030058",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030058/imagem_frente/1792423078572.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030058/imagem_costas/1792423155396.jpg"
+  },
+  {
+    "id": 374,
+    "produto_ref": "22020015",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22020015/imagem_frente/1792420552876.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22020015/imagem_costas/1792420583250.jpg"
+  },
+  {
+    "id": 386,
+    "produto_ref": "22030072",
+    "colecao": null,
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030072/imagem_frente/1792422387875.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/22030072/imagem_costas/1792422408056.jpg"
+  },
+  {
+    "id": 359,
+    "produto_ref": "21090016",
+    "colecao": "INVERNO 27",
+    "imagem_frente": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/21090016/imagem_frente/1792778380289.jpg",
+    "imagem_costas": "https://notcdmsqbbtuhsgtupck.supabase.co/storage/v1/object/public/fichas-imagens/21090016/imagem_costas/1792778383866.jpg"
+  }
+]
