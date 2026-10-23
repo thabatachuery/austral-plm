@@ -5,6 +5,8 @@
 //
 //   node scripts/limpar-foto-produto-ficha.mjs 21060345 21060350          (só mostra)
 //   node scripts/limpar-foto-produto-ficha.mjs 21060345 21060350 --gravar
+//   ... --gravar --so-frente   (ref que no catálogo só tem a foto da frente:
+//                               mantém a costas da ficha)
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 
@@ -15,6 +17,7 @@ const SUPABASE_URL = String(env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, 
 const sb = createClient(SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
 const gravar = process.argv.includes("--gravar");
+const soFrente = process.argv.includes("--so-frente");
 const refs = process.argv.slice(2).filter(a => !a.startsWith("--"));
 
 const { data, error } = await sb.from("fichas_tecnicas").select("id, produto_ref, colecao, imagem_frente, imagem_costas").in("produto_ref", refs);
@@ -24,9 +27,9 @@ const faltando = refs.filter(r => !data.some(f => f.produto_ref === r));
 if (faltando.length) console.log("Sem ficha:", faltando.join(", "));
 
 if (gravar) {
-  const ids = data.filter(f => f.imagem_frente || f.imagem_costas).map(f => f.id);
+  const ids = data.filter(f => f.imagem_frente || (!soFrente && f.imagem_costas)).map(f => f.id);
   if (ids.length) {
-    const { error: e } = await sb.from("fichas_tecnicas").update({ imagem_frente: "", imagem_costas: "" }).in("id", ids);
+    const { error: e } = await sb.from("fichas_tecnicas").update(soFrente ? { imagem_frente: "" } : { imagem_frente: "", imagem_costas: "" }).in("id", ids);
     if (e) throw e;
   }
   console.log(`Foto própria retirada de ${ids.length} ficha(s).`);
