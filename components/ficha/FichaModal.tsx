@@ -852,7 +852,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   const triggerEstImg = (type: string, key: string) => { setEstImgTarget({ type, key }); setTimeout(() => estImgRef.current?.click(), 0); };
   const dropEstImg = async (e: React.DragEvent, type: string, key: string) => { e.preventDefault(); setDragOver(null); const file = e.dataTransfer.files[0]; if (!file || !file.type.startsWith("image/")) return; setUp(true); const url = await uploadImage(file, estImgPath(type, key)); if (url) { if (type === "arte") updArte(Number(key), "imagem", url); else if (type === "arteLocal") updArte(Number(key), "imagemLocal", url); else if (type === "sim") updSim(key, "imgSim", url); else if (type === "foto") updSim(key, "imgFoto", url); } setUp(false); };
   const deleteEstImg = async (type: string, key: string, url: string) => { if (url) await deleteImage(url); if (type === "arte") updArte(Number(key), "imagem", ""); else if (type === "arteLocal") updArte(Number(key), "imagemLocal", ""); else if (type === "sim") updSim(key, "imgSim", ""); else if (type === "foto") updSim(key, "imgFoto", ""); };
-  const TECNICAS_OPTS = ["SILK ZERO TOQUE", "SILK TRADICIONAL", "SILK HD", "SILK CORROSÃO", "SILK CORROSÃO COLORIDA", "SUBLIMAÇÃO", "TRANSFER", "DTF", "DTG", "BORDADO", "LASER", "HOT STAMPING"];
+  const TECNICAS_OPTS = ["SILK ZERO TOQUE", "SILK TRADICIONAL", "SILK HD", "SILK CORROSÃO", "SILK CORROSÃO COLORIDA", "SILK RELEVO", "PLASTISOL", "PLASTISOL FOSCO", "SUBLIMAÇÃO", "TRANSFER", "DTF", "DTG", "BORDADO", "LASER", "HOT STAMPING"];
 
   /* ── Tabela Especial helpers ── */
   const toggleEsp = () => {
