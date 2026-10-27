@@ -146,10 +146,14 @@ for (const p of pedidos) {
     continue
   }
   for (const s of skus) {
-    const ordenados = [...s.codigos].sort((a, b) => b.padrao - a.padrao)
+    // O Linx também guarda o próprio SKU (11010101C0238) como código de barras;
+    // sem padrão marcado, o EAN-13 válido tem que vir antes dele.
+    const ordenados = [...s.codigos].sort((a, b) =>
+      b.padrao - a.padrao || eanValido(b.codigo) - eanValido(a.codigo))
     const principal = ordenados[0].codigo
     const obs = []
-    if (!s.codigos.some(c => c.padrao) && s.codigos.length > 1) obs.push('mais de um código, nenhum marcado como padrão — conferir')
+    if (!s.codigos.some(c => c.padrao) && s.codigos.filter(c => eanValido(c.codigo)).length > 1)
+      obs.push('mais de um EAN, nenhum marcado como padrão — conferir')
     if (!eanValido(principal)) obs.push('não é EAN válido (código interno?)')
     saida.push({
       SKU: p.codigo, REF: s.ref, DESCRICAO: descricao[s.ref] || '', COR: s.cor, NOME_COR: cores[s.cor] || '',
