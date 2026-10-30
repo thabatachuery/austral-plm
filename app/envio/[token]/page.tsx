@@ -8,6 +8,7 @@
 // a página não mostra nada.
 
 import { createClient } from "@supabase/supabase-js";
+import LinkArquivo from "@/components/envios/LinkArquivo";
 
 export const dynamic = "force-dynamic";
 
@@ -90,7 +91,7 @@ export default async function PaginaEnvio({ params }: { params: Promise<{ token:
             // Vídeo sem "download": o fornecedor costuma querer só assistir, e
             // o navegador toca mp4/mov direto na aba. Para PDF o download é o
             // que ele espera.
-            <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer" download={ehVideo(a.nome) ? undefined : true}
+            <LinkArquivo key={a.id} url={a.url} tamanho={a.tamanho} nome={a.nome} download={!ehVideo(a.nome)}
                style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px", textDecoration: "none", color: "#0C1D2E", background: "#fff" }}>
               <span style={{ fontSize: 18 }}>{ehVideo(a.nome) ? "🎬" : "📄"}</span>
               <span style={{ flex: 1, minWidth: 0 }}>
@@ -102,7 +103,7 @@ export default async function PaginaEnvio({ params }: { params: Promise<{ token:
                 ) : null}
               </span>
               <span style={{ fontSize: 13, fontWeight: 600, color: "#4464AF", whiteSpace: "nowrap" }}>{ehVideo(a.nome) ? "Assistir" : "Baixar"}</span>
-            </a>
+            </LinkArquivo>
           ))}
         </div>
 

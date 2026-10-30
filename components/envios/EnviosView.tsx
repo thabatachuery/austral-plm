@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { fetchCadastros, fetchEnvios, criarEnvio, addEnvioArquivos, setEnvioAtivo, removeEnvio, type Envio } from "@/lib/db";
-import { uploadArquivo, deleteImage } from "@/lib/storage";
+import { uploadArquivoEmPartes, deleteImage } from "@/lib/storage";
+import { urlsDasPartes } from "@/lib/arquivo-partes";
+import LinkArquivo from "./LinkArquivo";
 import { useAuth } from "@/lib/auth-context";
 import { nomeUsuario } from "@/lib/utils";
 
@@ -15,9 +17,8 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://plm.austral.com.b
 // Os PDFs do lote saem como "23090002 - 22-09-2026", então a referência está
 // no começo do nome. Ler dali poupa digitação e é o que faz o histórico
 // responder por SKU — sem isso, sobraria só "o que foi para tal fornecedor".
-// Vídeo é ordem de grandeza maior que PDF: uma ficha tem ~1 MB, um vídeo de
-// celular passa de 100 MB com facilidade. Avisar antes é melhor do que deixar
-// o upload correr por minutos e falhar no limite do Storage.
+// Acima do limite do Storage (50 MB por arquivo) o arquivo sobe em partes — ver
+// lib/arquivo-partes.ts. O aviso só prepara para a demora.
 const LIMITE_AVISO_MB = 50;
 const ehVideo = (nome: string) => /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(nome);
 
@@ -90,7 +91,7 @@ export default function EnviosView() {
     const subidos: { nome: string; url: string; tamanho: number; refs: string[] }[] = [];
     const falhas: string[] = [];
     for (const f of nArquivos) {
-      const url = await uploadArquivo(f, base);
+      const url = await uploadArquivoEmPartes(f, base);
       if (url) subidos.push({ nome: f.name, url, tamanho: f.size, refs: refsDoNome(f.name) });
       else falhas.push(f.name);
       setProgresso(p => p + 1);
@@ -118,7 +119,7 @@ export default function EnviosView() {
 
   const excluir = async (e: Envio) => {
     if (!confirm(`Excluir o envio de ${e.fornecedor} (${e.colecao} · ${e.estagio}) e seus ${e.arquivos?.length || 0} arquivo(s)? O histórico é perdido.`)) return;
-    for (const a of e.arquivos || []) await deleteImage(a.url);
+    for (const a of e.arquivos || []) for (const u of urlsDasPartes(a.url, a.tamanho)) await deleteImage(u);
     await removeEnvio(e.id);
     setMsg({ tipo: "ok", texto: "Envio excluído." });
     await carregar();
@@ -200,10 +201,9 @@ export default function EnviosView() {
                   ))}
                 </div>
                 {grandes.length > 0 && (
-                  <p className="text-[12px] text-[#8a5a00] bg-[#fff6de] border border-[#D97706] rounded-lg px-3 py-2 mb-3">
-                    ⚠️ {grandes.length} arquivo(s) acima de {LIMITE_AVISO_MB} MB ({grandes.map(f => f.name).join(", ")}).
-                    O envio pode demorar e, se o Storage tiver limite por arquivo menor que isso, falha.
-                    Vale comprimir o vídeo antes.
+                  <p className="text-[12px] text-[var(--label-secondary)] bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-lg px-3 py-2 mb-3">
+                    {grandes.length} arquivo(s) acima de {LIMITE_AVISO_MB} MB ({grandes.map(f => f.name).join(", ")}) — sobe(m) em partes e
+                    o link junta tudo de volta na hora de baixar. O envio pode demorar alguns minutos.
                   </p>
                 )}
               </>
@@ -251,9 +251,9 @@ export default function EnviosView() {
 
             <div className="flex flex-col gap-1 mb-3">
               {(e.arquivos || []).map(a => (
-                <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer" className="text-[12px] text-[var(--system-blue)] hover:underline">
+                <LinkArquivo key={a.id} url={a.url} tamanho={a.tamanho} nome={a.nome} className="text-[12px] text-[var(--system-blue)] hover:underline">
                   {ehVideo(a.nome) ? "🎬" : "📄"} {a.nome} {a.tamanho ? <span className="text-[var(--label-quaternary)]">· {fmtTamanho(a.tamanho)}</span> : null}
-                </a>
+                </LinkArquivo>
               ))}
               {!(e.arquivos || []).length && <span className="text-[12px] text-[var(--label-quaternary)]">sem arquivos</span>}
             </div>

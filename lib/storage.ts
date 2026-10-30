@@ -1,4 +1,5 @@
 import { getSupabase } from "./supabase";
+import { PARTE_BYTES } from "./arquivo-partes";
 
 const BUCKET = "fichas-imagens";
 const MAX_SIDE = 1200; // px — boa qualidade para PDF, upload ~2x mais rápido
@@ -93,6 +94,33 @@ export async function uploadArquivo(file: File, path: string): Promise<string | 
   }
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(filename);
+  return data.publicUrl;
+}
+
+// Para os envios: arquivo acima do limite do Storage sobe em partes (ver
+// lib/arquivo-partes.ts) e devolve a URL da parte 0. Se uma parte falha, apaga
+// as que já subiram — senão sobra lixo de 45 MB no bucket sem nada apontando.
+export async function uploadArquivoEmPartes(file: File, path: string): Promise<string | null> {
+  if (file.size <= PARTE_BYTES) return uploadArquivo(file, path);
+  const supabase = getSupabase();
+
+  const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const base = `${sanitizePath(path)}/${Date.now()}.${ext}`;
+  const subidas: string[] = [];
+  for (let i = 0, ini = 0; ini < file.size; i++, ini += PARTE_BYTES) {
+    const nome = `${base}.part${i}`;
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(nome, file.slice(ini, ini + PARTE_BYTES), { upsert: true, contentType: "application/octet-stream" });
+    if (error) {
+      console.error("uploadArquivoEmPartes:", error);
+      if (subidas.length) await supabase.storage.from(BUCKET).remove(subidas);
+      return null;
+    }
+    subidas.push(nome);
+  }
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(`${base}.part0`);
   return data.publicUrl;
 }
 
