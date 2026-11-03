@@ -1307,17 +1307,18 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
           <div className="flex gap-2 mt-2 mb-1">
             {numVars > 1 && <button onClick={() => setNumVars(n => n - 1)} className="apple-btn-secondary text-[12px]">− Remover variante</button>}
             {numVars < 6 && <button onClick={() => setNumVars(n => n + 1)} className="apple-btn-secondary text-[12px]">+ Adicionar variante</button>}
-            {tec.length < 2 && (
+            {/* Até 5 tecidos. Gravação, pantone (porTecido) e PDF já percorrem a lista toda. */}
+            {tec.length < 5 && (
               <button
                 onClick={() => { setTec(p => [...p, { artigo: "", forn: "", composicao: "", preco: 0, cores: Array(numVars).fill("") }]); setTecPick(tec.length); setTsq(""); }}
                 className="apple-btn-secondary text-[12px]"
-              >+ Segundo tecido</button>
+              >+ Adicionar tecido</button>
             )}
             {tec.length > 1 && (
               <button
                 onClick={() => { setTec(p => p.slice(0, -1)); setTecPick(null); setTsq(""); }}
                 className="apple-btn-secondary text-[12px] text-[var(--system-red)]"
-              >− Remover segundo tecido</button>
+              >− Remover Tec.{String(tec.length).padStart(2, "0")}</button>
             )}
           </div>
 
