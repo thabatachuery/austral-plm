@@ -112,6 +112,13 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   }, 0);
   const numVarsEst = Math.min(6, Math.max(1, varsComCor, ultimaVarEst));
 
+  // A página 1 foi medida para até 2 tecidos. Cada tecido a mais soma duas
+  // linhas na tabela (o tecido, com a localização, e o pantone dele) — o
+  // desenho cede essa mesma altura para todos os tecidos caberem na folha 1.
+  // Medido na largura de impressão: 37px a linha do tecido + 20px a do pantone.
+  const ALTURA_POR_TECIDO_EXTRA = 60;
+  const alturaDesenho = 515 - Math.max(0, tec.length - 2) * ALTURA_POR_TECIDO_EXTRA;
+
   let pageNum = 0;
   const pb = (): React.CSSProperties => { pageNum++; return pageNum > 1 ? { pageBreakBefore: "always" } : {}; };
 
@@ -223,7 +230,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
             <div style={{ border: `1px solid ${line}`, borderRadius: "6px", overflow: "hidden", marginBottom: "7px", background: white, textAlign: "center" }}>
               <div style={{ background: headerBg, color: white, padding: "4px 10px", fontSize: "6.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", textAlign: "left" }}>{tr("Desenho Técnico")}</div>
               <div style={{ padding: "6px 10px" }}>
-                <img src={img} alt="Desenho técnico" style={{ maxHeight: "515px", width: "100%", objectFit: "contain" }} />
+                <img src={img} alt="Desenho técnico" style={{ maxHeight: `${alturaDesenho}px`, width: "100%", objectFit: "contain" }} />
               </div>
               {fotosTec.length > 0 && (
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", padding: "4px 10px", borderTop: `0.5px solid ${line}`, background: bg }}>
