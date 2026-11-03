@@ -112,6 +112,13 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   }, 0);
   const numVarsEst = Math.min(6, Math.max(1, varsComCor, ultimaVarEst));
 
+  // Com 3+ tecidos a tabela fica enxuta (padding e letra menores) para o
+  // desenho técnico da página 1 não perder altura.
+  const compacto = tec.length > 2;
+  const tdT: React.CSSProperties = compacto ? { ...td, padding: "2px 6px", fontSize: "8px", lineHeight: 1.25 } : td;
+  const thT: React.CSSProperties = compacto ? { ...th, padding: "3px 6px", fontSize: "6.5px" } : th;
+  const chip = compacto ? { padding: "1px 4px", fontSize: "6.5px" } : { padding: "2px 5px", fontSize: "7.5px" };
+
   let pageNum = 0;
   const pb = (): React.CSSProperties => { pageNum++; return pageNum > 1 ? { pageBreakBefore: "always" } : {}; };
 
@@ -229,13 +236,15 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 <img src={img} alt="Desenho técnico" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
               </div>
               {fotosTec.length > 0 && (
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", padding: "4px 10px", borderTop: `0.5px solid ${line}`, background: bg }}>
+                /* Fileira única, mesmo com 5 tecidos: quebrando em duas, a faixa
+                   tirava altura do desenho. Com 3+ tecidos as fotos encolhem. */
+                <div style={{ display: "flex", gap: "8px", flexWrap: "nowrap", padding: "3px 10px", borderTop: `0.5px solid ${line}`, background: bg, flexShrink: 0 }}>
                   {fotosTec.map(f => (
-                    <div key={f.i} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                      <img src={f.url} alt={`Tecido ${f.nome}`} style={{ width: "56px", height: "56px", objectFit: "cover", borderRadius: "3px", border: `0.5px solid ${lineDark}` }} />
-                      <div style={{ textAlign: "left" }}>
+                    <div key={f.i} style={{ display: "flex", alignItems: "center", gap: "4px", flex: fotosTec.length > 2 ? "1 1 0" : "0 0 auto", minWidth: 0 }}>
+                      <img src={f.url} alt={`Tecido ${f.nome}`} style={{ width: fotosTec.length > 2 ? "34px" : "56px", height: fotosTec.length > 2 ? "34px" : "56px", objectFit: "cover", borderRadius: "3px", border: `0.5px solid ${lineDark}`, flexShrink: 0 }} />
+                      <div style={{ textAlign: "left", minWidth: 0, lineHeight: 1.2 }}>
                         <div style={{ fontSize: "5.5px", fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Tec.{String(f.i + 1).padStart(2, "0")}</div>
-                        <div style={{ fontSize: "7px", fontWeight: 700, color: navy }}>{f.nome}</div>
+                        <div style={{ fontSize: fotosTec.length > 2 ? "6px" : "7px", fontWeight: 700, color: navy }}>{f.nome}</div>
                       </div>
                     </div>
                   ))}
@@ -263,24 +272,24 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
               <div style={{ background: headerBg, color: white, padding: "4px 10px", borderRadius: "4px 4px 0 0", fontSize: "6.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>{tr("Tecidos & Variantes")}</div>
               <table style={{ ...tbl }}>
                 <thead><tr style={{ ...headRow, background: bg }}>
-                  <th style={th}>{tr("Artigo")}</th><th style={{ ...th, width: "55px" }}>{tr("Forn.")}</th><th style={{ ...th, width: "75px" }}>{tr("Composição")}</th><th style={{ ...th, textAlign: "right", width: "38px" }}>{tr("Preço")}</th>
-                  {Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} style={{ ...th, textAlign: "center", width: "55px" }}><div>Var {String(i + 1).padStart(2, "0")}</div>{cor && <div style={{ marginTop: "3px", display: "inline-block", padding: "1px 5px", borderRadius: "3px", fontSize: "7px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333" }}>{cor}</div>}</th>); })}
+                  <th style={thT}>{tr("Artigo")}</th><th style={{ ...thT, width: "55px" }}>{tr("Forn.")}</th><th style={{ ...thT, width: "75px" }}>{tr("Composição")}</th><th style={{ ...thT, textAlign: "right", width: "38px" }}>{tr("Preço")}</th>
+                  {Array.from({length: numVars}, (_, i) => { const cor = tec[0]?.cores?.[i]; const pal = cor ? COR_PALETTE[cor] : null; return (<th key={i} style={{ ...thT, textAlign: "center", width: "55px" }}><div>Var {String(i + 1).padStart(2, "0")}</div>{cor && <div style={{ marginTop: compacto ? "1px" : "3px", display: "inline-block", padding: "1px 5px", borderRadius: "3px", fontSize: compacto ? "6.5px" : "7px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333" }}>{cor}</div>}</th>); })}
                 </tr></thead>
                 <tbody>{tec.map((t, i) => { const cs = t.cores || []; const pt = pantoneDoTecido(i); return (<Fragment key={i}>
                   <tr style={i % 2 ? { background: bg } : {}}>
-                    <td style={{ ...td, fontWeight: 700 }}>{t.artigo}{t.local && <div style={{ marginTop: "1px", fontSize: "6.5px", fontWeight: 800, color: accent, textTransform: "uppercase", letterSpacing: "0.06em" }}>{tr("Localização")}: {t.local}</div>}</td>
-                    <td style={{ ...td, color: muted }}>{t.forn}</td>
-                    <td style={{ ...td, fontSize: "7.5px", color: muted }}>{(i === 0 ? (row.composicao || compOf(t.artigo)) : compOf(t.artigo)) || "—"}</td>
-                    <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{t.preco > 0 ? `R$ ${t.preco.toFixed(2)}` : "—"}</td>
-                    {Array.from({length: numVars}, (_, j) => { const cor = cs[j]; const pal = cor ? COR_PALETTE[cor] : null; return (<td key={j} style={{ ...td, textAlign: "center", padding: "3px 4px" }}>{cor ? <span style={{ display: "inline-block", padding: "2px 5px", borderRadius: "3px", fontSize: "7.5px", fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333", whiteSpace: "nowrap" }}>{cor}</span> : <span style={{ color: lineDark }}>—</span>}</td>); })}
+                    <td style={{ ...tdT, fontWeight: 700 }}>{t.artigo}{t.local && <div style={{ marginTop: compacto ? 0 : "1px", fontSize: compacto ? "6px" : "6.5px", fontWeight: 800, color: accent, textTransform: "uppercase", letterSpacing: "0.06em" }}>{tr("Localização")}: {t.local}</div>}</td>
+                    <td style={{ ...tdT, color: muted }}>{t.forn}</td>
+                    <td style={{ ...tdT, fontSize: compacto ? "7px" : "7.5px", color: muted }}>{(i === 0 ? (row.composicao || compOf(t.artigo)) : compOf(t.artigo)) || "—"}</td>
+                    <td style={{ ...tdT, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{t.preco > 0 ? `R$ ${t.preco.toFixed(2)}` : "—"}</td>
+                    {Array.from({length: numVars}, (_, j) => { const cor = cs[j]; const pal = cor ? COR_PALETTE[cor] : null; return (<td key={j} style={{ ...tdT, textAlign: "center", padding: compacto ? "2px 3px" : "3px 4px" }}>{cor ? <span style={{ display: "inline-block", padding: chip.padding, borderRadius: "3px", fontSize: chip.fontSize, fontWeight: 700, background: pal?.bg || "#eee", color: pal?.text || "#333", whiteSpace: "nowrap" }}>{cor}</span> : <span style={{ color: lineDark }}>—</span>}</td>); })}
                   </tr>
                   {/* Pantone de cada tecido, logo abaixo dele: tecidos diferentes
                       podem ter pantones diferentes para a mesma variante. */}
                   {pt && VARS.slice(0, numVars).some(k => pt[k]) && (
                     <tr style={{ background: bg }}>
-                      <td colSpan={4} style={{ ...td, fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Pantone")}{tec.length > 1 ? ` · Tec.${String(i + 1).padStart(2, "0")}` : ""}</td>
+                      <td colSpan={4} style={{ ...tdT, fontSize: compacto ? "6px" : "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Pantone")}{tec.length > 1 ? ` · Tec.${String(i + 1).padStart(2, "0")}` : ""}</td>
                       {VARS.slice(0, numVars).map(k => (
-                        <td key={k} style={{ ...td, textAlign: "center", fontFamily: "monospace", fontSize: "7px", fontWeight: 700, color: navy, padding: "3px 2px" }}>{pt[k] || "—"}</td>
+                        <td key={k} style={{ ...tdT, textAlign: "center", fontFamily: "monospace", fontSize: compacto ? "6.5px" : "7px", fontWeight: 700, color: navy, padding: compacto ? "1px 2px" : "3px 2px" }}>{pt[k] || "—"}</td>
                       ))}
                     </tr>
                   )}
@@ -292,9 +301,9 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                     valores não caíam sob a cor correspondente. */}
                 {tingimento && (["var01", "var02", "var03", "var04", "var05", "var06"] as const).slice(0, numVars).some(k => tingimento[k]) && (
                   <tr style={{ background: bg }}>
-                    <td colSpan={4} style={{ ...td, fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Tipo de Tingimento")}</td>
+                    <td colSpan={4} style={{ ...tdT, fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.08em" }}>{tr("Tipo de Tingimento")}</td>
                     {(["var01", "var02", "var03", "var04", "var05", "var06"] as const).slice(0, numVars).map(k => (
-                      <td key={k} style={{ ...td, textAlign: "center", fontSize: "7px", fontWeight: 700, color: navy, padding: "3px 2px" }}>{tingimento[k] || "—"}</td>
+                      <td key={k} style={{ ...tdT, textAlign: "center", fontSize: "7px", fontWeight: 700, color: navy, padding: "3px 2px" }}>{tingimento[k] || "—"}</td>
                     ))}
                   </tr>
                 )}
@@ -999,7 +1008,9 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         .print-page.fit-page { height: 250mm; max-height: 250mm; overflow: hidden; }
         /* Página 1 da ficha: mesma altura, mas sem cortar — quem encolhe é só
            o desenho; tabela e campos nunca somem. */
-        .print-page.pagina-ficha { height: 250mm; max-height: 250mm; }
+        /* 268mm (quase os 273mm úteis do A4): os 250mm das outras deixavam
+           uma faixa em branco no pé da folha que o desenho podia usar. */
+        .print-page.pagina-ficha { height: 268mm; max-height: 268mm; }
         @media print {
           /* A4 (297mm) menos as margens de @page (12mm) dá 273mm; 250mm deixa
              folga pro navegador/iOS aplicar margem própria sem estourar página. */
