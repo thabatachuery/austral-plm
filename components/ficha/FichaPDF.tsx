@@ -112,13 +112,6 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
   }, 0);
   const numVarsEst = Math.min(6, Math.max(1, varsComCor, ultimaVarEst));
 
-  // A página 1 foi medida para até 2 tecidos. Cada tecido a mais soma duas
-  // linhas na tabela (o tecido, com a localização, e o pantone dele) — o
-  // desenho cede essa mesma altura para todos os tecidos caberem na folha 1.
-  // Medido na largura de impressão: 37px a linha do tecido + 20px a do pantone.
-  const ALTURA_POR_TECIDO_EXTRA = 60;
-  const alturaDesenho = 515 - Math.max(0, tec.length - 2) * ALTURA_POR_TECIDO_EXTRA;
-
   let pageNum = 0;
   const pb = (): React.CSSProperties => { pageNum++; return pageNum > 1 ? { pageBreakBefore: "always" } : {}; };
 
@@ -185,8 +178,11 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
       {/* ══════════ FICHA TÉCNICA ══════════ */}
       {sec.ficha && (<>
-        {/* Página 1 — layout idêntico à modal */}
-        <div className="print-page" style={pb()}>
+        {/* Página 1 — layout idêntico à modal. Altura fixa (pagina-ficha): o
+            desenho fica com o que sobrar, para a tabela de tecidos inteira
+            caber na folha 1 por maior que fique (até 5 tecidos, localização
+            em duas linhas, pantone de cada um). */}
+        <div className="print-page pagina-ficha" style={pb()}>
 
           {/* Cabeçalho colorido — igual à modal */}
           <div style={{ background: headerBg, color: white, borderRadius: "5px", padding: "5px 12px", marginBottom: "5px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -227,10 +223,10 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
           {/* Desenho — grande, na página 1 */}
           {img && (
-            <div style={{ border: `1px solid ${line}`, borderRadius: "6px", overflow: "hidden", marginBottom: "7px", background: white, textAlign: "center" }}>
+            <div style={{ border: `1px solid ${line}`, borderRadius: "6px", overflow: "hidden", marginBottom: "7px", background: white, textAlign: "center", flex: 1, minHeight: "120px", display: "flex", flexDirection: "column" }}>
               <div style={{ background: headerBg, color: white, padding: "4px 10px", fontSize: "6.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", textAlign: "left" }}>{tr("Desenho Técnico")}</div>
-              <div style={{ padding: "6px 10px" }}>
-                <img src={img} alt="Desenho técnico" style={{ maxHeight: `${alturaDesenho}px`, width: "100%", objectFit: "contain" }} />
+              <div style={{ padding: "6px 10px", flex: 1, minHeight: 0 }}>
+                <img src={img} alt="Desenho técnico" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
               </div>
               {fotosTec.length > 0 && (
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", padding: "4px 10px", borderTop: `0.5px solid ${line}`, background: bg }}>
@@ -1001,6 +997,9 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
            e vazar pra folha seguinte. Páginas de tabela ficam de fora — cortar
            medida seria perder informação. */
         .print-page.fit-page { height: 250mm; max-height: 250mm; overflow: hidden; }
+        /* Página 1 da ficha: mesma altura, mas sem cortar — quem encolhe é só
+           o desenho; tabela e campos nunca somem. */
+        .print-page.pagina-ficha { height: 250mm; max-height: 250mm; }
         @media print {
           /* A4 (297mm) menos as margens de @page (12mm) dá 273mm; 250mm deixa
              folga pro navegador/iOS aplicar margem própria sem estourar página. */
