@@ -641,6 +641,9 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
           // em vez de deixar a ficha sem tecidos (as linhas já foram apagadas).
           if (r.error && /localizacao/.test(r.error.message)) {
             console.error("ficha_tecidos sem localizacao (falta a migration 036?):", r.error.message);
+            // Se alguém digitou localização, ela se perdeu: a tela tem que avisar,
+            // senão parece salvo e a ficha reabre com o campo vazio.
+            if (linhas.some((l: any) => l.localizacao)) falhou = true;
             return sb().from("ficha_tecidos").insert(linhas.map(({ localizacao, ...l }: any) => l));
           }
           return r;
