@@ -173,7 +173,9 @@ function Chamar-PLM {
     # Nada de -SkipHttpErrorCheck: não existe no PowerShell 5.1, então o erro
     # de HTTP vem como exceção e o código sai de $_.Exception.Response.
     $par = @{ Uri = $Uri; Method = $Metodo; Headers = $h; UseBasicParsing = $true }
-    if ($Corpo)        { $par.Body = $Corpo }
+    # Corpo em bytes UTF-8: o PowerShell 5.1 manda string como Latin-1, e um
+    # "LOCALIZAÇÃO" na estamparia virava JSON inválido (PGRST102) no PATCH.
+    if ($Corpo)        { $par.Body = [Text.Encoding]::UTF8.GetBytes($Corpo) }
     if ($InFile)       { $par.InFile = $InFile }
     if ($TipoConteudo) { $par.ContentType = $TipoConteudo }
 
