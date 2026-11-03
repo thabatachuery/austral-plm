@@ -23,6 +23,16 @@ const AuthContext = createContext<AuthCtx>({
   updatePassword: async () => null,
 });
 
+// Permissões e nome vêm de app_metadata/user_metadata — se mudarem, a tela
+// precisa do objeto novo; fora isso é a mesma sessão.
+function mesmoUsuario(a: User | null, b: User | null) {
+  if (!a || !b) return a === b;
+  return a.id === b.id
+    && a.email === b.email
+    && JSON.stringify(a.app_metadata) === JSON.stringify(b.app_metadata)
+    && JSON.stringify(a.user_metadata) === JSON.stringify(b.user_metadata);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]       = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,7 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Verificar sessão inicial
     getSupabase().auth.getUser().then(({ data: { user } }) => {
-      setUser(user ?? null);
+      const novo = user ?? null;
+      setUser(prev => mesmoUsuario(prev, novo) ? prev : novo);
       setLoading(false);
     }).catch(() => {
       setLoading(false);
@@ -39,7 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Ouvir mudanças (login, logout, refresh de token)
     const { data: { subscription } } = getSupabase().auth.onAuthStateChange(
       (event, session) => {
-        setUser(session?.user ?? null);
+        // Ao voltar pra aba do navegador o Supabase revalida a sessão e emite
+        // SIGNED_IN/TOKEN_REFRESHED com um objeto `user` novo, mesmo sendo a
+        // mesma pessoa. Trocar a referência fazia a página achar que era um
+        // login novo: recarregava tudo e a tela voltava do zero (filtros,
+        // rolagem, o que estava aberto). Só troca se algo relevante mudou.
+        const novo = session?.user ?? null;
+        setUser(prev => mesmoUsuario(prev, novo) ? prev : novo);
         // Ao clicar no link de "esqueci minha senha", o Supabase autentica a sessão
         // automaticamente — travar aqui até a pessoa definir uma senha nova, em vez
         // de deixar o link logar direto no sistema sem trocar nada.

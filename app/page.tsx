@@ -53,7 +53,19 @@ export default function Home() {
   const isAdmin = user?.app_metadata?.role === "admin";
   const perms: Record<string, boolean> = user?.app_metadata?.permissions || {};
   const canSection = (key: string) => isAdmin || perms[key] === true;
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [tab, setTabState] = useState<Tab>("dashboard");
+  // Lembra o menu aberto: no celular o navegador descarta a aba em segundo
+  // plano e, ao voltar, recarrega a página — sem isso caía sempre no Dashboard.
+  useEffect(() => {
+    try {
+      const salvo = sessionStorage.getItem("plm-tab") as Tab | null;
+      if (salvo && [...TABS, ...COMPRAS_TABS].some(t => t.id === salvo)) setTabState(salvo);
+    } catch {}
+  }, []);
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    try { sessionStorage.setItem("plm-tab", t); } catch {}
+  };
   const [rows, setRows] = useState<any[]>([]);
   const [variantes, setVariantes] = useState<Record<string, string[]>>({});
   const [variantesPorColecao, setVariantesPorColecao] = useState<Record<string, Record<string, string[]>>>({});
