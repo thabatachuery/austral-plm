@@ -260,7 +260,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                Só aparece quando há texto: sem isso, sobraria uma tarja amarela
                vazia em toda ficha. */}
           {/* ── Piloto / mostruário, em destaque ──
-               Repeat de coleção antiga leva a referência anterior; sem ela
+               Sempre leva a referência anterior (repeat, piloto ou mostruário direto); sem ela
                preenchida, fica a linha em branco para escrever na folha. */}
           {row.piloto_most && (
             <div style={{ background: "#E8F1FD", border: "1.5px solid #0A66D8", borderRadius: "5px", padding: "6px 10px", marginBottom: "7px", pageBreakInside: "avoid", display: "flex", alignItems: "baseline", gap: "16px", flexWrap: "wrap" }}>
@@ -268,7 +268,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 <div style={{ fontSize: "6px", fontWeight: 800, color: "#0A66D8", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "2px" }}>{tr("Piloto / mostruário")}</div>
                 <div style={{ fontSize: "10px", fontWeight: 800, color: navy }}>{row.piloto_most}</div>
               </div>
-              {/repeat/i.test(row.piloto_most) && (
+              {(
                 <div style={{ display: "flex", alignItems: "baseline", gap: "5px", flex: 1, minWidth: "180px" }}>
                   <span style={{ fontSize: "8px", fontWeight: 800, color: navy, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{tr("Referência anterior")}:</span>
                   <span style={{ flex: 1, borderBottom: `1px solid ${navy}`, fontSize: "10px", fontWeight: 800, color: navy, minHeight: "13px", paddingLeft: "3px" }}>{estamparia?.refAnterior || ""}</span>

@@ -1190,14 +1190,14 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
           <input ref={fr} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_url", setImg, img)} />
 
           {/* Piloto / mostruário (coluna do Desenvolvimento), em destaque logo
-              abaixo do desenho. Quando é repeat de coleção antiga, pede a
-              referência anterior — guardada no JSON da ficha (estamparia),
+              abaixo do desenho. Sempre pede a referência anterior (repeat,
+              piloto ou mostruário direto) — guardada no JSON da ficha (estamparia),
               como o "clonada de", para não depender de coluna nova no banco. */}
           {row.piloto_most && (
             <div className="rounded-xl border-2 border-[var(--system-blue)] bg-blue-50/60 px-4 py-3">
               <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--system-blue)]">{tr("Piloto / mostruário")}</div>
               <div className="text-[15px] font-extrabold text-[var(--label-primary)]">{row.piloto_most}</div>
-              {/repeat/i.test(row.piloto_most) && (
+              {(
                 <label className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="text-[12px] font-bold uppercase tracking-[0.04em] text-[var(--label-secondary)]">{tr("Referência anterior")}:</span>
                   <input
