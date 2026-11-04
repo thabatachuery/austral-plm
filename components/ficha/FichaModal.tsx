@@ -1189,6 +1189,28 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
           </div>
           <input ref={fr} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => hi(e, "imagem_url", setImg, img)} />
 
+          {/* Piloto / mostruário (coluna do Desenvolvimento), em destaque logo
+              abaixo do desenho. Quando é repeat de coleção antiga, pede a
+              referência anterior — guardada no JSON da ficha (estamparia),
+              como o "clonada de", para não depender de coluna nova no banco. */}
+          {row.piloto_most && (
+            <div className="rounded-xl border-2 border-[var(--system-blue)] bg-blue-50/60 px-4 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--system-blue)]">{tr("Piloto / mostruário")}</div>
+              <div className="text-[15px] font-extrabold text-[var(--label-primary)]">{row.piloto_most}</div>
+              {/repeat/i.test(row.piloto_most) && (
+                <label className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-[12px] font-bold uppercase tracking-[0.04em] text-[var(--label-secondary)]">{tr("Referência anterior")}:</span>
+                  <input
+                    value={estamparia?.refAnterior || ""}
+                    onChange={e => { const v = e.target.value.toUpperCase(); setEstamparia((prev: any) => ({ ...prev, refAnterior: v })); }}
+                    placeholder="Ex.: 21090019"
+                    className="apple-input !py-1 w-44 text-[13px] font-semibold tabnum"
+                  />
+                </label>
+              )}
+            </div>
+          )}
+
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-2">{tr("Observações")}</div>
             <textarea value={obs} onChange={e => setObs(e.target.value)} placeholder="Observações técnicas, instruções especiais..." rows={3} className="apple-input w-full resize-none" />
