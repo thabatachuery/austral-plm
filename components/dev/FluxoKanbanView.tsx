@@ -12,6 +12,7 @@ import { subscribeRealtime } from "@/lib/realtime";
 import TecidoSwatch from "@/components/ui/TecidoSwatch";
 import { useToast } from "@/components/ui/Toast";
 import { STATUS_ESTILO } from "@/lib/constants";
+import MultiSelect, { normalizarFiltros, comFiltro } from "@/components/ui/MultiSelect";
 
 // Mesmos filtros do Desenvolvimento (selects de cadastro, menos coleção — que
 // vira o seletor de pílulas — e forn. tecido).
@@ -102,29 +103,33 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     try { return JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}"); } catch { return {}; }
   })();
   const [search, setSearch] = useState<string>(saved.q || "");
-  const [fl, setFl] = useState<Record<string, string>>(saved.fl || {});
-  const [colecaoAtiva, setColecaoAtiva] = useState<string | null>(saved.colecaoAtiva || null);
+  const [fl, setFl] = useState<Record<string, string[]>>(normalizarFiltros(saved.fl));
+  // Coleções marcadas nos botões (várias ao mesmo tempo); com uma só, as cores
+  // mostradas são as da ficha daquela temporada.
+  const [colecoesAtivas, setColecoesAtivas] = useState<string[]>(Array.isArray(saved.colecoesAtivas) ? saved.colecoesAtivas : saved.colecaoAtiva ? [saved.colecaoAtiva] : []);
+  const colecaoAtiva = colecoesAtivas.length === 1 ? colecoesAtivas[0] : null;
+  const alternarColecao = (col: string) => setColecoesAtivas(p => p.includes(col) ? p.filter(c => c !== col) : [...p, col]);
   const [sf, setSf] = useState(false);
-  const ac = Object.values(fl).filter(Boolean).length;
+  const ac = Object.values(fl).filter(v => v.length).length;
   useEffect(() => {
-    try { const v = JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}"); localStorage.setItem(FILTERS_KEY, JSON.stringify({ ...v, q: search, fl, colecaoAtiva })); } catch {}
-  }, [search, fl, colecaoAtiva]);
+    try { const v = JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}"); localStorage.setItem(FILTERS_KEY, JSON.stringify({ ...v, q: search, fl, colecoesAtivas, colecaoAtiva: undefined })); } catch {}
+  }, [search, fl, colecoesAtivas]);
 
   const ativos = useMemo(() => rows.filter((r: any) => !refCancelada(r.status)), [rows]);
   const colecoes = useMemo(() => colecoesComTemporadas(ativos, temporadasPorRef), [ativos, temporadasPorRef]);
   const uv = (k: string): string[] => Array.from(new Set(ativos.map((r: any) => r[k]).filter(Boolean))).sort() as string[];
-  const sf2 = (k: string, v: string) => setFl(p => { const n = { ...p }; if (v) n[k] = v; else delete n[k]; return n; });
+  const sf2 = (k: string, v: string[]) => setFl(p => comFiltro(p, k, v));
 
   const filtrados = useMemo(() => {
     let f = ativos;
-    if (colecaoAtiva) f = f.filter((x: any) => naColecao(x, colecaoAtiva, temporadasPorRef));
-    Object.entries(fl).forEach(([k, v]) => { if (v) f = f.filter((x: any) => x[k] === v); });
+    if (colecoesAtivas.length) f = f.filter((x: any) => colecoesAtivas.some(c => naColecao(x, c, temporadasPorRef)));
+    Object.entries(fl).forEach(([k, v]) => { if (v.length) f = f.filter((x: any) => v.includes(x[k])); });
     if (search) {
       const q = search.toLowerCase();
       f = f.filter((x: any) => [x.ref, x.desc, x.descricao, x.tecido, x.composicao, x.fornecedor, x.forn_tecido, x.estilista, x.tab_medidas].map(v => v || "").join(" ").toLowerCase().includes(q));
     }
     return [...f].sort((a: any, b: any) => String(a.ref).localeCompare(String(b.ref)));
-  }, [ativos, colecaoAtiva, fl, search, temporadasPorRef]);
+  }, [ativos, colecoesAtivas, fl, search, temporadasPorRef]);
 
   const estadoDe = useCallback((ref: string): FluxoEstado => estados[ref] || { ref, etapa: 1, ciclo: 1, desde: null, meta: {} }, [estados]);
   const coresDe = (ref: string): string[] => {
@@ -194,7 +199,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
   ];
   const itemAtivo = RESUMO.flatMap(g => g.itens).find(i => i.key === resumoAtivo);
   // Mudou o recorte: a seleção recomeça, para não mover cards que saíram da tela.
-  useEffect(() => { setSel(new Set()); }, [search, fl, colecaoAtiva, resumoAtivo]);
+  useEffect(() => { setSel(new Set()); }, [search, fl, colecoesAtivas, resumoAtivo]);
 
   /* ── regras automáticas ao abrir (ficha e Linx) ── */
   const autoFeito = useRef(false);
@@ -320,13 +325,13 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
       {colecoes.length > 0 && (
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mr-1">Coleção</span>
-          <button onClick={() => setColecaoAtiva(null)}
-            className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all border ${colecaoAtiva === null ? "bg-[var(--label-primary)] text-[var(--bg-primary)] border-[var(--label-primary)]" : "bg-transparent text-[var(--label-secondary)] border-[var(--separator-opaque)] hover:border-[var(--label-tertiary)]"}`}>
+          <button onClick={() => setColecoesAtivas([])}
+            className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all border ${colecoesAtivas.length === 0 ? "bg-[var(--label-primary)] text-[var(--bg-primary)] border-[var(--label-primary)]" : "bg-transparent text-[var(--label-secondary)] border-[var(--separator-opaque)] hover:border-[var(--label-tertiary)]"}`}>
             Todas
           </button>
           {colecoes.map(col => (
-            <button key={col} onClick={() => setColecaoAtiva(col === colecaoAtiva ? null : col)}
-              className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all border ${colecaoAtiva === col ? "bg-[var(--system-blue)] text-white border-[var(--system-blue)]" : "bg-transparent text-[var(--label-secondary)] border-[var(--separator-opaque)] hover:border-[var(--label-tertiary)]"}`}>
+            <button key={col} onClick={() => alternarColecao(col)}
+              className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all border ${colecoesAtivas.includes(col) ? "bg-[var(--system-blue)] text-white border-[var(--system-blue)]" : "bg-transparent text-[var(--label-secondary)] border-[var(--separator-opaque)] hover:border-[var(--label-tertiary)]"}`}>
               {col}
             </button>
           ))}
@@ -348,7 +353,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
           {selecionando ? "Cancelar seleção" : "Selecionar"}
         </button>
         <span className="text-[12px] text-[var(--label-secondary)] font-medium">
-          {filtrados.length} ref(s){(ac > 0 || search || colecaoAtiva) ? ` de ${ativos.length}` : ""}
+          {filtrados.length} ref(s){(ac > 0 || search || colecoesAtivas.length) ? ` de ${ativos.length}` : ""}
           {linxPronto && !linx && <span className="text-[var(--system-orange)]"> · Linx fora do ar: cadastro e pedido não avançam sozinhos agora</span>}
         </span>
       </div>
@@ -363,10 +368,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
             {FC.map(c => (
               <div key={c.key}>
                 <label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">{c.label}</label>
-                <select value={fl[c.key] || ""} onChange={e => sf2(c.key, e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${fl[c.key] ? "!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold" : ""}`}>
-                  <option value="">Todos</option>
-                  {uv(c.key).map(v => <option key={v}>{v}</option>)}
-                </select>
+                <MultiSelect value={fl[c.key] || []} options={uv(c.key)} onChange={v => sf2(c.key, v)} className="text-[12px] py-1.5" />
               </div>
             ))}
           </div>
@@ -376,12 +378,12 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
       {ac > 0 && !sf && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {Object.entries(fl).map(([k, v]) => {
-            if (!v) return null;
+            if (!v.length) return null;
             const c = COLUMNS.find(x => x.key === k);
             return (
               <span key={k} className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 text-[12px] font-medium">
-                <span className="text-blue-300">{c?.label}:</span>{v}
-                <button onClick={() => sf2(k, "")} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]" aria-label={`Remover filtro ${c?.label}`}>×</button>
+                <span className="text-blue-300">{c?.label}:</span>{v.join(", ")}
+                <button onClick={() => sf2(k, [])} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]" aria-label={`Remover filtro ${c?.label}`}>×</button>
               </span>
             );
           })}

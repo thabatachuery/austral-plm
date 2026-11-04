@@ -8,6 +8,7 @@ import { exportExplosaoPDF } from "@/lib/export-pdf-explosao";
 import { fmtBRL } from "@/lib/utils";
 import ScrollTable from "@/components/ui/ScrollTable";
 import { naColecao, colecoesComTemporadas, type TemporadasPorRef } from "@/lib/colecao";
+import MultiSelect from "@/components/ui/MultiSelect";
 
 type Props = { comprasRows: any[]; variantes: Record<string, string[]>; temporadasPorRef?: TemporadasPorRef };
 
@@ -64,10 +65,10 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
   const [data, setData] = useState<{ fichas: any[]; avFichas: any[]; avLib: any[]; comprasVar: any[]; tecFichas: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [flFornProd, setFlFornProd] = useState("");
-  const [flStatus, setFlStatus] = useState("");
-  const [flColecao, setFlColecao] = useState("");
-  const [flFornAvi, setFlFornAvi] = useState("");
+  const [flFornProd, setFlFornProd] = useState<string[]>([]);
+  const [flStatus, setFlStatus] = useState<string[]>([]);
+  const [flColecao, setFlColecao] = useState<string[]>([]);
+  const [flFornAvi, setFlFornAvi] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [modo, setModo] = useState<Modo>("producao");
@@ -91,9 +92,9 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
   const filteredProd = useMemo(() => {
     let r = comprasRows.filter((x: any) => modoInfo.statusMatch((x.status || "").toUpperCase()));
     if (search)     { const q = search.toLowerCase(); r = r.filter((x: any) => (`${x.ref} ${x.descricao}`).toLowerCase().includes(q)); }
-    if (flFornProd) r = r.filter((x: any) => x.fornecedor === flFornProd);
-    if (flStatus)   r = r.filter((x: any) => x.status === flStatus);
-    if (flColecao)  r = r.filter((x: any) => naColecao(x, flColecao, temporadasPorRef));
+    if (flFornProd.length) r = r.filter((x: any) => flFornProd.includes(x.fornecedor));
+    if (flStatus.length)   r = r.filter((x: any) => flStatus.includes(x.status));
+    if (flColecao.length)  r = r.filter((x: any) => flColecao.some(c => naColecao(x, c, temporadasPorRef)));
     return r;
   }, [comprasRows, search, flFornProd, flStatus, flColecao, modoInfo, temporadasPorRef]);
 
@@ -109,7 +110,7 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
     filteredProd.forEach((p: any) => { colecaoDoProduto[p.ref] = p.colecao || ""; });
     data.fichas.forEach((f: any) => {
       if (!refSet.has(f.produto_ref)) return;
-      if (flColecao && f.colecao && colecaoDoProduto[f.produto_ref] !== flColecao && f.colecao !== flColecao) return;
+      if (flColecao.length && f.colecao && !flColecao.includes(colecaoDoProduto[f.produto_ref]) && !flColecao.includes(f.colecao)) return;
       m.set(f.id, f.produto_ref);
     });
     return m;
@@ -278,7 +279,7 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
       };
     });
 
-    if (flFornAvi) rows = rows.filter(r => r.fornecedor === flFornAvi);
+    if (flFornAvi.length) rows = rows.filter(r => flFornAvi.includes(r.fornecedor));
     return rows;
   }, [data, fichaRefMap, avLibMap, refFornMap, refIdMap, fichaQtdMostMap, fichaCoresMap, comprasPorCorMap, productTotalComprasMap, variantes, flFornAvi, modo]);
 
@@ -322,7 +323,7 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
     setGeneratingPdf(true);
     try {
       const date = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
-      await exportExplosaoPDF(sorted, { fornProd: flFornProd, status: flStatus, colecao: flColecao, fornAvi: flFornAvi, etapa: modoInfo.label }, `explosao_aviamentos_${modo}_${date}`);
+      await exportExplosaoPDF(sorted, { fornProd: flFornProd.join(", "), status: flStatus.join(", "), colecao: flColecao.join(", "), fornAvi: flFornAvi.join(", "), etapa: modoInfo.label }, `explosao_aviamentos_${modo}_${date}`);
       avancarKanban();
     } finally {
       setGeneratingPdf(false);
@@ -361,7 +362,7 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
           <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Etapa</span>
           <div className="flex bg-[var(--bg-secondary)] rounded-lg border border-[var(--separator)] p-0.5 gap-0.5">
             {MODOS.map(m => (
-              <button key={m.key} onClick={() => { setModo(m.key); setFlStatus(""); }}
+              <button key={m.key} onClick={() => { setModo(m.key); setFlStatus([]); }}
                 className={`text-[12px] font-semibold px-3.5 py-1.5 rounded-md transition-all ${modo === m.key ? "bg-[var(--system-blue)] text-white" : "text-[var(--label-secondary)] hover:text-[var(--label-primary)]"}`}>
                 {m.label}
               </button>
@@ -377,9 +378,9 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
       <div className="apple-card p-4 mb-4 bg-[var(--bg-secondary)]">
         <div className="flex items-center justify-between mb-3">
           <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Filtrar por</span>
-          {(search || flFornProd || flStatus || flColecao || flFornAvi) && (
-            <button onClick={() => { setSearch(""); setFlFornProd(""); setFlStatus(""); setFlColecao(""); setFlFornAvi(""); }} className="text-[12px] text-[var(--system-blue)] font-medium">Limpar</button>
-          )}
+          {(search || flFornProd.length || flStatus.length || flColecao.length || flFornAvi.length) ? (
+            <button onClick={() => { setSearch(""); setFlFornProd([]); setFlStatus([]); setFlColecao([]); setFlFornAvi([]); }} className="text-[12px] text-[var(--system-blue)] font-medium">Limpar</button>
+          ) : null}
         </div>
         <div className="mb-2.5" style={{ position: "relative" }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--label-tertiary)" strokeWidth="2.2" strokeLinecap="round"
@@ -392,31 +393,19 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div>
             <label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">Fornecedor (Produto)</label>
-            <select value={flFornProd} onChange={e => setFlFornProd(e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${flFornProd ? "!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold" : ""}`}>
-              <option value="">Todos</option>
-              {uv("fornecedor").map(v => <option key={v}>{v}</option>)}
-            </select>
+            <MultiSelect value={flFornProd} options={uv("fornecedor")} onChange={setFlFornProd} todos="Todos" className="text-[12px] py-1.5" />
           </div>
           <div>
             <label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">Status Atual</label>
-            <select value={flStatus} onChange={e => setFlStatus(e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${flStatus ? "!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold" : ""}`}>
-              <option value="">Todos</option>
-              {statusOpts.map(v => <option key={v}>{v}</option>)}
-            </select>
+            <MultiSelect value={flStatus} options={statusOpts} onChange={setFlStatus} todos="Todos" className="text-[12px] py-1.5" />
           </div>
           <div>
             <label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">Coleção</label>
-            <select value={flColecao} onChange={e => setFlColecao(e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${flColecao ? "!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold" : ""}`}>
-              <option value="">Todas</option>
-              {colecoesComTemporadas(comprasRows, temporadasPorRef).map(v => <option key={v}>{v}</option>)}
-            </select>
+            <MultiSelect value={flColecao} options={colecoesComTemporadas(comprasRows, temporadasPorRef)} onChange={setFlColecao} todos="Todas" className="text-[12px] py-1.5" />
           </div>
           <div>
             <label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">Fornecedor de Aviamento</label>
-            <select value={flFornAvi} onChange={e => setFlFornAvi(e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${flFornAvi ? "!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold" : ""}`}>
-              <option value="">Todos</option>
-              {uvFornAvi.map(v => <option key={v as string}>{v}</option>)}
-            </select>
+            <MultiSelect value={flFornAvi} options={uvFornAvi as string[]} onChange={setFlFornAvi} todos="Todos" className="text-[12px] py-1.5" />
           </div>
         </div>
       </div>

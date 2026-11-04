@@ -6,6 +6,7 @@ import StatusPill from "@/components/ui/StatusPill";
 import { updateProdutoField, fetchVarianteCompras, upsertVarianteCompra } from "@/lib/db";
 import { exportToExcel, fmtExcelDate } from "@/lib/export-excel";
 import ScrollTable from "@/components/ui/ScrollTable";
+import MultiSelect, { comFiltro } from "@/components/ui/MultiSelect";
 import { useToast } from "@/components/ui/Toast";
 
 // Colunas ESTILO
@@ -116,10 +117,10 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
 
   const FILTERS = compras ? FK_COMPRAS : FK;
   const [q,setQ]=useState("");
-  const [fl,setFl]=useState<Record<string,string>>({});
+  const [fl,setFl]=useState<Record<string,string[]>>({});
   const [sf,setSf]=useState(false);
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
-  const ac=Object.values(fl).filter(Boolean).length;
+  const ac=Object.values(fl).filter(v=>v.length).length;
 
   const toggleSort = (k: string) => {
     setSort(prev => {
@@ -179,8 +180,8 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
   const filtered = useMemo(() => {
     let r = vr;
     Object.entries(fl).forEach(([k,v]) => {
-      if (!v) return;
-      r = r.filter(x => x[k] === v);
+      if (!v.length) return;
+      r = r.filter(x => v.includes(x[k]));
     });
     if(q){ const s=q.toLowerCase(); r=r.filter(x=>(x.ref+x.desc+x.cor+x.tecido+x.composicao+x.fornecedor).toLowerCase().includes(s)); }
     if (sort) {
@@ -194,7 +195,7 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
   }, [vr, fl, q, sort]);
 
   const uv = (k: string): string[] => Array.from(new Set(vr.map(r => r[k]).filter(Boolean))).sort();
-  const sf2 = (k: string, v: string) => setFl(p => { const n={...p}; if(v) n[k]=v; else delete n[k]; return n; });
+  const sf2 = (k: string, v: string[]) => setFl(p => comFiltro(p, k, v));
 
   return (
     <div>
@@ -206,8 +207,8 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
           Exportar
         </button>
       </div>
-      {sf&&(<div className="apple-card p-4 mb-4 bg-[var(--bg-secondary)]"><div className="flex items-center justify-between mb-3"><span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Filtrar por</span>{ac>0&&<button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--system-blue)] font-medium">Limpar</button>}</div><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">{FILTERS.map(k=>(<div key={k}><label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">{FL[k]}</label><select value={fl[k]||""} onChange={e=>sf2(k,e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${fl[k]?"!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold":""}`}><option value="">Todos</option>{uv(k).map(v=><option key={v}>{v}</option>)}</select></div>))}</div></div>)}
-      {ac>0&&!sf&&(<div className="flex flex-wrap gap-1.5 mb-3">{Object.entries(fl).map(([k,v])=>{if(!v)return null;return(<span key={k} className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 text-[12px] font-medium"><span className="text-blue-300">{FL[k]}:</span>{v}<button onClick={()=>sf2(k,"")} className="ml-0.5 text-blue-300">×</button></span>);})}<button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--label-tertiary)] px-2">Limpar</button></div>)}
+      {sf&&(<div className="apple-card p-4 mb-4 bg-[var(--bg-secondary)]"><div className="flex items-center justify-between mb-3"><span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Filtrar por</span>{ac>0&&<button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--system-blue)] font-medium">Limpar</button>}</div><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">{FILTERS.map(k=>(<div key={k}><label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">{FL[k]}</label><MultiSelect value={fl[k]||[]} options={uv(k)} onChange={v=>sf2(k,v)} className="text-[12px] py-1.5"/></div>))}</div></div>)}
+      {ac>0&&!sf&&(<div className="flex flex-wrap gap-1.5 mb-3">{Object.entries(fl).map(([k,v])=>{if(!v.length)return null;return(<span key={k} className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 text-[12px] font-medium"><span className="text-blue-300">{FL[k]}:</span>{v.join(", ")}<button onClick={()=>sf2(k,[])} className="ml-0.5 text-blue-300">×</button></span>);})}<button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--label-tertiary)] px-2">Limpar</button></div>)}
 
       <div className="flex items-baseline gap-3 mb-4"><span className="text-[28px] font-bold tabnum tracking-[-0.03em]">{filtered.length}</span><span className="text-[14px] text-[var(--label-secondary)]">variante{filtered.length!==1&&"s"}</span>{ac>0&&<span className="text-[12px] text-[var(--label-tertiary)]">de {vr.length}</span>}<span className="text-[11px] text-[var(--label-quaternary)] ml-auto">Cores cadastradas na ficha técnica</span></div>
 

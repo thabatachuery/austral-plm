@@ -6,6 +6,7 @@ import { urlsDasPartes } from "@/lib/arquivo-partes";
 import LinkArquivo from "./LinkArquivo";
 import { useAuth } from "@/lib/auth-context";
 import { nomeUsuario } from "@/lib/utils";
+import MultiSelect from "@/components/ui/MultiSelect";
 
 const ESTAGIOS = ["DESENVOLVIMENTO", "MOSTRUÁRIO", "PRODUÇÃO"];
 
@@ -62,9 +63,9 @@ export default function EnviosView() {
   const [progresso, setProgresso] = useState(0);
 
   // Filtros do histórico
-  const [fColecao, setFColecao] = useState("");
-  const [fEstagio, setFEstagio] = useState("");
-  const [fFornecedor, setFFornecedor] = useState("");
+  const [fColecao, setFColecao] = useState<string[]>([]);
+  const [fEstagio, setFEstagio] = useState<string[]>([]);
+  const [fFornecedor, setFFornecedor] = useState<string[]>([]);
   const [busca, setBusca] = useState("");
 
   useEffect(() => { carregar(); }, []);
@@ -134,9 +135,9 @@ export default function EnviosView() {
   const filtrados = useMemo(() => {
     const b = busca.trim().toUpperCase();
     return envios.filter(e =>
-      (!fColecao || e.colecao === fColecao) &&
-      (!fEstagio || e.estagio === fEstagio) &&
-      (!fFornecedor || e.fornecedor === fFornecedor) &&
+      (!fColecao.length || fColecao.includes(e.colecao)) &&
+      (!fEstagio.length || fEstagio.includes(e.estagio)) &&
+      (!fFornecedor.length || fFornecedor.includes(e.fornecedor)) &&
       (!b || e.fornecedor.toUpperCase().includes(b) || e.colecao.toUpperCase().includes(b)
         || (e.arquivos || []).some(a => a.nome.toUpperCase().includes(b) || (a.refs || []).some(r => r.includes(b))))
     );
@@ -216,18 +217,9 @@ export default function EnviosView() {
       )}
 
       <div className="flex gap-2 flex-wrap mb-4">
-        <select className={inp} value={fColecao} onChange={e => setFColecao(e.target.value)}>
-          <option value="">Todas as coleções</option>
-          {(cad.colecao || []).map((c: string) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select className={inp} value={fEstagio} onChange={e => setFEstagio(e.target.value)}>
-          <option value="">Todos os estágios</option>
-          {ESTAGIOS.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select className={inp} value={fFornecedor} onChange={e => setFFornecedor(e.target.value)}>
-          <option value="">Todos os fornecedores</option>
-          {(cad.fornecedor || []).map((f: string) => <option key={f} value={f}>{f}</option>)}
-        </select>
+        <div className="min-w-[180px]"><MultiSelect value={fColecao} options={cad.colecao || []} onChange={setFColecao} todos="Todas as coleções" /></div>
+        <div className="min-w-[180px]"><MultiSelect value={fEstagio} options={[...ESTAGIOS]} onChange={setFEstagio} todos="Todos os estágios" /></div>
+        <div className="min-w-[200px]"><MultiSelect value={fFornecedor} options={cad.fornecedor || []} onChange={setFFornecedor} todos="Todos os fornecedores" /></div>
         <input className={`${inp} flex-1 min-w-[180px]`} value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por referência, arquivo ou fornecedor..." />
       </div>
 

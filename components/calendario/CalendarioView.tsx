@@ -11,6 +11,7 @@ import { getColecaoColor } from "@/lib/collection-colors";
 import { parseISO } from "@/lib/calendario-utils";
 import CalendarioResumoView from "./CalendarioResumoView";
 import CalendarioControleView from "./CalendarioControleView";
+import MultiSelect from "@/components/ui/MultiSelect";
 
 // O Calendário é o espelho da planilha "Calendário 2026" do SharePoint
 // (Produto › 0 - CALENDÁRIOS › 2026): mesmas linhas, mesmas semanas, mesmos
@@ -45,9 +46,9 @@ export default function CalendarioView() {
   const [cal, setCal] = useState<CalendarioPlanilha | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filterColecao, setFilterColecao] = useState("");
-  const [filterResponsavel, setFilterResponsavel] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterColecao, setFilterColecao] = useState<string[]>([]);
+  const [filterResponsavel, setFilterResponsavel] = useState<string[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string[]>([]);
   const [busca, setBusca] = useState("");
   const [detalhe, setDetalhe] = useState<LinhaPlanilha | null>(null);
   const todayColRef = useRef<HTMLTableCellElement | null>(null);
@@ -103,9 +104,9 @@ export default function CalendarioView() {
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return linhas.filter(l =>
-      (!filterColecao || l.colecao === filterColecao) &&
-      (!filterResponsavel || l.responsavel === filterResponsavel) &&
-      (!filterStatus || l.status === filterStatus) &&
+      (!filterColecao.length || filterColecao.includes(l.colecao)) &&
+      (!filterResponsavel.length || filterResponsavel.includes(l.responsavel)) &&
+      (!filterStatus.length || filterStatus.includes(l.status)) &&
       (!q || [l.tarefa, l.colecao, l.responsavel, ...l.celulas.map(c => c.texto)].join(" ").toLowerCase().includes(q))
     );
   }, [linhas, filterColecao, filterResponsavel, filterStatus, busca]);
@@ -141,7 +142,7 @@ export default function CalendarioView() {
   const temCorNaPlanilha = useMemo(() => linhas.some(l => l.celulas.some(c => c.cor)), [linhas]);
 
   const abrirDetalheTarefa = (t: CalendarioTarefa) => setDetalhe(linhas.find(l => l.id === t.id) || null);
-  const ac = [filterColecao, filterResponsavel, filterStatus, busca].filter(Boolean).length;
+  const ac = [filterColecao.length, filterResponsavel.length, filterStatus.length, busca].filter(Boolean).length;
 
   return (
     <div className="flex flex-col gap-5 min-h-screen pb-10">
@@ -183,26 +184,17 @@ export default function CalendarioView() {
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="cal-col" className="text-[12px] font-semibold uppercase text-[var(--label-tertiary)]">Coleção</label>
-            <select id="cal-col" value={filterColecao} onChange={e => setFilterColecao(e.target.value)} className="apple-input w-48">
-              <option value="">Todas ({colecoes.length})</option>
-              {colecoes.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <div className="w-48"><MultiSelect id="cal-col" value={filterColecao} options={colecoes} onChange={setFilterColecao} todos={`Todas (${colecoes.length})`} /></div>
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="cal-resp" className="text-[12px] font-semibold uppercase text-[var(--label-tertiary)]">Responsável</label>
-            <select id="cal-resp" value={filterResponsavel} onChange={e => setFilterResponsavel(e.target.value)} className="apple-input w-48">
-              <option value="">Todos ({responsaveis.length})</option>
-              {responsaveis.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
+            <div className="w-48"><MultiSelect id="cal-resp" value={filterResponsavel} options={responsaveis} onChange={setFilterResponsavel} todos={`Todos (${responsaveis.length})`} /></div>
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="cal-st" className="text-[12px] font-semibold uppercase text-[var(--label-tertiary)]">Status</label>
-            <select id="cal-st" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="apple-input w-48">
-              <option value="">Todos</option>
-              {statusOpts.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <div className="w-48"><MultiSelect id="cal-st" value={filterStatus} options={statusOpts} onChange={setFilterStatus} /></div>
           </div>
-          {ac > 0 && <button onClick={() => { setFilterColecao(""); setFilterResponsavel(""); setFilterStatus(""); setBusca(""); }} className="text-[12px] text-[var(--system-blue)] font-medium pb-2">Limpar filtros</button>}
+          {ac > 0 && <button onClick={() => { setFilterColecao([]); setFilterResponsavel([]); setFilterStatus([]); setBusca(""); }} className="text-[12px] text-[var(--system-blue)] font-medium pb-2">Limpar filtros</button>}
         </div>
 
         {erro && !cal ? (

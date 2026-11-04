@@ -2,6 +2,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import COLUMNS from "@/lib/columns";
 import { fetchRanking, type RankingDados, type RankingItem } from "@/lib/linx-client";
+import MultiSelect, { normalizarFiltros, comFiltro } from "@/components/ui/MultiSelect";
 
 // Ranking de Vendas / Ranking de Estoque — a mesma tela com o eixo trocado.
 // Vendas: ordena pela venda do período e mostra o estoque como apoio.
@@ -74,7 +75,7 @@ export default function RankingView({ modo, rows }: Props) {
   const [deCustom, setDeCustom] = useState<string>(salvo.de || "");
   const [ateCustom, setAteCustom] = useState<string>(salvo.ate || "");
   const [q, setQ] = useState<string>(salvo.q || "");
-  const [fl, setFl] = useState<Record<string, string>>(salvo.fl || {});
+  const [fl, setFl] = useState<Record<string, string[]>>(normalizarFiltros(salvo.fl));
   const [agrupar, setAgrupar] = useState<boolean>(!!salvo.agrupar);
   const [visual, setVisual] = useState<"cards" | "lista">(salvo.visual || "cards");
   // Ranking de estoque: ordenar pelo atual ou pelo total (atual + futuro).
@@ -141,7 +142,7 @@ export default function RankingView({ modo, rows }: Props) {
     const termo = q.trim().toUpperCase();
     const lista = dados.itens.filter(it => {
       if (termo && !`${it.ref} ${it.desc}`.toUpperCase().includes(termo)) return false;
-      for (const [k, v] of Object.entries(fl)) if (v && campo(it, k) !== v) return false;
+      for (const [k, v] of Object.entries(fl)) if (v.length && !v.includes(campo(it, k))) return false;
       // Ranking de estoque é de quem tem estoque; o de vendas, de quem vendeu
       // (sem venda publicada ainda, mostra quem tem estoque para não ficar vazio).
       if (modo === "estoque") return it.est > 0 || (porTotal && it.fut > 0);
@@ -181,7 +182,7 @@ export default function RankingView({ modo, rows }: Props) {
   const totFuturo = filtrados.reduce((s, it) => s + it.fut, 0);
   const totValor = filtrados.reduce((s, it) => s + it.venValor, 0);
   const maxPrincipal = Math.max(1, ...filtrados.map(principal));
-  const filtrosAtivos = Object.values(fl).filter(Boolean).length;
+  const filtrosAtivos = Object.values(fl).filter(v => v.length).length;
 
   const nomePrincipal = modo === "vendas" ? "Vendido" : "Estoque";
   const nomeApoio = modo === "vendas" ? "Estoque" : "Vendido";
@@ -195,7 +196,9 @@ export default function RankingView({ modo, rows }: Props) {
     return it.est / porSemana;
   };
 
-  const setFiltro = (k: string, v: string) => setFl(prev => ({ ...prev, [k]: v }));
+  const setFiltro = (k: string, v: string[]) => setFl(prev => comFiltro(prev, k, v));
+  // Clique na barra do grupo: liga/desliga aquele grupo no filtro.
+  const alternarGrupo = (g: string) => { const atual = fl.grupo || []; setFiltro("grupo", atual.includes(g) ? atual.filter(x => x !== g) : [...atual, g]); };
   const alternar = (ref: string) => setAbertos(prev => { const s = new Set(prev); s.has(ref) ? s.delete(ref) : s.add(ref); return s; });
 
   // ── Tabela cor/loja do card: coluna principal ordena, a de apoio acompanha ──
@@ -363,10 +366,7 @@ export default function RankingView({ modo, rows }: Props) {
             {FILTROS.map(f => (
               <div key={f.key}>
                 <label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">{f.label}</label>
-                <select value={fl[f.key] || ""} onChange={e => setFiltro(f.key, e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${fl[f.key] ? "!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold" : ""}`}>
-                  <option value="">Todos</option>
-                  {(opcoes[f.key] || []).map(v => <option key={v}>{v}</option>)}
-                </select>
+                <MultiSelect value={fl[f.key] || []} options={opcoes[f.key] || []} onChange={v => setFiltro(f.key, v)} className="text-[12px] py-1.5" />
               </div>
             ))}
           </div>
@@ -375,10 +375,10 @@ export default function RankingView({ modo, rows }: Props) {
       )}
       {filtrosAtivos > 0 && !painelFiltros && (
         <div className="flex flex-wrap gap-1.5 mb-3">
-          {Object.entries(fl).map(([k, v]) => v ? (
+          {Object.entries(fl).map(([k, v]) => v.length ? (
             <span key={k} className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 text-[12px] font-medium">
-              <span className="text-blue-300">{FILTROS.find(f => f.key === k)?.label}:</span>{v}
-              <button onClick={() => setFiltro(k, "")} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]">×</button>
+              <span className="text-blue-300">{FILTROS.find(f => f.key === k)?.label}:</span>{v.join(", ")}
+              <button onClick={() => setFiltro(k, [])} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]">×</button>
             </span>
           ) : null)}
           <button onClick={() => setFl({})} className="text-[12px] text-[var(--label-tertiary)] px-2 py-1">Limpar</button>
@@ -420,11 +420,11 @@ export default function RankingView({ modo, rows }: Props) {
             <div className="apple-card p-4 mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">{modo === "vendas" ? "Venda" : "Estoque"} por grupo</span>
-                {fl.grupo && <button onClick={() => setFiltro("grupo", "")} className="text-[11px] text-[var(--system-blue)] font-medium">Ver todos os grupos</button>}
+                {!!fl.grupo?.length && <button onClick={() => setFiltro("grupo", [])} className="text-[11px] text-[var(--system-blue)] font-medium">Ver todos os grupos</button>}
               </div>
               <div className="grid gap-x-6 gap-y-1" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
                 {grupos.map(g => (
-                  <button key={g.nome} onClick={() => setFiltro("grupo", fl.grupo === g.nome ? "" : g.nome)} title="Filtrar este grupo" className="grid items-center text-[12px] py-1 text-left hover:opacity-80" style={{ gridTemplateColumns: "110px 1fr 70px" }}>
+                  <button key={g.nome} onClick={() => alternarGrupo(g.nome)} title="Filtrar este grupo" className="grid items-center text-[12px] py-1 text-left hover:opacity-80" style={{ gridTemplateColumns: "110px 1fr 70px" }}>
                     <span className="truncate font-medium">{g.nome}</span>
                     <span className="h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${(g.total / Math.max(1, grupos[0].total)) * 100}%`, background: cor }} /></span>
                     <span className="text-right tabular-nums"><b>{n(g.total)}</b> <span className="text-[var(--label-tertiary)]">{totPrincipal ? `${Math.round(g.total / totPrincipal * 100)}%` : ""}</span></span>

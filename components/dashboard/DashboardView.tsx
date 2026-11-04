@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { fetchControleFluxo } from "@/lib/db";
 import { fmtBRL as _fmtBRL } from "@/lib/utils";
+import MultiSelect, { comFiltro } from "@/components/ui/MultiSelect";
 const fmtBrl = (v: number) => _fmtBRL(v, { decimals: 0 });
 
 type Props = { rows: any[]; variantes: Record<string, string[]>; variantesPorColecao?: Record<string, Record<string, string[]>> };
@@ -59,7 +60,7 @@ export default function DashboardView({ rows, variantes: variantesTodas, variant
   const [group,  setGroup]  = useState("estilo");
   const [subTab, setSubTab] = useState("desenvolvimento");
   const [fluxo,  setFluxo]  = useState<any[]>([]);
-  const [fl, setFl] = useState<Record<string, string>>({});
+  const [fl, setFl] = useState<Record<string, string[]>>({});
   // Coleções selecionadas (soma). Um clássico entra quando a coleção dele está
   // selecionada OU quando ele tem ficha numa temporada selecionada — escolher
   // INVERNO 27 traz os produtos da coleção e os clássicos com temporada INVERNO 27.
@@ -106,21 +107,21 @@ export default function DashboardView({ rows, variantes: variantesTodas, variant
   /* filtered rows for dev sections */
   const filtered = useMemo(() => {
     let r = rows.filter(naColecao);
-    Object.entries(fl).forEach(([k, v]) => { if (v) r = r.filter((x: any) => x[k] === v); });
+    Object.entries(fl).forEach(([k, v]) => { if (v.length) r = r.filter((x: any) => v.includes(x[k])); });
     return r;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, fl, colecoes, variantesPorColecao]);
 
   const uv = (k: string) => Array.from(new Set(rows.map((r: any) => r[k]).filter(Boolean))).sort() as string[];
-  const sf = (k: string, v: string) => setFl(p => { const n = { ...p }; if (v) n[k] = v; else delete n[k]; return n; });
-  const ac = Object.values(fl).filter(Boolean).length + colecoes.length;
+  const sf = (k: string, v: string[]) => setFl(p => comFiltro(p, k, v));
+  const ac = Object.values(fl).filter(v => v.length).length + colecoes.length;
   const opcoesColecao = Array.from(new Set([...uv("colecao"), ...Object.values(variantesPorColecao).flatMap(t => Object.keys(t))])).sort();
 
   /* compras rows = rows that have purchase intent (fornecedor set) */
   const comprasRows = useMemo(() => rows.filter((r: any) => r.fornecedor), [rows]);
   const comprasFiltered = useMemo(() => {
     let r = comprasRows.filter(naColecao);
-    Object.entries(fl).forEach(([k, v]) => { if (v) r = r.filter((x: any) => x[k] === v); });
+    Object.entries(fl).forEach(([k, v]) => { if (v.length) r = r.filter((x: any) => v.includes(x[k])); });
     return r;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comprasRows, fl, colecoes, variantesPorColecao]);
@@ -298,12 +299,7 @@ export default function DashboardView({ rows, variantes: variantesTodas, variant
         {DEV_FILTERS.map(f => (
           <div key={f.key}>
             <label className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mb-1 block">{f.label}</label>
-            <select value={fl[f.key] || ""} onChange={e => sf(f.key, e.target.value)}
-              className={`apple-select w-full text-[12px] py-1.5 ${fl[f.key] ? "!border-[var(--system-blue)] font-semibold" : ""}`}
-              style={fl[f.key] ? { background: B50, color: B700 } : {}}>
-              <option value="">Todos</option>
-              {uv(f.key).map(v => <option key={v}>{v}</option>)}
-            </select>
+            <MultiSelect value={fl[f.key] || []} options={uv(f.key)} onChange={v => sf(f.key, v)} className="text-[12px] py-1.5" />
           </div>
         ))}
       </div>
@@ -316,12 +312,12 @@ export default function DashboardView({ rows, variantes: variantesTodas, variant
             </span>
           ))}
           {Object.entries(fl).map(([k, v]) => {
-            if (!v) return null;
+            if (!v.length) return null;
             const f = DEV_FILTERS.find(x => x.key === k);
             return (
               <span key={k} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-medium" style={{ background: B100, color: B700 }}>
-                <span className="text-[11px]" style={{ color: B400 }}>{f?.label}:</span>{v}
-                <button onClick={() => sf(k, "")} className="hover:opacity-70 leading-none" style={{ color: B400 }}>×</button>
+                <span className="text-[11px]" style={{ color: B400 }}>{f?.label}:</span>{v.join(", ")}
+                <button onClick={() => sf(k, [])} className="hover:opacity-70 leading-none" style={{ color: B400 }}>×</button>
               </span>
             );
           })}

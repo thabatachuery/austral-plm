@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import InlineCell from "@/components/ui/InlineCell";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
@@ -13,6 +13,7 @@ import { fmtBRL, nomeUsuario } from "@/lib/utils";
 // Status em que qualquer alteração dispara o popup de alerta pros outros usuários.
 const STATUS_ALERTA = [STATUS_ESTILO.MOSTARIO_LIBERADO, STATUS_ESTILO.PRODUCAO_LIBERADA, STATUS_ESTILO.REPILOTANDO_PRODUCAO] as string[];
 import ScrollTable from "@/components/ui/ScrollTable";
+import MultiSelect, { normalizarFiltros, comFiltro } from "@/components/ui/MultiSelect";
 import FichaExportLote from "@/components/ficha/FichaExportLote";
 import { naColecao, colecoesComTemporadas, type TemporadasPorRef } from "@/lib/colecao";
 
@@ -89,9 +90,13 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
 
   const [cad, setCad] = useState<Record<string, any>>({});
   const [q, setQ] = useState<string>(saved.q || "");
-  const [fl, setFl] = useState<Record<string,string>>(saved.fl || {});
+  const [fl, setFl] = useState<Record<string,string[]>>(normalizarFiltros(saved.fl));
   const [sf, setSf] = useState(false);
-  const [colecaoAtiva, setColecaoAtiva] = useState<string | null>(saved.colecaoAtiva || null);
+  // Coleções marcadas nos botões (várias ao mesmo tempo). Com uma só, ela vira
+  // a "temporada" usada ao abrir a ficha do clássico.
+  const [colecoesAtivas, setColecoesAtivas] = useState<string[]>(Array.isArray(saved.colecoesAtivas) ? saved.colecoesAtivas : saved.colecaoAtiva ? [saved.colecaoAtiva] : []);
+  const colecaoAtiva = colecoesAtivas.length === 1 ? colecoesAtivas[0] : null;
+  const alternarColecao = (col: string) => setColecoesAtivas(p => p.includes(col) ? p.filter(c => c !== col) : [...p, col]);
   const [dupAlert, setDupAlert] = useState<string|null>(null);
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(saved.sort || null);
   const [visibleCols, setVisibleCols] = useState<Record<string, boolean>>(() => {
@@ -112,7 +117,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
   const [bulkStatus, setBulkStatus] = useState("");
   const [cloneSource, setCloneSource] = useState<any>(null);
   const [cloneRef, setCloneRef] = useState("");
-  const ac = Object.values(fl).filter(Boolean).length;
+  const ac = Object.values(fl).filter(v => v.length).length;
 
   // Estoque atual (map ref -> total) e futuro/a receber (map ref -> pendente),
   // ambos do Linx via rota server-side /api/linx/estoque (a chave nunca chega
@@ -232,8 +237,8 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    localStorage.setItem(filtersKey, JSON.stringify({ q, fl, colecaoAtiva, sort }));
-  }, [q, fl, colecaoAtiva, sort, filtersKey]);
+    localStorage.setItem(filtersKey, JSON.stringify({ q, fl, colecoesAtivas, sort }));
+  }, [q, fl, colecoesAtivas, sort, filtersKey]);
 
   useEffect(() => {
     if (!showColMenu) return;
@@ -250,8 +255,8 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     // Os recém-criados saem da filtragem e voltam fixados no topo (ver `novos`).
     let r = novos.size ? rows.filter((x: any) => !novos.has(x.id)) : rows;
     // Clássico com ficha na temporada filtrada também entra (ver lib/colecao).
-    if (colecaoAtiva) r = r.filter((x: any) => naColecao(x, colecaoAtiva, temporadasPorRef));
-    Object.entries(fl).forEach(([k,v]) => { if(v) r = r.filter((x:any) => x[k]===v); });
+    if (colecoesAtivas.length) r = r.filter((x: any) => colecoesAtivas.some(c => naColecao(x, c, temporadasPorRef)));
+    Object.entries(fl).forEach(([k,v]) => { if(v.length) r = r.filter((x:any) => v.includes(x[k])); });
     if(q) { const s=q.toLowerCase(); r = r.filter((x:any) => (x.ref+x.desc+x.tecido+x.composicao+x.fornecedor+x.forn_tecido+x.estilista+x.tab_medidas).toLowerCase().includes(s)); }
     if (sort) {
       const col = COLUMNS.find(c => c.key === sort.key);
@@ -268,7 +273,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     }
     if (!novos.size) return r;
     return [...rows.filter((x: any) => novos.has(x.id)), ...r];
-  }, [rows, fl, q, sort, colecaoAtiva, novos]);
+  }, [rows, fl, q, sort, colecoesAtivas, novos]);
 
   // Edições seguidas na mesma linha são uma coisa só na cabeça de quem faz —
   // ajustar preço, depois fornecedor, depois data é UMA mexida no SKU. Dentro
@@ -379,7 +384,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       const newRow = { ...blank, id: result.id, ref: result.ref || "" };
       setRows((p:any) => [...p, newRow]);
       setNovos(p => new Set(p).add(result.id));
-      const filtrando = ac > 0 || !!q || !!colecaoAtiva;
+      const filtrando = ac > 0 || !!q || colecoesAtivas.length > 0;
       success(filtrando ? "SKU criado — fixado no topo da lista" : "SKU criado com sucesso");
     }
   };
@@ -452,7 +457,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
 
   const opts = (k:string):string[] => cad[k] || [];
   const uv = (k:string):string[] => Array.from(new Set(rows.map((r:any)=>r[k]).filter(Boolean))).sort();
-  const sf2 = (k:string,v:string) => setFl(p=>{const n={...p};if(v)n[k]=v;else delete n[k];return n;});
+  const sf2 = (k:string,v:string[]) => setFl(p=>comFiltro(p,k,v));
 
   const handleExport = () => {
     const visReg  = COLUMNS.filter(c => isColVisible(c.key) && c.type !== "action");
@@ -495,16 +500,16 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
         <div className="flex items-center gap-2 mb-4 flex-wrap">
           <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mr-1">Coleção</span>
           <button
-            onClick={() => setColecaoAtiva(null)}
-            className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all border ${colecaoAtiva === null ? "bg-[var(--label-primary)] text-[var(--bg-primary)] border-[var(--label-primary)]" : "bg-transparent text-[var(--label-secondary)] border-[var(--separator)] hover:border-[var(--label-tertiary)]"}`}
+            onClick={() => setColecoesAtivas([])}
+            className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all border ${colecoesAtivas.length === 0 ? "bg-[var(--label-primary)] text-[var(--bg-primary)] border-[var(--label-primary)]" : "bg-transparent text-[var(--label-secondary)] border-[var(--separator)] hover:border-[var(--label-tertiary)]"}`}
           >
             Todas
           </button>
           {colecoes.map((col: string) => (
             <button
               key={col}
-              onClick={() => setColecaoAtiva(col === colecaoAtiva ? null : col)}
-              className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all border ${colecaoAtiva === col ? "bg-[var(--system-blue)] text-white border-[var(--system-blue)]" : "bg-transparent text-[var(--label-secondary)] border-[var(--separator)] hover:border-[var(--system-blue)] hover:text-[var(--system-blue)]"}`}
+              onClick={() => alternarColecao(col)}
+              className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all border ${colecoesAtivas.includes(col) ? "bg-[var(--system-blue)] text-white border-[var(--system-blue)]" : "bg-transparent text-[var(--label-secondary)] border-[var(--separator)] hover:border-[var(--system-blue)] hover:text-[var(--system-blue)]"}`}
             >
               {col}
             </button>
@@ -569,9 +574,9 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
         {!readOnly && !isAdmin && <span style={{ fontSize: 11, color: "var(--label-tertiary)" }}>Apenas campos com permissão podem ser editados</span>}
       </div>
 
-      {sf&&(<div className="apple-card p-4 mb-4 bg-[var(--bg-secondary)]"><div className="flex items-center justify-between mb-3"><span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Filtrar por</span>{ac>0&&<button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--system-blue)] font-medium">Limpar todos</button>}</div><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">{FC.map(c=>(<div key={c.key}><label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">{c.label}</label><select value={fl[c.key]||""} onChange={e=>sf2(c.key,e.target.value)} className={`apple-select w-full text-[12px] py-1.5 ${fl[c.key]?"!border-[var(--system-blue)] !bg-blue-50/60 text-[var(--system-blue)] font-semibold":""}`}><option value="">Todos</option>{uv(c.key).map(v=><option key={v}>{v}</option>)}</select></div>))}</div></div>)}
+      {sf&&(<div className="apple-card p-4 mb-4 bg-[var(--bg-secondary)]"><div className="flex items-center justify-between mb-3"><span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Filtrar por</span>{ac>0&&<button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--system-blue)] font-medium">Limpar todos</button>}</div><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">{FC.map(c=>(<div key={c.key}><label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">{c.label}</label><MultiSelect value={fl[c.key]||[]} options={uv(c.key)} onChange={v=>sf2(c.key,v)} className="text-[12px] py-1.5"/></div>))}</div></div>)}
 
-      {ac>0&&!sf&&(<div className="flex flex-wrap gap-1.5 mb-3">{Object.entries(fl).map(([k,v])=>{if(!v)return null;const c=COLUMNS.find(x=>x.key===k);return(<span key={k} className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 text-[12px] font-medium"><span className="text-blue-300">{c?.label}:</span>{v}<button onClick={()=>sf2(k,"")} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]">×</button></span>);})} <button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--label-tertiary)] px-2 py-1">Limpar</button></div>)}
+      {ac>0&&!sf&&(<div className="flex flex-wrap gap-1.5 mb-3">{Object.entries(fl).map(([k,v])=>{if(!v.length)return null;const c=COLUMNS.find(x=>x.key===k);return(<span key={k} className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 text-[12px] font-medium"><span className="text-blue-300">{c?.label}:</span>{v.join(", ")}<button onClick={()=>sf2(k,[])} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]">×</button></span>);})} <button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--label-tertiary)] px-2 py-1">Limpar</button></div>)}
 
       {/* Clone modal */}
       {cloneSource && (
