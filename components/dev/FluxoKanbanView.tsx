@@ -140,8 +140,10 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
 
   /* ── mini dashboard do fluxo ──
      Conta sobre o recorte dos filtros; clicar num item restringe o quadro
-     àquelas refs (e clicar de novo solta). */
-  const [resumoAtivo, setResumoAtivo] = useState<string | null>(null);
+     àquelas refs (e clicar de novo solta). Dá para marcar vários: o quadro
+     mostra as refs de qualquer um dos marcados. */
+  const [resumoAtivos, setResumoAtivos] = useState<string[]>([]);
+  const alternarResumo = (k: string) => setResumoAtivos(p => p.includes(k) ? p.filter(x => x !== k) : [...p, k]);
   const [mostrarResumo, setMostrarResumo] = useState<boolean>(saved.resumo !== false);
   useEffect(() => {
     try { const v = JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}"); localStorage.setItem(FILTERS_KEY, JSON.stringify({ ...v, resumo: mostrarResumo })); } catch {}
@@ -197,9 +199,9 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
       { key: "pre_venc", label: "Pré-produção com prazo vencido",    test: e => preVencida(e) },
     ]},
   ];
-  const itemAtivo = RESUMO.flatMap(g => g.itens).find(i => i.key === resumoAtivo);
+  const itensAtivos = RESUMO.flatMap(g => g.itens).filter(i => resumoAtivos.includes(i.key));
   // Mudou o recorte: a seleção recomeça, para não mover cards que saíram da tela.
-  useEffect(() => { setSel(new Set()); }, [search, fl, colecoesAtivas, resumoAtivo]);
+  useEffect(() => { setSel(new Set()); }, [search, fl, colecoesAtivas, resumoAtivos]);
 
   /* ── regras automáticas ao abrir (ficha e Linx) ── */
   const autoFeito = useRef(false);
@@ -315,7 +317,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     </div>
   );
 
-  const noQuadro = itemAtivo ? filtrados.filter((r: any) => { const ref = String(r.ref).trim(); return itemAtivo.test(estadoDe(ref), ref); }) : filtrados;
+  const noQuadro = itensAtivos.length ? filtrados.filter((r: any) => { const ref = String(r.ref).trim(); return itensAtivos.some(i => i.test(estadoDe(ref), ref)); }) : filtrados;
   const porEtapa: Record<number, any[]> = {};
   noQuadro.forEach((r: any) => { const n = estadoDe(String(r.ref).trim()).etapa; (porEtapa[n] ||= []).push(r); });
   const ponteiroFino = typeof window !== "undefined" && window.matchMedia?.("(pointer: fine)").matches;
@@ -404,10 +406,10 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
                 {g.itens.map(it => {
                   const n = filtrados.filter((x: any) => { const ref = String(x.ref).trim(); return it.test(estadoDe(ref), ref); }).length;
                   const pct = filtrados.length ? Math.round((n / filtrados.length) * 100) : 0;
-                  const ativo = resumoAtivo === it.key;
+                  const ativo = resumoAtivos.includes(it.key);
                   return (
-                    <button key={it.key} type="button" onClick={() => setResumoAtivo(ativo ? null : it.key)}
-                      title={ativo ? "Mostrar todos" : "Mostrar só estas refs no quadro"}
+                    <button key={it.key} type="button" onClick={() => alternarResumo(it.key)}
+                      title={ativo ? "Tirar do filtro" : "Mostrar estas refs no quadro (dá para marcar vários)"}
                       className="text-left rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--bg-secondary)]"
                       style={ativo ? { background: g.cor + "18", boxShadow: `inset 0 0 0 1.5px ${g.cor}` } : undefined}>
                       <div className="flex items-baseline gap-2">
@@ -426,11 +428,11 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
           ))}
         </div>
       )}
-      {itemAtivo && (
+      {itensAtivos.length > 0 && (
         <div className="flex items-center gap-2 mb-3 text-[12px]">
           <span className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 font-medium">
-            <span className="text-blue-300">Resumo:</span>{itemAtivo.label}
-            <button onClick={() => setResumoAtivo(null)} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]" aria-label="Remover filtro do resumo">×</button>
+            <span className="text-blue-300">Resumo:</span>{itensAtivos.map(i => i.label).join(", ")}
+            <button onClick={() => setResumoAtivos([])} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]" aria-label="Remover filtro do resumo">×</button>
           </span>
           <span className="text-[var(--label-tertiary)]">{noQuadro.length} de {filtrados.length}</span>
         </div>
