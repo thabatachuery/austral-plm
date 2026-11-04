@@ -77,6 +77,8 @@ export default function RankingView({ modo, rows }: Props) {
   const [fl, setFl] = useState<Record<string, string>>(salvo.fl || {});
   const [agrupar, setAgrupar] = useState<boolean>(!!salvo.agrupar);
   const [visual, setVisual] = useState<"cards" | "lista">(salvo.visual || "cards");
+  // Ranking de estoque: ordenar pelo atual ou pelo total (atual + futuro).
+  const [ordem, setOrdem] = useState<"atual" | "total">(salvo.ordem || "atual");
   const [painelFiltros, setPainelFiltros] = useState(false);
   const [limite, setLimite] = useState(PAGINA);
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
@@ -89,8 +91,8 @@ export default function RankingView({ modo, rows }: Props) {
   const dias = Math.max(1, Math.round((new Date(ate).getTime() - new Date(de).getTime()) / 86400000) + 1);
 
   useEffect(() => {
-    try { localStorage.setItem(chaveSalva, JSON.stringify({ periodo, de: deCustom, ate: ateCustom, q, fl, agrupar, visual })); } catch {}
-  }, [chaveSalva, periodo, deCustom, ateCustom, q, fl, agrupar, visual]);
+    try { localStorage.setItem(chaveSalva, JSON.stringify({ periodo, de: deCustom, ate: ateCustom, q, fl, agrupar, visual, ordem })); } catch {}
+  }, [chaveSalva, periodo, deCustom, ateCustom, q, fl, agrupar, visual, ordem]);
 
   useEffect(() => {
     let ativo = true;
@@ -122,7 +124,8 @@ export default function RankingView({ modo, rows }: Props) {
 
   const cores = dados?.cores || {};
   const vendasOk = !!dados?.vendasDisponivel;
-  const principal = (it: RankingItem) => (modo === "vendas" ? it.ven : it.est);
+  const porTotal = modo === "estoque" && ordem === "total";
+  const principal = (it: RankingItem) => (modo === "vendas" ? it.ven : porTotal ? it.est + it.fut : it.est);
   const apoio = (it: RankingItem) => (modo === "vendas" ? it.est : it.ven);
 
   const filtrados = useMemo(() => {
@@ -133,12 +136,12 @@ export default function RankingView({ modo, rows }: Props) {
       for (const [k, v] of Object.entries(fl)) if (v && campo(it, k) !== v) return false;
       // Ranking de estoque é de quem tem estoque; o de vendas, de quem vendeu
       // (sem venda publicada ainda, mostra quem tem estoque para não ficar vazio).
-      if (modo === "estoque") return it.est > 0;
+      if (modo === "estoque") return it.est > 0 || (porTotal && it.fut > 0);
       return vendasOk ? it.ven > 0 : it.est > 0;
     });
     return lista.sort((a, b) => principal(b) - principal(a) || apoio(b) - apoio(a) || a.ref.localeCompare(b.ref));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dados, q, fl, modo, vendasOk, plmPorRef]);
+  }, [dados, q, fl, modo, vendasOk, plmPorRef, porTotal]);
 
   const opcoes = useMemo(() => {
     const o: Record<string, string[]> = {};
@@ -165,6 +168,7 @@ export default function RankingView({ modo, rows }: Props) {
   }, [filtrados]);
 
   const totPrincipal = filtrados.reduce((s, it) => s + principal(it), 0);
+  const totEst = filtrados.reduce((s, it) => s + it.est, 0);
   const totApoio = filtrados.reduce((s, it) => s + apoio(it), 0);
   const totFuturo = filtrados.reduce((s, it) => s + it.fut, 0);
   const totValor = filtrados.reduce((s, it) => s + it.venValor, 0);
@@ -237,7 +241,7 @@ export default function RankingView({ modo, rows }: Props) {
             <div className="text-[11px] text-[var(--label-tertiary)] mt-0.5 truncate">{[campo(it, "grupo"), campo(it, "colecao")].filter(Boolean).join(" · ")}</div>
             <div className="mt-2 flex items-baseline gap-1.5">
               <span className="text-[24px] font-bold leading-none tabular-nums" style={{ color: cor }}>{n(p)}</span>
-              <span className="text-[11px] text-[var(--label-tertiary)]">{modo === "vendas" ? "peças vendidas" : "peças em estoque"}</span>
+              <span className="text-[11px] text-[var(--label-tertiary)]">{modo === "vendas" ? "peças vendidas" : porTotal ? "peças atual + futuro" : "peças em estoque"}</span>
             </div>
             <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] mt-1.5 overflow-hidden">
               <div className="h-full rounded-full" style={{ width: `${(p / maxPrincipal) * 100}%`, background: cor }} />
@@ -247,7 +251,7 @@ export default function RankingView({ modo, rows }: Props) {
         <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-[11px] text-[var(--label-secondary)]">
           {modo === "vendas"
             ? <><span>Estoque <b className="text-[var(--label-primary)]">{n(it.est)}</b></span><span>Futuro <b className="text-[var(--label-primary)]">{n(it.fut)}</b></span>{it.venValor > 0 && <span>{brl(it.venValor)}</span>}</>
-            : <><span>Futuro <b className="text-[var(--label-primary)]">{n(it.fut)}</b></span>{vendasOk && <span>Vendido <b className="text-[var(--label-primary)]">{n(it.ven)}</b></span>}</>}
+            : <><span>Atual <b className="text-[var(--label-primary)]">{n(it.est)}</b></span><span>Futuro <b className="text-[var(--label-primary)]">{n(it.fut)}</b></span><span>Total <b className="text-[var(--label-primary)]">{n(it.est + it.fut)}</b></span>{vendasOk && <span>Vendido <b className="text-[var(--label-primary)]">{n(it.ven)}</b></span>}</>}
           {cob !== null && <span>Cobertura <b className="text-[var(--label-primary)]">{cob >= 99 ? "99+" : cob.toFixed(1)} sem.</b></span>}
         </div>
         {Detalhe({ it, titulo: "Cor", prin: modo === "vendas" ? it.venCor : it.estCor, apo: modo === "vendas" ? it.estCor : it.venCor, nomes: cores, limiteLinhas: 4 })}
@@ -263,7 +267,7 @@ export default function RankingView({ modo, rows }: Props) {
           <tr className="text-[10px] uppercase tracking-[0.04em] text-[var(--label-tertiary)] text-left">
             <th className="px-3 py-2 w-10">#</th><th className="py-2" colSpan={2}>Referência</th><th className="py-2">Grupo</th>
             <th className="py-2 text-right">{nomePrincipal}</th><th className="py-2 w-[18%]"></th>
-            <th className="py-2 text-right">{nomeApoio}</th><th className="py-2 text-right">Futuro</th>
+            <th className="py-2 text-right">{nomeApoio}</th><th className="py-2 text-right">Futuro</th>{modo === "estoque" && <th className="py-2 text-right">Total</th>}
             <th className="py-2 pl-4">Cor que mais {modo === "vendas" ? "vende" : "tem"}</th><th className="py-2 pr-3">Loja que mais {modo === "vendas" ? "vende" : "tem"}</th>
           </tr>
         </thead>
@@ -281,7 +285,7 @@ export default function RankingView({ modo, rows }: Props) {
                 <td className="py-1.5 text-right font-bold tabular-nums" style={{ color: cor }}>{n(p)}</td>
                 <td className="py-1.5 pl-2"><div className="h-1.5 rounded-full bg-[var(--bg-secondary)]"><div className="h-full rounded-full" style={{ width: `${(p / maxPrincipal) * 100}%`, background: cor }} /></div></td>
                 <td className="py-1.5 text-right tabular-nums">{modo === "estoque" && !vendasOk ? "—" : n(apoio(it))}</td>
-                <td className="py-1.5 text-right tabular-nums">{n(it.fut)}</td>
+                <td className="py-1.5 text-right tabular-nums">{n(it.fut)}</td>{modo === "estoque" && <td className="py-1.5 text-right tabular-nums font-semibold">{n(it.est + it.fut)}</td>}
                 <td className="py-1.5 pl-4 truncate max-w-[160px]">{topCor ? `${cores[topCor[0]] || topCor[0]} (${n(topCor[1])})` : "—"}</td>
                 <td className="py-1.5 pr-3 truncate max-w-[180px]">{topLoja ? `${topLoja[0]} (${n(topLoja[1])})` : "—"}</td>
               </tr>
@@ -329,6 +333,12 @@ export default function RankingView({ modo, rows }: Props) {
           <button onClick={() => setAgrupar(false)} className={`px-3 py-2 ${!agrupar ? "bg-[var(--label-primary)] text-[var(--bg-primary)] font-semibold" : "text-[var(--label-secondary)]"}`}>Geral</button>
           <button onClick={() => setAgrupar(true)} className={`px-3 py-2 ${agrupar ? "bg-[var(--label-primary)] text-[var(--bg-primary)] font-semibold" : "text-[var(--label-secondary)]"}`}>Por grupo</button>
         </div>
+        {modo === "estoque" && (
+          <div className="flex rounded-lg border border-[var(--separator)] overflow-hidden text-[12px]" title="Ordenar o ranking por">
+            <button onClick={() => setOrdem("atual")} className={`px-3 py-2 ${ordem === "atual" ? "bg-[var(--label-primary)] text-[var(--bg-primary)] font-semibold" : "text-[var(--label-secondary)]"}`}>Atual</button>
+            <button onClick={() => setOrdem("total")} className={`px-3 py-2 ${ordem === "total" ? "bg-[var(--label-primary)] text-[var(--bg-primary)] font-semibold" : "text-[var(--label-secondary)]"}`}>Atual + futuro</button>
+          </div>
+        )}
         <div className="flex rounded-lg border border-[var(--separator)] overflow-hidden text-[12px]">
           <button onClick={() => setVisual("cards")} className={`px-3 py-2 ${visual === "cards" ? "bg-[var(--label-primary)] text-[var(--bg-primary)] font-semibold" : "text-[var(--label-secondary)]"}`}>Cards</button>
           <button onClick={() => setVisual("lista")} className={`px-3 py-2 ${visual === "lista" ? "bg-[var(--label-primary)] text-[var(--bg-primary)] font-semibold" : "text-[var(--label-secondary)]"}`}>Lista</button>
@@ -387,10 +397,9 @@ export default function RankingView({ modo, rows }: Props) {
           <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
             {[
               { rot: "Referências", val: n(filtrados.length) },
-              { rot: modo === "vendas" ? "Peças vendidas" : "Peças em estoque", val: n(totPrincipal), destaque: true },
               ...(modo === "vendas"
-                ? [{ rot: "Valor vendido", val: vendasOk ? brl(totValor) : "—" }, { rot: "Estoque atual", val: n(totApoio) }]
-                : [{ rot: "Futuro (a receber)", val: n(totFuturo) }, { rot: "Vendido no período", val: vendasOk ? n(totApoio) : "—" }]),
+                ? [{ rot: "Peças vendidas", val: n(totPrincipal), destaque: true }, { rot: "Valor vendido", val: vendasOk ? brl(totValor) : "—" }, { rot: "Estoque atual", val: n(totApoio) }]
+                : [{ rot: "Estoque atual", val: n(totEst), destaque: !porTotal }, { rot: "Futuro (a receber)", val: n(totFuturo) }, { rot: "Total (atual + futuro)", val: n(totEst + totFuturo), destaque: porTotal }, { rot: "Vendido no período", val: vendasOk ? n(totApoio) : "—" }]),
             ].map(k => (
               <div key={k.rot} className="apple-card px-4 py-3">
                 <div className="text-[11px] text-[var(--label-tertiary)] font-medium">{k.rot}</div>
