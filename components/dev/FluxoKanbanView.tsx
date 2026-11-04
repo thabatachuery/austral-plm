@@ -11,6 +11,7 @@ import { naColecao, colecoesComTemporadas, type TemporadasPorRef } from "@/lib/c
 import { subscribeRealtime } from "@/lib/realtime";
 import TecidoSwatch from "@/components/ui/TecidoSwatch";
 import { useToast } from "@/components/ui/Toast";
+import { STATUS_ESTILO } from "@/lib/constants";
 
 // Mesmos filtros do Desenvolvimento (selects de cadastro, menos coleção — que
 // vira o seletor de pílulas — e forn. tecido).
@@ -50,6 +51,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
   const [estados, setEstados] = useState<Record<string, FluxoEstado>>({});
   const [eventos, setEventos] = useState<FluxoEvento[]>([]);
   const [provaInfos, setProvaInfos] = useState<Record<string, any[]>>({});
+  const [statusPre, setStatusPre] = useState<Record<string, string>>({});
   const [mapa, setMapa] = useState<Record<string, any>>({});
   const [linx, setLinx] = useState<LinxFluxo | null>(null);
   const [linxPronto, setLinxPronto] = useState(false);
@@ -69,7 +71,7 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
 
   const carregar = useCallback(async () => {
     const r = await fetchFluxoKanban();
-    setErro(r.erro); setEstados(r.estados); setEventos(r.eventos); setProvaInfos(r.provaInfos);
+    setErro(r.erro); setEstados(r.estados); setEventos(r.eventos); setProvaInfos(r.provaInfos); setStatusPre(r.statusPre);
     return r;
   }, []);
 
@@ -144,7 +146,23 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
   const parado = (e: FluxoEstado) => e.etapa < TOTAL_ETAPAS && !!e.desde && diasEntre(e.desde, hoje) > 14;
   const atrasado = (e: FluxoEstado) => (e.etapa === 2 && !!e.meta.prevPiloto && e.meta.prevPiloto < hoje) || (e.etapa === 8 && !!e.meta.prevMost && e.meta.prevMost < hoje);
   const preVencida = (e: FluxoEstado) => e.etapa === 19 && !!e.meta.preEntrega && prazoPreProducao(e.meta.preEntrega, hoje).situacao === "vencido";
+  // Status do SKU em Desenvolvimento, independente da etapa do quadro: a peça
+  // pode estar "entregue p/ compras" no fluxo e "repilotando produção" no status.
+  const statusPorRef = useMemo(() => {
+    const m: Record<string, string> = {};
+    ativos.forEach((x: any) => { m[String(x.ref).trim()] = String(x.status || "").toUpperCase(); });
+    return m;
+  }, [ativos]);
+  const comStatus = (s: string): Teste => (_e, ref) => statusPorRef[ref] === s;
   const RESUMO: { grupo: string; cor: string; itens: { key: string; label: string; test: Teste }[] }[] = [
+    { grupo: "Status do desenvolvimento", cor: "#475569", itens: [
+      { key: "st_dev",      label: "Desenvolvimento",          test: comStatus(STATUS_ESTILO.DESENVOLVIMENTO) },
+      { key: "st_most",     label: "Mostruário liberado",      test: comStatus(STATUS_ESTILO.MOSTARIO_LIBERADO) },
+      { key: "st_prod",     label: "Produção liberada",        test: comStatus(STATUS_ESTILO.PRODUCAO_LIBERADA) },
+      { key: "st_repil",    label: "Repilotando produção",     test: comStatus(STATUS_ESTILO.REPILOTANDO_PRODUCAO) },
+      // Vem do laudo de pré-produção (status_pre_producao), não do status do SKU.
+      { key: "st_pre",      label: "Pré-produção liberada",    test: (_e, ref) => /LIBERAD/.test((statusPre[ref] || "").toUpperCase()) },
+    ]},
     { grupo: "Pilotagem", cor: FASES[0].cor, itens: [
       { key: "dev",       label: "Em desenvolvimento",               test: entre(1, 1) },
       { key: "ag_piloto", label: "Aguardando piloto",                test: entre(2, 2) },

@@ -1333,24 +1333,28 @@ export async function fetchFluxoKanban(): Promise<{
   estados: Record<string, FluxoEstado>;
   eventos: FluxoEvento[];
   provaInfos: Record<string, any[]>;
+  // Status do laudo de pré-produção (LIBERADA, REPROVADA…) por ref.
+  statusPre: Record<string, string>;
 }> {
   // Sonda as colunas novas: sem a migration 037 o quadro avisa em vez de
   // abrir tudo em "Desenvolvimento" e gravar em coluna que não existe.
   const sonda = await sb().from("controle_fluxo").select("etapa").limit(1);
-  if (sonda.error) return { erro: sonda.error.message, estados: {}, eventos: [], provaInfos: {} };
+  if (sonda.error) return { erro: sonda.error.message, estados: {}, eventos: [], provaInfos: {}, statusPre: {} };
   const [cf, ev, fichas] = await Promise.all([
-    selectAll((de, ate) => sb().from("controle_fluxo").select("produto_ref, etapa, ciclo, etapa_desde, fluxo_meta, data_desenvolvimento").range(de, ate), "fetchFluxoKanban/controle"),
+    selectAll((de, ate) => sb().from("controle_fluxo").select("produto_ref, etapa, ciclo, etapa_desde, fluxo_meta, data_desenvolvimento, status_pre_producao").range(de, ate), "fetchFluxoKanban/controle"),
     selectAll((de, ate) => sb().from("fluxo_eventos").select("produto_ref, etapa, ciclo, data, por, auto, obs, created_at").order("created_at").range(de, ate), "fetchFluxoKanban/eventos"),
     selectAll((de, ate) => sb().from("fichas_tecnicas").select("produto_ref, prova_info").not("prova_info", "is", null).range(de, ate), "fetchFluxoKanban/fichas"),
   ]);
   const estados: Record<string, FluxoEstado> = {};
+  const statusPre: Record<string, string> = {};
   cf.forEach((r: any) => {
     const ref = String(r.produto_ref).trim();
     estados[ref] = { ref, etapa: r.etapa || 1, ciclo: r.ciclo || 1, desde: r.etapa_desde || (r.etapa ? null : r.data_desenvolvimento) || null, meta: r.fluxo_meta || {} };
+    if (r.status_pre_producao) statusPre[ref] = String(r.status_pre_producao);
   });
   const provaInfos: Record<string, any[]> = {};
   fichas.forEach((f: any) => { const ref = String(f.produto_ref).trim(); (provaInfos[ref] ||= []).push(f.prova_info); });
-  return { erro: null, estados, eventos: ev as FluxoEvento[], provaInfos };
+  return { erro: null, estados, eventos: ev as FluxoEvento[], provaInfos, statusPre };
 }
 
 export async function moverFluxo(ref: string, m: Movimento): Promise<string | null> {
