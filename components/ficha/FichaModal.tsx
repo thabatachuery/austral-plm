@@ -478,6 +478,11 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
    * status, e quem decide o próximo passo é a pessoa.
    */
   const autoStatusFor = (lib: string): string | null => {
+    // Cancelado é final: a referência pode ter sido liberada ou mandada
+    // repilotar e só depois cancelada. A liberação continua gravada na ficha, e
+    // sem isto abrir a ficha (o auto-save roda na abertura) "descancelava" o
+    // SKU de volta para produção liberada / repilotando.
+    if (String(row.status || "").toUpperCase().includes("CANCELADO")) return null;
     // O estágio escolhido à mão manda. Só quando ninguém escolheu é que se
     // volta a deduzir pelo tipo da prova — que é palpite, não declaração.
     const escolhido = String(estagio || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
