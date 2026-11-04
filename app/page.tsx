@@ -19,6 +19,7 @@ import MapaEntregasView from "@/components/dev/MapaEntregasView";
 import EtiquetasLineView from "@/components/dev/EtiquetasLineView";
 import CalendarioView from "@/components/calendario/CalendarioView";
 import EnviosView from "@/components/envios/EnviosView";
+import RankingView from "@/components/ranking/RankingView";
 import { fetchProdutos, fetchAllVariantes, fetchVariantesPorColecao, fetchTemporadasPorRef, fetchAlertasPendentes, marcarAlertasCiente, mapProduto } from "@/lib/db";
 import { COMPRAS_STATUS_ALLOW } from "@/lib/constants";
 import { subscribeRealtime } from "@/lib/realtime";
@@ -28,6 +29,8 @@ import { useAuth } from "@/lib/auth-context";
 const TABS = [
   { id: "dashboard",  label: "Dashboard",      icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
   { id: "calendario",  label: "Calendário",    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+  { id: "ranking_vendas",  label: "Ranking de Vendas",  icon: "M3 3v18h18M7 15l4-4 3 3 6-6M15 8h5v5" },
+  { id: "ranking_estoque", label: "Ranking de Estoque", icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
   { id: "dev",        label: "Desenvolvimento", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
   { id: "dev_fluxo",  label: "Controle de Fluxo", icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
   { id: "dev_mapa",      label: "Mapa de Coleção",   icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" },
@@ -280,7 +283,7 @@ export default function Home() {
         <nav className="plm-nav">
           {/* Menu lateral em setores. A ordem de cada setor é a lista de ids abaixo. */}
           {([
-            { titulo: "Menu",        ids: ["dashboard", "calendario", "dev_fluxo"] },
+            { titulo: "Menu",        ids: ["dashboard", "calendario", "ranking_vendas", "ranking_estoque", "dev_fluxo"] },
             { titulo: "Estilo",      ids: ["dev", "variantes", "dev_mapa", "preprod"] },
             { titulo: "Compras",     ids: ["compras_dev", "compras_variantes", "compras_explosao", "compras_entregas"] },
             { titulo: "Organização", ids: ["envios", "cad", "medidas", "dev_etiquetas"] },
@@ -368,6 +371,8 @@ export default function Home() {
           {loading && <div className="plm-loading"><div className="plm-loading-spinner" /><span>Carregando...</span></div>}
           {!loading && tab === "dashboard" && <DashboardView rows={rows} variantes={variantes} variantesPorColecao={variantesPorColecao} />}
           {!loading && tab === "calendario" && <CalendarioView />}
+          {!loading && tab === "ranking_vendas" && <RankingView key="vendas" modo="vendas" rows={rows} />}
+          {!loading && tab === "ranking_estoque" && <RankingView key="estoque" modo="estoque" rows={rows} />}
           {!loading && tab === "dev" && <DevTable rows={rows} setRows={setRows} onOpenFicha={setFichaRow} userEmail={user.email!} temporadasPorRef={temporadasPorRef} />}
           {/* Controle de Fluxo = kanban de etapas (substituiu a tabela de datas) */}
           {!loading && tab === "dev_fluxo" && <FluxoKanbanView rows={rows} temporadasPorRef={temporadasPorRef} onOpenFicha={setFichaRow} userNome={nomeUsuario(user)} perm={{ isAdmin, estilo: perms["fluxo_estilo"] === true, compras: perms["compras_fluxo"] === true }} />}

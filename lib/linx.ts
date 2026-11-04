@@ -8,6 +8,7 @@ const BASE_URL = process.env.LINX_API_BASE_URL || "https://bi.austral.com.br/api
 
 export type LinxProduto = {
   produto_pai: string;
+  descricao?: string;
   colecao: string;
   colecao_nome: string;
   grupo: string;
@@ -137,6 +138,20 @@ export async function getCores(): Promise<LinxCores> {
 
 export async function getTamanhos(): Promise<LinxTamanhos> {
   return fetchLinx<LinxTamanhos>("/tamanhos");
+}
+
+// Venda de produto acabado no período, somada por referência × cor × filial.
+// Endpoint ainda a ser criado pelo BI — contrato em docs/linx-endpoint-vendas.md.
+export type LinxVenda = {
+  produto_pai: string;
+  cor: string;
+  filial: string;
+  quantidade: number;
+  valor?: number;
+};
+
+export async function getVendas(de: string, ate: string): Promise<LinxVenda[]> {
+  return fetchLinx<LinxVenda[]>("/vendas", { de, ate });
 }
 
 // Endpoint ainda a ser criado pelo BI (Matérias-primas → grupo 003008 Aviamentos).

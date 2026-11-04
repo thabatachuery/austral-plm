@@ -42,6 +42,42 @@ export async function fetchEstoqueDetalhe(ref: string): Promise<EstoqueDetalhe> 
   return res.json() as Promise<EstoqueDetalhe>;
 }
 
+// Base dos rankings (/api/linx/ranking): uma linha por referência.
+// est/estCor/estLoja = estoque atual; fut = pedidos pendentes;
+// ven/venCor/venLoja = venda em peças no período (venValor em R$).
+export type RankingItem = {
+  ref: string;
+  desc: string;
+  colecao: string;
+  grupo: string;
+  subgrupo: string;
+  categoria: string;
+  subcategoria: string;
+  linha: string;
+  fabricante: string;
+  est: number;
+  fut: number;
+  estCor: Record<string, number>;
+  estLoja: Record<string, number>;
+  ven: number;
+  venValor: number;
+  venCor: Record<string, number>;
+  venLoja: Record<string, number>;
+};
+export type RankingDados = {
+  itens: RankingItem[];
+  cores: Record<string, string>;
+  vendasDisponivel: boolean;
+  vendasErro?: string;
+};
+
+export async function fetchRanking(de: string, ate: string): Promise<RankingDados> {
+  const res = await fetch(`/api/linx/ranking?de=${de}&ate=${ate}`);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || "Falha ao carregar dados do Linx.");
+  return json as RankingDados;
+}
+
 // Cadastros que o Linx fornece hoje (valores em MAIÚSCULAS, já distintos).
 // subcategoria/linha vêm vazios até o BI incluir no /produtos.
 export type LinxCadastros = {
