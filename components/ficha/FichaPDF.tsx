@@ -263,17 +263,19 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                Sempre leva a referência anterior (repeat, piloto ou mostruário direto); sem ela
                preenchida, fica a linha em branco para escrever na folha. */}
           {row.piloto_most && (
-            <div style={{ background: "#E8F1FD", border: "1.5px solid #0A66D8", borderRadius: "5px", padding: "6px 10px", marginBottom: "7px", pageBreakInside: "avoid", display: "flex", alignItems: "baseline", gap: "16px", flexWrap: "wrap" }}>
-              <div>
-                <div style={{ fontSize: "6px", fontWeight: 800, color: "#0A66D8", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "2px" }}>{tr("Piloto / mostruário")}</div>
-                <div style={{ fontSize: "10px", fontWeight: 800, color: navy }}>{row.piloto_most}</div>
+            /* Mesmo destaque das Observações (amarelo + vermelho). Duas colunas
+               iguais — rótulo pequeno em cima, valor grande embaixo — para o
+               valor da referência anterior ficar alinhado ao "REPEAT...". */
+            <div style={{ background: "#FFF9C4", border: `1.5px solid ${warn}`, borderRadius: "5px", padding: "7px 10px", marginBottom: "7px", pageBreakInside: "avoid", display: "flex", alignItems: "stretch", gap: "12px" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "6px", fontWeight: 800, color: warnDark, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "3px" }}>{tr("Piloto / mostruário")}</div>
+                <div style={{ fontSize: "12px", fontWeight: 800, color: danger, lineHeight: 1.2 }}>{row.piloto_most}</div>
               </div>
-              {(
-                <div style={{ display: "flex", alignItems: "baseline", gap: "5px", flex: 1, minWidth: "180px" }}>
-                  <span style={{ fontSize: "8px", fontWeight: 800, color: navy, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{tr("Referência anterior")}:</span>
-                  <span style={{ flex: 1, borderBottom: `1px solid ${navy}`, fontSize: "10px", fontWeight: 800, color: navy, minHeight: "13px", paddingLeft: "3px" }}>{estamparia?.refAnterior || ""}</span>
-                </div>
-              )}
+              <div style={{ width: "1px", background: warn, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "6px", fontWeight: 800, color: warnDark, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: "3px" }}>{tr("Referência anterior")}</div>
+                <div style={{ fontSize: "12px", fontWeight: 800, color: danger, lineHeight: 1.2, minHeight: "15px", borderBottom: estamparia?.refAnterior ? "none" : `1px solid ${danger}`, letterSpacing: "0.04em" }}>{estamparia?.refAnterior || ""}</div>
+              </div>
             </div>
           )}
 
