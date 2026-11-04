@@ -49,7 +49,7 @@ const ordenar = (m: Record<string, number>) => Object.entries(m).sort((a, b) => 
 
 const PAGINA = 48;
 
-function Foto({ refProd, tamanho }: { refProd: string; tamanho: number }) {
+function Foto({ refProd, tamanho, grande = false }: { refProd: string; tamanho: number; grande?: boolean }) {
   const [falhou, setFalhou] = useState(false);
   return (
     <div style={{ width: tamanho, height: tamanho * 4 / 3, flexShrink: 0 }} className="rounded-lg overflow-hidden bg-[var(--bg-secondary)] flex items-center justify-center">
@@ -57,7 +57,7 @@ function Foto({ refProd, tamanho }: { refProd: string; tamanho: number }) {
         <svg width={tamanho / 3} height={tamanho / 3} viewBox="0 0 24 24" fill="none" stroke="var(--label-quaternary)" strokeWidth="1.5" strokeLinecap="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.47a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.47a2 2 0 00-1.34-2.23z" /></svg>
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`/api/foto-produto?ref=${encodeURIComponent(refProd)}`} alt="" loading="lazy" onError={() => setFalhou(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <img src={`/api/foto-produto?ref=${encodeURIComponent(refProd)}${grande ? "&tam=g" : ""}`} alt="" loading="lazy" onError={() => setFalhou(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       )}
     </div>
   );
@@ -82,6 +82,14 @@ export default function RankingView({ modo, rows }: Props) {
   const [painelFiltros, setPainelFiltros] = useState(false);
   const [limite, setLimite] = useState(PAGINA);
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  // Card ampliado (clique no card ou na linha da lista).
+  const [ampliado, setAmpliado] = useState<{ it: RankingItem; pos: number } | null>(null);
+  useEffect(() => {
+    if (!ampliado) return;
+    const fechar = (e: KeyboardEvent) => { if (e.key === "Escape") setAmpliado(null); };
+    window.addEventListener("keydown", fechar);
+    return () => window.removeEventListener("keydown", fechar);
+  }, [ampliado]);
 
   const [dados, setDados] = useState<RankingDados | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -217,7 +225,7 @@ export default function RankingView({ modo, rows }: Props) {
           </div>
         ))}
         {linhas.length > limiteLinhas && (
-          <button onClick={() => alternar(`${it.ref}|${titulo}`)} className="text-[11px] text-[var(--system-blue)] font-medium mt-1">
+          <button onClick={e => { e.stopPropagation(); alternar(`${it.ref}|${titulo}`); }} className="text-[11px] text-[var(--system-blue)] font-medium mt-1">
             {aberto ? "Mostrar menos" : `Ver todas (${linhas.length})`}
           </button>
         )}
@@ -229,7 +237,7 @@ export default function RankingView({ modo, rows }: Props) {
     const cob = cobertura(it);
     const p = principal(it);
     return (
-      <div className="apple-card p-4 flex flex-col">
+      <div className="apple-card p-4 flex flex-col cursor-pointer transition-shadow hover:shadow-lg hover:ring-1 hover:ring-[var(--separator)]" onClick={() => setAmpliado({ it, pos })} title="Clique para ampliar">
         <div className="flex gap-3">
           <div className="relative">
             <Foto refProd={it.ref} tamanho={84} />
@@ -277,7 +285,7 @@ export default function RankingView({ modo, rows }: Props) {
             const topLoja = ordenar(modo === "vendas" ? it.venLoja : it.estLoja)[0];
             const p = principal(it);
             return (
-              <tr key={it.ref} className="border-t border-[var(--separator)]">
+              <tr key={it.ref} className="border-t border-[var(--separator)] cursor-pointer hover:bg-[var(--bg-secondary)]" onClick={() => setAmpliado({ it, pos: inicio + i + 1 })}>
                 <td className="px-3 py-1.5 font-bold" style={{ color: inicio + i < 3 ? cor : undefined }}>{inicio + i + 1}</td>
                 <td className="py-1.5 w-[42px]"><Foto refProd={it.ref} tamanho={32} /></td>
                 <td className="py-1.5 pl-2"><div className="font-semibold">{it.ref}</div><div className="text-[var(--label-secondary)] truncate max-w-[220px]">{it.desc}</div></td>
@@ -460,6 +468,86 @@ export default function RankingView({ modo, rows }: Props) {
           })}
         </>
       )}
+
+      {ampliado && (() => {
+        const { it, pos } = ampliado;
+        const cob = cobertura(it);
+        // Tabela completa: todas as cores/lojas, sem corte.
+        const tabela = (titulo: string, cols: { rot: string; m: Record<string, number> }[], nomes?: Record<string, string>) => {
+          const chaves = Array.from(new Set(cols.flatMap(col => Object.keys(col.m))));
+          const linhas = chaves
+            .map(k => ({ k, v: cols.map(col => col.m[k] || 0) }))
+            .filter(l => l.v.some(x => x > 0))
+            .sort((a, b) => b.v[0] - a.v[0] || b.v[1] - a.v[1]);
+          if (!linhas.length) return null;
+          const max = Math.max(1, ...linhas.map(l => l.v[0]));
+          const grade = `1fr ${cols.map(() => "70px").join(" ")}`;
+          return (
+            <div className="mt-5">
+              <div className="grid text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-tertiary)] pb-1.5 border-b border-[var(--separator)]" style={{ gridTemplateColumns: grade }}>
+                <span>{titulo} ({linhas.length})</span>{cols.map(col => <span key={col.rot} className="text-right">{col.rot}</span>)}
+              </div>
+              {linhas.map(l => (
+                <div key={l.k} className="grid items-center text-[13px] py-1.5 border-b border-[var(--separator)] last:border-0" style={{ gridTemplateColumns: grade }}>
+                  <div className="relative min-w-0">
+                    <div className="absolute inset-y-[-2px] left-0 rounded" style={{ width: `${(l.v[0] / max) * 100}%`, background: corFundo }} />
+                    <span className="relative px-2 truncate block">{nomes ? (nomes[l.k] || l.k) : l.k}</span>
+                  </div>
+                  {l.v.map((x, i) => <span key={i} className={`text-right tabular-nums ${i === 0 ? "font-semibold" : "text-[var(--label-secondary)]"}`}>{x ? n(x) : "—"}</span>)}
+                </div>
+              ))}
+            </div>
+          );
+        };
+        const colsCor = modo === "vendas"
+          ? [{ rot: "Vendido", m: it.venCor }, { rot: "Estoque", m: it.estCor }, { rot: "Futuro", m: it.futCor }]
+          : [{ rot: "Estoque", m: it.estCor }, { rot: "Futuro", m: it.futCor }, { rot: "Vendido", m: it.venCor }];
+        const colsLoja = modo === "vendas"
+          ? [{ rot: "Vendido", m: it.venLoja }, { rot: "Estoque", m: it.estLoja }]
+          : [{ rot: "Estoque", m: it.estLoja }, { rot: "Vendido", m: it.venLoja }];
+        const kpis = [
+          { rot: "Estoque atual", val: n(it.est) },
+          { rot: "Futuro", val: n(it.fut) },
+          { rot: "Total", val: n(it.est + it.fut) },
+          { rot: "Vendido", val: vendasOk ? n(it.ven) : "—" },
+          ...(it.venValor > 0 ? [{ rot: "Valor vendido", val: brl(it.venValor) }] : []),
+          ...(cob !== null ? [{ rot: "Cobertura", val: `${cob >= 99 ? "99+" : cob.toFixed(1)} sem.` }] : []),
+        ];
+        return (
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-2 sm:p-8 overflow-y-auto bg-black/40 backdrop-blur-[6px]" onClick={() => setAmpliado(null)}>
+            <div role="dialog" aria-modal="true" className="bg-[var(--bg-primary)] rounded-2xl w-full max-w-[920px] shadow-[0_24px_80px_rgba(0,0,0,0.25)] overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-[var(--separator)]">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="min-w-[34px] h-[34px] px-2 rounded-full text-[14px] font-bold text-white flex items-center justify-center shrink-0" style={{ background: pos <= 3 ? cor : "var(--label-secondary)" }}>{pos}</span>
+                  <div className="min-w-0">
+                    <div className="text-[17px] font-bold">{it.ref} <span className="font-normal text-[var(--label-secondary)]">— {it.desc}</span></div>
+                    <div className="text-[12px] text-[var(--label-tertiary)]">{[campo(it, "colecao"), campo(it, "grupo"), campo(it, "subgrupo"), campo(it, "categoria")].filter(Boolean).join(" · ")}</div>
+                  </div>
+                </div>
+                <button onClick={() => setAmpliado(null)} aria-label="Fechar" className="w-8 h-8 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--label-secondary)] shrink-0">
+                  <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+              </div>
+              <div className="p-5 flex flex-col md:flex-row gap-6">
+                <div className="mx-auto md:mx-0 shrink-0"><Foto refProd={it.ref} tamanho={270} grande /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))" }}>
+                    {kpis.map(k => (
+                      <div key={k.rot} className="rounded-xl bg-[var(--bg-secondary)] px-3 py-2">
+                        <div className="text-[11px] text-[var(--label-tertiary)] font-medium">{k.rot}</div>
+                        <div className="text-[20px] font-bold tabular-nums">{k.val}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {tabela("Cor", colsCor, cores)}
+                  {tabela("Loja", colsLoja)}
+                  {!vendasOk && <p className="text-[11px] text-[var(--label-tertiary)] mt-4">Vendido aparece quando o BI publicar o /vendas.</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

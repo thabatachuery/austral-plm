@@ -35,6 +35,7 @@ type RankingItem = {
   fabricante: string;
   est: number;
   fut: number;
+  futCor: Mapa;
   estCor: Mapa;
   estLoja: Mapa;
   ven: number;
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
           colecao: p?.colecao_nome || p?.colecao || "",
           grupo: p?.grupo || "", subgrupo: p?.subgrupo || "", categoria: p?.categoria || "",
           subcategoria: p?.subcategoria || "", linha: p?.linha || "", fabricante: p?.fabricante || "",
-          est: 0, fut: 0, estCor: {}, estLoja: {}, ven: 0, venValor: 0, venCor: {}, venLoja: {},
+          est: 0, fut: 0, futCor: {}, estCor: {}, estLoja: {}, ven: 0, venValor: 0, venCor: {}, venLoja: {},
         };
         itens.set(ref, it);
       }
@@ -104,7 +105,9 @@ export async function GET(req: NextRequest) {
     for (const p of pedidos) {
       const q = Number(p.quantidade_pendente) || 0;
       if (q <= 0) continue;
-      item(String(p.produto_pai).trim()).fut += q;
+      const it = item(String(p.produto_pai).trim());
+      it.fut += q;
+      soma(it.futCor, String(p.cor).trim(), q);
     }
     for (const v of vendas) {
       const q = Number(v.quantidade) || 0;

@@ -57,6 +57,7 @@ export type RankingItem = {
   fabricante: string;
   est: number;
   fut: number;
+  futCor: Record<string, number>;
   estCor: Record<string, number>;
   estLoja: Record<string, number>;
   ven: number;
