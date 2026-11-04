@@ -67,7 +67,7 @@ export async function carregarFichaParaPDF(row: any): Promise<DadosFichaPDF> {
   // colecao=null, tem uma por temporada. Sem o fallback, toda referência 11xx
   // sairia como "sem ficha".
   const [ficha, cadastros, aviCad, tecs, vcAll, tabs] = await Promise.all([
-    fetchFichaResolvida(row.ref), fetchCadastros(), fetchAviamentos(),
+    fetchFichaResolvida(row.ref, row.colecao), fetchCadastros(), fetchAviamentos(),
     fetchTecidos(), fetchVarianteCompras(), fetchTabelasMedidas(),
   ]);
 

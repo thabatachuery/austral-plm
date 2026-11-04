@@ -459,14 +459,37 @@ export async function deleteFichaColecao(ref: string, colecao: string): Promise<
 // temporada — não existe linha com colecao=null pra elas. Quem não tem UI de
 // seletor de temporada (ex. o laudo de pré-produção) precisa desse fallback
 // pra achar a ficha mesmo assim, senão trata a referência como "sem ficha".
-export async function fetchFichaResolvida(ref: string) {
-  const direta = await fetchFicha(ref);
-  if (direta) return direta;
-  const colecoes = await fetchFichasColecoes(ref);
-  return colecoes.length ? fetchFicha(ref, colecoes[0]) : null;
+//
+// `colecaoPreferida` (a coleção do SKU) desempata quando mais de uma
+// temporada tem conteúdo.
+export async function fetchFichaResolvida(ref: string, colecaoPreferida?: string | null) {
+  return fetchFicha(ref, null, colecaoPreferida);
 }
 
-export async function fetchFicha(ref: string, colecao?: string | null) {
+// Qual ficha de temporada usar quando ninguém escolheu a temporada (exportação
+// em lote, laudo, ref que deixou de ser clássico). "A primeira da ordem" não
+// serve: já houve ref (21050015, 21060342) com VERÃO 27 vazia na frente e tudo
+// preenchido em INVERNO 27 — o PDF saía em branco. Fica com uma que tenha
+// conteúdo, de preferência a da coleção do SKU; só cai na primeira se todas
+// estiverem vazias.
+async function escolherFichaDeTemporada(ref: string, colecaoPreferida?: string | null): Promise<number | null> {
+  const { data, error } = await sb().from("fichas_tecnicas")
+    .select("id, colecao, imagem_url, imagem_modelo, observacoes, status_liberacao, prova_info, estamparia")
+    .eq("produto_ref", ref).not("colecao", "is", null)
+    .order("ordem", { ascending: true }).order("id", { ascending: true });
+  if (error || !data?.length) return null;
+  // estamparia e prova_info vêm como {} ou com a estrutura padrão toda em
+  // branco numa ficha vazia — só contam se tiverem algum texto preenchido.
+  const temTexto = (v: any): boolean =>
+    typeof v === "string" ? v.trim() !== "" : !!v && typeof v === "object" && Object.values(v).some(temTexto);
+  const temConteudo = (f: any) => !!(f.imagem_url || f.imagem_modelo || (f.observacoes || "").trim() || f.status_liberacao)
+    || temTexto(f.prova_info) || temTexto(f.estamparia);
+  const cheias = data.filter(temConteudo);
+  const escolhida = cheias.find((f: any) => colecaoPreferida && f.colecao === colecaoPreferida) || cheias[0] || data[0];
+  return escolhida.id;
+}
+
+export async function fetchFicha(ref: string, colecao?: string | null, colecaoPreferida?: string | null) {
   let q = sb().from("fichas_tecnicas").select("*").eq("produto_ref", ref);
   if (colecao) q = q.eq("colecao", colecao);
   else q = q.is("colecao", null);
@@ -479,11 +502,11 @@ export async function fetchFicha(ref: string, colecao?: string | null) {
   // para INVERNO 27) tem a ficha salva com temporada, e aqui procura sem.
   // Sem este fallback a ficha abria em branco e o salvamento automático criava
   // uma ficha vazia por cima — parecia que tudo tinha sido apagado. Usa a
-  // primeira temporada (a mesma que a tela de clássico mostra primeiro); os
-  // salvamentos seguintes atualizam essa mesma linha pelo id.
+  // temporada que tem conteúdo (ver escolherFichaDeTemporada); os salvamentos
+  // seguintes atualizam essa mesma linha pelo id.
   if (!error && !achadas?.length && !colecao) {
-    ({ data: achadas, error } = await sb().from("fichas_tecnicas").select("*").eq("produto_ref", ref)
-      .not("colecao", "is", null).order("ordem", { ascending: true }).order("id", { ascending: true }).limit(1));
+    const id = await escolherFichaDeTemporada(ref, colecaoPreferida);
+    if (id != null) ({ data: achadas, error } = await sb().from("fichas_tecnicas").select("*").eq("id", id).limit(1));
   }
   if (error || !achadas?.length) return null;
   const data = achadas[0];

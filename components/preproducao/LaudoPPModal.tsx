@@ -84,7 +84,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
     (async () => {
       setLoading(true);
       const [ficha, fluxoData, tabs, pedido] = await Promise.all([
-        fetchFichaResolvida(row.ref),
+        fetchFichaResolvida(row.ref, row.colecao),
         fetchControleFluxoByRef(row.ref),
         fetchTabelasMedidas(),
         fetchLaudoPPPedido(laudoPedidoId),

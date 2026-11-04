@@ -28,7 +28,7 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
 
   const load = async () => {
     setLoading(true);
-    const ficha = await fetchFichaResolvida(row.ref);
+    const ficha = await fetchFichaResolvida(row.ref, row.colecao);
     const fid = ficha?.id ?? null;
     setFichaId(fid);
     const list = fid ? await fetchLaudoPPPedidos(fid) : [];
