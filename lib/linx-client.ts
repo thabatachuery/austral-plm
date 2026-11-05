@@ -64,16 +64,23 @@ export type RankingItem = {
   venValor: number;
   venCor: Record<string, number>;
   venLoja: Record<string, number>;
+  // Por filial x cor (filtro de canal/filial do ranking)
+  estFC: Record<string, Record<string, number>>;
+  venFC: Record<string, Record<string, number>>;
+  venValorF: Record<string, number>;
 };
 export type RankingDados = {
   itens: RankingItem[];
   cores: Record<string, string>;
   vendasDisponivel: boolean;
   vendasErro?: string;
+  de?: string;
+  ate?: string;
+  geradoEm?: string;
 };
 
-export async function fetchRanking(de: string, ate: string): Promise<RankingDados> {
-  const res = await fetch(`/api/linx/ranking?de=${de}&ate=${ate}`);
+export async function fetchRanking(de: string, ate: string, atualizar = false): Promise<RankingDados> {
+  const res = await fetch(`/api/linx/ranking?de=${de}&ate=${ate}${atualizar ? `&atualizar=1&t=${Date.now()}` : ""}`, { cache: "no-store" });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || "Falha ao carregar dados do Linx.");
   return json as RankingDados;

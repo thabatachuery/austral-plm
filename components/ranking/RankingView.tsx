@@ -3,6 +3,26 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import COLUMNS from "@/lib/columns";
 import { fetchRanking, type RankingDados, type RankingItem } from "@/lib/linx-client";
 import MultiSelect, { normalizarFiltros, comFiltro } from "@/components/ui/MultiSelect";
+import { CANAIS, canalDaFilial } from "@/lib/canais";
+
+// Recorta a referência às filiais escolhidas (filtro de canal/filial): estoque
+// e venda — totais, por cor e por loja — passam a contar só essas filiais.
+// O futuro (pedido de compra) não tem filial e continua inteiro.
+function recortar(it: RankingItem, ok: (filial: string) => boolean): RankingItem {
+  const estCor: Record<string, number> = {}, venCor: Record<string, number> = {};
+  const estLoja: Record<string, number> = {}, venLoja: Record<string, number> = {};
+  let est = 0, ven = 0, venValor = 0;
+  for (const [f, m] of Object.entries(it.estFC || {})) {
+    if (!ok(f)) continue;
+    for (const [c, q] of Object.entries(m)) { estCor[c] = (estCor[c] || 0) + q; estLoja[f] = (estLoja[f] || 0) + q; est += q; }
+  }
+  for (const [f, m] of Object.entries(it.venFC || {})) {
+    if (!ok(f)) continue;
+    for (const [c, q] of Object.entries(m)) { venCor[c] = (venCor[c] || 0) + q; venLoja[f] = (venLoja[f] || 0) + q; ven += q; }
+    venValor += it.venValorF?.[f] || 0;
+  }
+  return { ...it, est, estCor, estLoja, ven, venCor, venLoja, venValor };
+}
 
 // Ranking de Vendas / Ranking de Estoque — a mesma tela com o eixo trocado.
 // Vendas: ordena pela venda do período e mostra o estoque como apoio.
@@ -80,6 +100,9 @@ export default function RankingView({ modo, rows }: Props) {
   const [visual, setVisual] = useState<"cards" | "lista">(salvo.visual || "cards");
   // Ranking de estoque: ordenar pelo atual ou pelo total (atual + futuro).
   const [ordem, setOrdem] = useState<"atual" | "total">(salvo.ordem || "atual");
+  // Canal e filial (como no BI), várias de cada.
+  const [canais, setCanais] = useState<string[]>(Array.isArray(salvo.canais) ? salvo.canais : []);
+  const [filiais, setFiliais] = useState<string[]>(Array.isArray(salvo.filiais) ? salvo.filiais : []);
   const [painelFiltros, setPainelFiltros] = useState(false);
   const [limite, setLimite] = useState(PAGINA);
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
@@ -100,20 +123,48 @@ export default function RankingView({ modo, rows }: Props) {
   const dias = Math.max(1, Math.round((new Date(ate).getTime() - new Date(de).getTime()) / 86400000) + 1);
 
   useEffect(() => {
-    try { localStorage.setItem(chaveSalva, JSON.stringify({ periodo, de: deCustom, ate: ateCustom, q, fl, agrupar, visual, ordem })); } catch {}
-  }, [chaveSalva, periodo, deCustom, ateCustom, q, fl, agrupar, visual, ordem]);
+    try { localStorage.setItem(chaveSalva, JSON.stringify({ periodo, de: deCustom, ate: ateCustom, q, fl, agrupar, visual, ordem, canais, filiais })); } catch {}
+  }, [chaveSalva, periodo, deCustom, ateCustom, q, fl, agrupar, visual, ordem, canais, filiais]);
 
+  // Cada troca de período busca de novo; o botão Atualizar força buscar tudo
+  // do Linx (descarta a memória do servidor). Enquanto carrega, os números
+  // anteriores ficam apagados com o aviso — antes pareciam já ser do período novo.
+  const [recarga, setRecarga] = useState(0);
   useEffect(() => {
     let ativo = true;
     setCarregando(true); setErro("");
-    fetchRanking(de, ate)
+    fetchRanking(de, ate, recarga > 0)
       .then(d => { if (ativo) setDados(d); })
-      .catch(e => { if (ativo) setErro(e.message); })
+      .catch(e => { if (ativo) setErro(e.message || "Falha ao carregar do Linx."); })
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
-  }, [de, ate]);
+  }, [de, ate, recarga]);
+  // Dados na tela são de outro período (carregando ou a busca falhou).
+  const desatualizado = !!dados && (carregando || !!erro || (!!dados.de && (dados.de !== de || dados.ate !== ate)));
 
-  useEffect(() => { setLimite(PAGINA); }, [q, fl, agrupar, modo]);
+  useEffect(() => { setLimite(PAGINA); }, [q, fl, agrupar, modo, canais, filiais]);
+
+  // Todas as filiais que aparecem no estoque ou na venda, com o canal de cada.
+  const todasFiliais = useMemo(() => {
+    const s = new Set<string>();
+    for (const it of dados?.itens || []) {
+      Object.keys(it.estFC || {}).forEach(f => s.add(f));
+      Object.keys(it.venFC || {}).forEach(f => s.add(f));
+    }
+    return Array.from(s).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [dados]);
+  // Filial: só as dos canais escolhidos (ou todas, sem canal).
+  const opcoesFilial = useMemo(
+    () => (canais.length ? todasFiliais.filter(f => canais.includes(canalDaFilial(f))) : todasFiliais),
+    [todasFiliais, canais],
+  );
+  const recorteAtivo = canais.length > 0 || filiais.length > 0;
+  const itensBase = useMemo(() => {
+    const itens = dados?.itens || [];
+    if (!recorteAtivo) return itens;
+    const ok = (f: string) => (!canais.length || canais.includes(canalDaFilial(f))) && (!filiais.length || filiais.includes(f));
+    return itens.map(it => recortar(it, ok));
+  }, [dados, recorteAtivo, canais, filiais]);
 
   const plmPorRef = useMemo(() => {
     const m = new Map<string, any>();
@@ -140,7 +191,7 @@ export default function RankingView({ modo, rows }: Props) {
   const filtrados = useMemo(() => {
     if (!dados) return [];
     const termo = q.trim().toUpperCase();
-    const lista = dados.itens.filter(it => {
+    const lista = itensBase.filter(it => {
       if (termo && !`${it.ref} ${it.desc}`.toUpperCase().includes(termo)) return false;
       for (const [k, v] of Object.entries(fl)) if (v.length && !v.includes(campo(it, k))) return false;
       // Ranking de estoque é de quem tem estoque; o de vendas, de quem vendeu
@@ -150,7 +201,7 @@ export default function RankingView({ modo, rows }: Props) {
     });
     return lista.sort((a, b) => principal(b) - principal(a) || apoio(b) - apoio(a) || a.ref.localeCompare(b.ref));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dados, q, fl, modo, vendasOk, plmPorRef, porTotal]);
+  }, [dados, itensBase, q, fl, modo, vendasOk, plmPorRef, porTotal]);
 
   const opcoes = useMemo(() => {
     const o: Record<string, string[]> = {};
@@ -328,6 +379,30 @@ export default function RankingView({ modo, rows }: Props) {
           </span>
         )}
         <span className="text-[12px] text-[var(--label-tertiary)]">{fmtData(de)} – {fmtData(ate)}</span>
+        <button
+          onClick={() => setRecarga(r => r + 1)}
+          disabled={carregando}
+          title="Buscar de novo no Linx"
+          className="ml-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium border border-[var(--separator)] text-[var(--system-blue)] hover:border-[var(--system-blue)] disabled:opacity-60"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={carregando ? "animate-spin" : ""}><path d="M21 12a9 9 0 11-2.64-6.36" /><polyline points="21 3 21 9 15 9" /></svg>
+          {carregando ? "Atualizando..." : "Atualizar"}
+        </button>
+        {dados?.geradoEm && !carregando && <span className="text-[11px] text-[var(--label-quaternary)]">atualizado às {new Date(dados.geradoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>}
+      </div>
+
+      {/* Canal e filial (como no BI) — recortam estoque e venda */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] mr-1">Canal</span>
+        <div className="w-[190px]">
+          <MultiSelect value={canais} options={[...CANAIS]} todos="Todos os canais" onChange={v => { setCanais(v); if (v.length) setFiliais(prev => prev.filter(f => v.includes(canalDaFilial(f)))); }} className="text-[12px] !py-1.5" />
+        </div>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--label-tertiary)] ml-2 mr-1">Filial</span>
+        <div className="w-[230px]">
+          <MultiSelect value={filiais} options={opcoesFilial} todos="Todas as filiais" onChange={setFiliais} className="text-[12px] !py-1.5" />
+        </div>
+        {recorteAtivo && <button onClick={() => { setCanais([]); setFiliais([]); }} className="text-[12px] text-[var(--system-blue)] font-medium">Limpar</button>}
+        {recorteAtivo && <span className="text-[11px] text-[var(--label-tertiary)]">Estoque e venda só dessas filiais · o futuro (pedidos) não tem filial e segue inteiro</span>}
       </div>
 
       {/* Busca, filtros, agrupamento, visual */}
@@ -397,10 +472,21 @@ export default function RankingView({ modo, rows }: Props) {
       )}
 
       {carregando && !dados && <div className="plm-loading"><div className="plm-loading-spinner" /><span>Carregando do Linx...</span></div>}
-      {erro && <div className="apple-card p-6 text-center text-[13px] text-[var(--system-red)]">{erro}</div>}
+      {erro && (
+        <div className="flex items-center gap-3 flex-wrap rounded-xl px-4 py-3 mb-4 text-[13px] bg-red-50 border border-red-200 text-[var(--system-red)]">
+          <span className="flex-1 min-w-[200px]"><b>Não carregou o período {fmtData(de)} – {fmtData(ate)}.</b> {dados ? "Os números abaixo são do período anterior. " : ""}{erro}</span>
+          <button onClick={() => setRecarga(r => r + 1)} className="apple-btn-secondary !py-1.5 text-[12px]">Tentar de novo</button>
+        </div>
+      )}
+      {carregando && dados && (
+        <div className="sticky top-2 z-20 flex items-center gap-2 rounded-xl px-4 py-2.5 mb-3 text-[13px] font-medium bg-[var(--bg-primary)] border border-[var(--system-blue)] text-[var(--system-blue)] shadow-md">
+          <div className="plm-loading-spinner !w-4 !h-4" />
+          Atualizando {fmtData(de)} – {fmtData(ate)}... os números abaixo ainda são do período anterior.
+        </div>
+      )}
 
       {dados && (
-        <>
+        <div style={{ opacity: desatualizado ? 0.35 : 1, transition: "opacity .2s", pointerEvents: desatualizado ? "none" : undefined }}>
           {/* Visão geral */}
           <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
             {[
@@ -466,7 +552,7 @@ export default function RankingView({ modo, rows }: Props) {
               </section>
             );
           })}
-        </>
+        </div>
       )}
 
       {ampliado && (() => {

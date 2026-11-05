@@ -11,6 +11,12 @@ import { requireAuth } from "@/lib/supabase-server";
 // O /estoque tem ~5 MB — acima do limite do cache de fetch do Next —, então
 // guardamos em memória aqui mesmo por alguns minutos.
 
+// Na Vercel a função tem limite de tempo; com o servidor frio, puxar estoque +
+// produtos + vendas passa de 10 s e a consulta era cortada (a tela ficava com
+// os números do período anterior). 60 s dá folga.
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 const MIN = 60 * 1000;
 const memo = new Map<string, { em: number; valor: Promise<any> }>();
 function lembrar<T>(chave: string, validade: number, carregar: () => Promise<T>): Promise<T> {
@@ -42,9 +48,14 @@ type RankingItem = {
   venValor: number;
   venCor: Mapa;
   venLoja: Mapa;
+  // Por filial x cor (para filtrar canal/filial sem perder a quebra por cor)
+  estFC: Record<string, Mapa>;
+  venFC: Record<string, Mapa>;
+  venValorF: Mapa;
 };
 
 const soma = (m: Mapa, k: string, q: number) => { m[k] = (m[k] || 0) + q; };
+const sub = (m: Record<string, Mapa>, k: string): Mapa => (m[k] = m[k] || {});
 const dataOk = (s: string | null) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 export async function GET(req: NextRequest) {
@@ -53,6 +64,8 @@ export async function GET(req: NextRequest) {
 
   const de = req.nextUrl.searchParams.get("de");
   const ate = req.nextUrl.searchParams.get("ate");
+  // Botão Atualizar da tela: descarta o que está em memória e busca tudo de novo.
+  if (req.nextUrl.searchParams.get("atualizar") === "1") memo.clear();
 
   try {
     const [estoque, produtos, cores, pedidos] = await Promise.all([
@@ -87,7 +100,7 @@ export async function GET(req: NextRequest) {
           colecao: p?.colecao_nome || p?.colecao || "",
           grupo: p?.grupo || "", subgrupo: p?.subgrupo || "", categoria: p?.categoria || "",
           subcategoria: p?.subcategoria || "", linha: p?.linha || "", fabricante: p?.fabricante || "",
-          est: 0, fut: 0, futCor: {}, estCor: {}, estLoja: {}, ven: 0, venValor: 0, venCor: {}, venLoja: {},
+          est: 0, fut: 0, futCor: {}, estCor: {}, estLoja: {}, ven: 0, venValor: 0, venCor: {}, venLoja: {}, estFC: {}, venFC: {}, venValorF: {},
         };
         itens.set(ref, it);
       }
@@ -101,6 +114,7 @@ export async function GET(req: NextRequest) {
       it.est += q;
       soma(it.estCor, String(e.cor).trim(), q);
       soma(it.estLoja, String(e.filial).trim(), q);
+      soma(sub(it.estFC, String(e.filial).trim()), String(e.cor).trim(), q);
     }
     for (const p of pedidos) {
       const q = Number(p.quantidade_pendente) || 0;
@@ -117,11 +131,16 @@ export async function GET(req: NextRequest) {
       it.venValor += Number(v.valor) || 0;
       soma(it.venCor, String(v.cor).trim(), q);
       soma(it.venLoja, String(v.filial).trim(), q);
+      soma(sub(it.venFC, String(v.filial).trim()), String(v.cor).trim(), q);
+      soma(it.venValorF, String(v.filial).trim(), Number(v.valor) || 0);
     }
 
     // Sem nada positivo (só saldo zerado/negativo) não entra em ranking nenhum.
     const lista = Array.from(itens.values()).filter(i => i.est > 0 || i.fut > 0 || i.ven > 0);
-    return NextResponse.json({ itens: lista, cores, vendasDisponivel, vendasErro });
+    return NextResponse.json(
+      { itens: lista, cores, vendasDisponivel, vendasErro, de, ate, geradoEm: new Date().toISOString() },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Erro ao consultar o Linx." }, { status: 502 });
   }
