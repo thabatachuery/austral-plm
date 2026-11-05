@@ -29,6 +29,8 @@ type Props = {
   // Ficha técnica do tecido (PDF do Cadastros › Tecidos) já convertida em
   // imagens, uma por página — vai no final, depois de todas as seções.
   fichasTecido?: { nome: string; paginas: string[] }[];
+  // Temporada da ficha aberta (clássicos), impressa junto da coleção.
+  temporada?: string | null;
 };
 
 /* ── Design tokens ── */
@@ -46,7 +48,7 @@ const warnDark = "#7A4A06";
 const danger = "#DC2626";
 const white = "#FFFFFF";
 
-export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, estagio, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, tingimento, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [], importado = false, fichasTecido = [] }: Props) {
+export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, imgModelo, imgModoMedir, estagio, imgFrente, imgCostas, hasEstamparia, estamparia, pantones, tingimento, obs, statusLib, tecCad, sections, ncm, peso, vcCompras, provaInfo, gradTamanhos = [], gradBase = "", tabTamanhos = [], importado = false, fichasTecido = [], temporada = null }: Props) {
   const sec = sections || { ficha: true, estamparia: true, liberacao: true, graduacao: true };
   // "t" já nomeia o tecido em vários map deste arquivo — o tradutor é "tr".
   const tr = criarTradutor(importado);
@@ -130,7 +132,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
         {sub && <div style={{ fontSize: "7.5px", opacity: 0.7, marginTop: "2px" }}>{sub}</div>}
       </div>
       <div style={{ textAlign: "right" }}>
-        <div style={{ fontSize: "8px", opacity: 0.7, lineHeight: 1.6 }}>{tr("Coleção")} <strong style={{ opacity: 1 }}>{row.colecao}</strong></div>
+        <div style={{ fontSize: "8px", opacity: 0.7, lineHeight: 1.6 }}>{tr("Coleção")} <strong style={{ opacity: 1 }}>{row.colecao}</strong>{temporada && <> &nbsp;·&nbsp; {tr("Temporada")} <strong style={{ opacity: 1 }}>{temporada}</strong></>}</div>
         <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "-0.01em" }}>{row.ref}</div>
         <div style={{ fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "3px", background: "rgba(255,255,255,0.18)", padding: "2px 8px", borderRadius: "3px", display: "inline-block" }}>{headerLabel}</div>
       </div>
@@ -195,7 +197,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           <div style={{ background: headerBg, color: white, borderRadius: "5px", padding: "5px 12px", marginBottom: "5px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: "10px", fontWeight: 800, letterSpacing: "0.04em" }}>{tr("FICHA TÉCNICA")}</span>
             <span style={{ fontSize: "7.5px", fontWeight: 700, background: "rgba(255,255,255,0.18)", padding: "2px 9px", borderRadius: "20px" }}>{headerLabel}</span>
-            <span style={{ fontSize: "7.5px", opacity: 0.8 }}>{tr("Coleção")} <strong style={{ opacity: 1 }}>{row.colecao}</strong></span>
+            <span style={{ fontSize: "7.5px", opacity: 0.8 }}>{tr("Coleção")} <strong style={{ opacity: 1 }}>{row.colecao}</strong>{temporada && <> &nbsp;·&nbsp; {tr("Temporada")} <strong style={{ opacity: 1 }}>{temporada}</strong></>}</span>
           </div>
 
           {/* Campos — grid 2 colunas com borda, igual à modal */}
@@ -623,7 +625,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0 16px", marginBottom: "10px" }}>
             <Field label={tr("Referência")} value={row.ref} />
             <Field label={tr("Descrição")} value={row.desc} />
-            <Field label={tr("Coleção")} value={row.colecao} />
+            <Field label={tr("Coleção")} value={temporada ? `${row.colecao} · ${temporada}` : row.colecao} />
             <Field label={tr("Grade")} value={row.grade} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", flex: 1, minHeight: 0 }}>
@@ -694,7 +696,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
             <Field label={tr("Estilista")} value={row.estilista} />
             <Field label={tr("Fornecedor")} value={row.fornecedor} />
             <Field label={tr("Drop")} value={row.drop} />
-            <Field label={tr("Coleção")} value={row.colecao} />
+            <Field label={tr("Coleção")} value={temporada ? `${row.colecao} · ${temporada}` : row.colecao} />
             <Field label={tr("Grade")} value={row.grade} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "0 16px", marginBottom: "10px", borderTop: `0.5px solid ${line}`, paddingTop: "6px" }}>
@@ -947,7 +949,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
             <Field label={tr("Tamanho")} value={gradBase || "—"} />
             <Field label={tr("Tecido")} value={row.tecido} />
             <Field label={tr("Composição")} value={row.composicao} />
-            <Field label={tr("Coleção")} value={row.colecao} />
+            <Field label={tr("Coleção")} value={temporada ? `${row.colecao} · ${temporada}` : row.colecao} />
             <Field label={tr("Operação")} value={row.operacao} />
           </div>
 
