@@ -20,6 +20,7 @@ export const COR_PALETTE: Record<string, { bg: string; text: string }> = {
   "C19 - LARANJA":             { bg: "#D77227", text: "#FFFFFF" },
   "C20 - AREIA":               { bg: "#BCB2A0", text: "#000000" },
   "C21 - AZUL MEDIO":          { bg: "#59627C", text: "#FFFFFF" },
+  "C22 - AZUL MARINHO":        { bg: "#222C66", text: "#FFFFFF" }, // mesmo tom da C07
   "C25 - KHAKI":               { bg: "#9E8F75", text: "#000000" },
   "C26 - MARROM ESCURO":       { bg: "#514534", text: "#FFFFFF" },
   "S01 - STONE AZUL MIDNIGHT":     { bg: "#2D3044", text: "#FFFFFF" },
