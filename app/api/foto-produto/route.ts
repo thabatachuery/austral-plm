@@ -30,8 +30,12 @@ async function fotoVtex(ref: string, cor: string, grande: boolean): Promise<stri
 }
 
 async function fotoTeceo(ref: string): Promise<string | null> {
-  const cores = (await carregarCatalogoTeceo()).get(ref) || [];
-  return melhorVersaoTeceo(cores[0]?.fotos[0]);
+  // Primeira cor cuja foto abre (o CDN recusa algumas — ver lib/teceo.ts).
+  for (const c of (await carregarCatalogoTeceo()).get(ref) || []) {
+    const url = await melhorVersaoTeceo(c.fotos[0]);
+    if (url) return url;
+  }
+  return null;
 }
 
 export async function GET(req: Request) {

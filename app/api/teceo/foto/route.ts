@@ -11,11 +11,16 @@ export async function GET(req: Request) {
     if (!cores.length) return NextResponse.json({ frente: null, costas: null, cor: null });
     // Mais de uma cor: qualquer uma serve (pedido da usuária) — entre as que
     // têm frente e costas, se houver; tem cor com uma foto só no catálogo.
+    // Ordem sorteada, mas pulando cor cuja foto o CDN recusa (403): a 1ª cor
+    // com frente que abre de verdade é a que vai.
     const completas = cores.filter(c => c.fotos.length >= 2);
-    const opcoes = completas.length ? completas : cores;
-    const { cor, fotos } = opcoes[Math.floor(Math.random() * opcoes.length)];
-    const [frente, costas] = await Promise.all([melhorVersaoTeceo(fotos[0]), melhorVersaoTeceo(fotos[1])]);
-    return NextResponse.json({ frente, costas, cor });
+    const embaralhar = <T,>(a: T[]) => a.map(x => [Math.random(), x] as const).sort((p, q) => p[0] - q[0]).map(p => p[1]);
+    const ordem = [...embaralhar(completas), ...embaralhar(cores.filter(c => c.fotos.length < 2))];
+    for (const { cor, fotos } of ordem) {
+      const [frente, costas] = await Promise.all([melhorVersaoTeceo(fotos[0]), melhorVersaoTeceo(fotos[1])]);
+      if (frente) return NextResponse.json({ frente, costas, cor });
+    }
+    return NextResponse.json({ frente: null, costas: null, cor: null });
   } catch (e: any) {
     console.error("teceo/foto:", e?.message || e);
     return NextResponse.json({ error: "Catálogo Teceo indisponível" }, { status: 502 });

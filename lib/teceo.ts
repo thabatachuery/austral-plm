@@ -48,11 +48,16 @@ export async function carregarCatalogoTeceo(): Promise<Map<string, TeceoCor[]>> 
 
 // O CDN gera uma versão "-lg.webp" (~200 KB, boa pra imprimir) da original
 // (JPEG de ~2 MB), mas nem toda foto tem. Sem ela, vai a original.
+// Tem foto no catálogo cujo arquivo o CDN recusa (403 — ex.: 21030061 AZUL
+// ESCURO): aí devolve null, para quem chama tentar outra cor em vez de
+// mostrar imagem quebrada.
 export async function melhorVersaoTeceo(url: string | undefined): Promise<string | null> {
   if (!url) return null;
-  try {
-    const r = await fetch(`${url}-lg.webp`, { method: "HEAD", cache: "no-store" });
-    if (r.ok) return `${url}-lg.webp`;
-  } catch {}
-  return url;
+  for (const v of [`${url}-lg.webp`, url]) {
+    try {
+      const r = await fetch(v, { method: "HEAD", cache: "no-store" });
+      if (r.ok) return v;
+    } catch {}
+  }
+  return null;
 }
