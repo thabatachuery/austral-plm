@@ -194,9 +194,12 @@ export default function RankingView({ modo, rows }: Props) {
     const lista = itensBase.filter(it => {
       if (termo && !`${it.ref} ${it.desc}`.toUpperCase().includes(termo)) return false;
       for (const [k, v] of Object.entries(fl)) if (v.length && !v.includes(campo(it, k))) return false;
-      // Ranking de estoque é de quem tem estoque; o de vendas, de quem vendeu
+      // Ranking de estoque é de quem tem estoque atual OU futuro — nos dois
+      // modos ("Atual" e "Atual + futuro"), que só mudam a ORDEM. Antes o modo
+      // "Atual" tirava quem só tinha futuro, e os totais de Futuro e Total do
+      // topo mudavam ao trocar de modo. O de vendas é de quem vendeu
       // (sem venda publicada ainda, mostra quem tem estoque para não ficar vazio).
-      if (modo === "estoque") return it.est > 0 || (porTotal && it.fut > 0);
+      if (modo === "estoque") return it.est > 0 || it.fut > 0;
       return vendasOk ? it.ven > 0 : it.est > 0;
     });
     return lista.sort((a, b) => principal(b) - principal(a) || apoio(b) - apoio(a) || a.ref.localeCompare(b.ref));
