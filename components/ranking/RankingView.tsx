@@ -252,30 +252,37 @@ export default function RankingView({ modo, rows }: Props) {
   const alternarGrupo = (g: string) => { const atual = fl.grupo || []; setFiltro("grupo", atual.includes(g) ? atual.filter(x => x !== g) : [...atual, g]); };
   const alternar = (ref: string) => setAbertos(prev => { const s = new Set(prev); s.has(ref) ? s.delete(ref) : s.add(ref); return s; });
 
-  // ── Tabela cor/loja do card: coluna principal ordena, a de apoio acompanha ──
-  const Detalhe = ({ titulo, prin, apo, nomes, limiteLinhas, it }: { titulo: string; prin: Record<string, number>; apo: Record<string, number>; nomes?: Record<string, string>; limiteLinhas: number; it: RankingItem }) => {
-    const chaves = new Set([...Object.keys(prin), ...Object.keys(apo)]);
-    const linhas = Array.from(chaves)
-      .map(k => ({ k, p: prin[k] || 0, a: apo[k] || 0 }))
-      .filter(l => l.p > 0 || l.a > 0)
-      .sort((x, y) => y.p - x.p || y.a - x.a);
+  // ── Tabela cor/loja do card: a primeira coluna ordena (e desenha a barra) ──
+  // Colunas: { rot, m, forte? } — por cor vão atual, futuro, total e vendido;
+  // por loja só atual e vendido (pedido de compra não tem loja).
+  type Col = { rot: string; m: Record<string, number>; forte?: boolean };
+  const Detalhe = ({ titulo, cols, nomes, limiteLinhas, it }: { titulo: string; cols: Col[]; nomes?: Record<string, string>; limiteLinhas: number; it: RankingItem }) => {
+    const chaves = Array.from(new Set(cols.flatMap(c => Object.keys(c.m))));
+    const linhas = chaves
+      .map(k => ({ k, v: cols.map(c => c.m[k] || 0) }))
+      .filter(l => l.v.some(x => x > 0))
+      .sort((x, y) => y.v[0] - x.v[0] || (y.v[1] || 0) - (x.v[1] || 0));
     if (!linhas.length) return null;
     const aberto = abertos.has(`${it.ref}|${titulo}`);
     const visiveis = aberto ? linhas : linhas.slice(0, limiteLinhas);
-    const maxLinha = Math.max(1, ...linhas.map(l => l.p));
+    const maxLinha = Math.max(1, ...linhas.map(l => l.v[0]));
+    const grade = `minmax(0,1fr) ${cols.map(() => (cols.length > 2 ? "44px" : "54px")).join(" ")}`;
     return (
       <div className="mt-3">
-        <div className="grid items-center text-[10px] font-semibold uppercase tracking-[0.04em] text-[var(--label-tertiary)] mb-1" style={{ gridTemplateColumns: "1fr 54px 54px" }}>
-          <span>{titulo}</span><span className="text-right">{nomePrincipal}</span><span className="text-right">{nomeApoio}</span>
+        <div className="grid items-center text-[10px] font-semibold uppercase tracking-[0.04em] text-[var(--label-tertiary)] mb-1" style={{ gridTemplateColumns: grade }}>
+          <span>{titulo}</span>{cols.map(c => <span key={c.rot} className="text-right">{c.rot}</span>)}
         </div>
         {visiveis.map(l => (
-          <div key={l.k} className="grid items-center text-[12px] py-[3px]" style={{ gridTemplateColumns: "1fr 54px 54px" }}>
+          <div key={l.k} className="grid items-center text-[12px] py-[3px]" style={{ gridTemplateColumns: grade }}>
             <div className="min-w-0 relative">
-              <div className="absolute inset-y-0 left-0 rounded" style={{ width: `${(l.p / maxLinha) * 100}%`, background: corFundo }} />
+              <div className="absolute inset-y-0 left-0 rounded" style={{ width: `${(l.v[0] / maxLinha) * 100}%`, background: corFundo }} />
               <span className="relative px-1.5 truncate block">{nomes ? `${nomes[l.k] || l.k}` : l.k}</span>
             </div>
-            <span className="text-right font-semibold tabular-nums">{l.p ? n(l.p) : "—"}</span>
-            <span className="text-right tabular-nums text-[var(--label-secondary)]">{l.a ? n(l.a) : (modo === "estoque" && !vendasOk ? "" : "—")}</span>
+            {l.v.map((x, i) => (
+              <span key={i} className={`text-right tabular-nums ${i === 0 || cols[i].forte ? "font-semibold" : "text-[var(--label-secondary)]"}`}>
+                {x ? n(x) : (cols[i].rot === "Vend." && !vendasOk ? "" : "—")}
+              </span>
+            ))}
           </div>
         ))}
         {linhas.length > limiteLinhas && (
@@ -286,6 +293,20 @@ export default function RankingView({ modo, rows }: Props) {
       </div>
     );
   };
+  // Total por cor = atual + futuro.
+  const totalCor = (it: RankingItem) => {
+    const t: Record<string, number> = {};
+    for (const [k, v] of Object.entries(it.estCor)) t[k] = (t[k] || 0) + v;
+    for (const [k, v] of Object.entries(it.futCor)) t[k] = (t[k] || 0) + v;
+    return t;
+  };
+  const colunasCor = (it: RankingItem): Col[] => {
+    const est = { rot: "Atual", m: it.estCor }, fut = { rot: "Futuro", m: it.futCor }, tot = { rot: "Total", m: totalCor(it), forte: true }, ven = { rot: "Vend.", m: it.venCor };
+    if (modo === "vendas") return [ven, est, fut, tot];
+    return porTotal ? [tot, est, fut, ven] : [est, fut, tot, ven];
+  };
+  const colunasLoja = (it: RankingItem): Col[] =>
+    modo === "vendas" ? [{ rot: "Vend.", m: it.venLoja }, { rot: "Atual", m: it.estLoja }] : [{ rot: "Atual", m: it.estLoja }, { rot: "Vend.", m: it.venLoja }];
 
   const Card = ({ it, pos }: { it: RankingItem; pos: number }) => {
     const cob = cobertura(it);
@@ -316,8 +337,8 @@ export default function RankingView({ modo, rows }: Props) {
             : <><span>Atual <b className="text-[var(--label-primary)]">{n(it.est)}</b></span><span>Futuro <b className="text-[var(--label-primary)]">{n(it.fut)}</b></span><span>Total <b className="text-[var(--label-primary)]">{n(it.est + it.fut)}</b></span>{vendasOk && <span>Vendido <b className="text-[var(--label-primary)]">{n(it.ven)}</b></span>}</>}
           {cob !== null && <span>Cobertura <b className="text-[var(--label-primary)]">{cob >= 99 ? "99+" : cob.toFixed(1)} sem.</b></span>}
         </div>
-        {Detalhe({ it, titulo: "Cor", prin: modo === "vendas" ? it.venCor : it.estCor, apo: modo === "vendas" ? it.estCor : it.venCor, nomes: cores, limiteLinhas: 4 })}
-        {Detalhe({ it, titulo: "Loja", prin: modo === "vendas" ? it.venLoja : it.estLoja, apo: modo === "vendas" ? it.estLoja : it.venLoja, limiteLinhas: 5 })}
+        {Detalhe({ it, titulo: "Cor", cols: colunasCor(it), nomes: cores, limiteLinhas: 4 })}
+        {Detalhe({ it, titulo: "Loja", cols: colunasLoja(it), limiteLinhas: 5 })}
       </div>
     );
   };
@@ -586,11 +607,13 @@ export default function RankingView({ modo, rows }: Props) {
           );
         };
         const colsCor = modo === "vendas"
-          ? [{ rot: "Vendido", m: it.venCor }, { rot: "Estoque", m: it.estCor }, { rot: "Futuro", m: it.futCor }]
-          : [{ rot: "Estoque", m: it.estCor }, { rot: "Futuro", m: it.futCor }, { rot: "Vendido", m: it.venCor }];
+          ? [{ rot: "Vendido", m: it.venCor }, { rot: "Atual", m: it.estCor }, { rot: "Futuro", m: it.futCor }, { rot: "Total", m: totalCor(it) }]
+          : porTotal
+            ? [{ rot: "Total", m: totalCor(it) }, { rot: "Atual", m: it.estCor }, { rot: "Futuro", m: it.futCor }, { rot: "Vendido", m: it.venCor }]
+            : [{ rot: "Atual", m: it.estCor }, { rot: "Futuro", m: it.futCor }, { rot: "Total", m: totalCor(it) }, { rot: "Vendido", m: it.venCor }];
         const colsLoja = modo === "vendas"
-          ? [{ rot: "Vendido", m: it.venLoja }, { rot: "Estoque", m: it.estLoja }]
-          : [{ rot: "Estoque", m: it.estLoja }, { rot: "Vendido", m: it.venLoja }];
+          ? [{ rot: "Vendido", m: it.venLoja }, { rot: "Atual", m: it.estLoja }]
+          : [{ rot: "Atual", m: it.estLoja }, { rot: "Vendido", m: it.venLoja }];
         const kpis = [
           { rot: "Estoque atual", val: n(it.est) },
           { rot: "Futuro", val: n(it.fut) },
