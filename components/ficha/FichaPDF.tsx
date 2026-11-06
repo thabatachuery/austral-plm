@@ -35,6 +35,9 @@ type Props = {
 
 /* ── Design tokens ── */
 const navy = "#0C1D2E";
+// Imagem que se ajusta ao bloco (pai com position: relative e altura vinda do
+// flex) e encolhe inteira — nunca é cortada.
+const IMG_CABE: React.CSSProperties = { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" };
 const accent = "#2563EB";
 const muted = "#64748B";
 const light = "#94A3B8";
@@ -493,12 +496,12 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
           {/* Artes (frente, costas, lateral…) — colunas lado a lado */}
           {/* Até 3 por linha; com blocos extras, quebra em mais linhas */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "10px", flex: 1, minHeight: 0 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "6px", flex: 1, minHeight: 0 }}>
             {artes.filter((a: any) => a.posicao !== "TAGLESS" && (!isArteExtra(a) || a.imagemLocal || a.localizacao || a.tituloLocal)).map((arte: any, ai: number) => isArteExtra(arte) ? (
               <div key={`extra-${ai}`} style={{ flex: "1 1 30%", border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                 {/* Bloco extra: título livre, imagem e texto */}
                 <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>{arte.tituloLocal || tr("Extra")}</div>
-                {arte.imagemLocal && <div style={{ padding: "6px", textAlign: "center", background: white, display: "flex", alignItems: "center", justifyContent: "center", flex: 1.3, minHeight: "40px", maxHeight: "300px", overflow: "hidden" }}><img src={arte.imagemLocal} alt={arte.tituloLocal || "Extra"} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /></div>}
+                {arte.imagemLocal && <div style={{ padding: "4px", background: white, display: "flex", flex: 1.3, minHeight: "70px" }}><div style={{ position: "relative", flex: 1 }}><img src={arte.imagemLocal} alt={arte.tituloLocal || "Extra"} style={IMG_CABE} /></div></div>}
                 {arte.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4, padding: "5px 8px", background: bg, borderTop: `0.5px solid ${line}` }}>{arte.localizacao}</div>}
               </div>
             ) : (
@@ -506,17 +509,19 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 {/* Arte header */}
                 <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>{tr(lavanderia ? "Lavagem" : "Arte")} {tr(arte.posicao)}</div>
                 {/* Arte image */}
-                <div style={{ padding: "6px", textAlign: "center", background: white, display: "flex", alignItems: "center", justifyContent: "center", flex: 1.3, minHeight: "40px", maxHeight: "300px", overflow: "hidden" }}>
-                  {arte.imagem ? <img src={arte.imagem} alt={arte.posicao} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: lineDark, fontSize: "8px" }}>{tr("Sem imagem")}</span>}
+                <div style={{ padding: "4px", textAlign: "center", background: white, display: "flex", alignItems: "center", justifyContent: "center", flex: 1.3, minHeight: "70px" }}>
+                  {arte.imagem ? <div style={{ position: "relative", flex: 1, alignSelf: "stretch" }}><img src={arte.imagem} alt={arte.posicao} style={IMG_CABE} /></div> : <span style={{ color: lineDark, fontSize: "8px" }}>{tr("Sem imagem")}</span>}
                 </div>
                 {/* Largura */}
                 {arte.largura && <div style={{ textAlign: "center", fontSize: "8px", fontWeight: 700, color: accent, padding: "3px 0", background: bg, borderTop: `0.5px solid ${line}` }}>{arte.largura}</div>}
                 {/* Localização */}
                 {(arte.imagemLocal || arte.localizacao) && (
-                  <div style={{ background: bg, borderTop: `0.5px solid ${line}`, padding: "5px 8px", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-                    <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "5px" }}>{arte.tituloLocal || `${tr(lavanderia ? "Localização Lavagem" : "Localização Arte")} ${tr(arte.posicao)}`}</div>
-                    {arte.imagemLocal && <div style={{ textAlign: "center", marginBottom: arte.localizacao ? "4px" : 0, flex: 1, minHeight: "30px", maxHeight: "230px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><img src={arte.imagemLocal} alt={`Localização ${arte.posicao}`} style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} /></div>}
-                    {arte.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.4 }}>{arte.localizacao}</div>}
+                  <div style={{ background: bg, borderTop: `0.5px solid ${line}`, padding: "3px 6px", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+                    <div style={{ fontSize: "6px", fontWeight: 700, color: white, background: headerBg, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center", borderRadius: "3px", padding: "2px 6px", marginBottom: "3px" }}>{arte.tituloLocal || `${tr(lavanderia ? "Localização Lavagem" : "Localização Arte")} ${tr(arte.posicao)}`}</div>
+                    {/* Imagem ocupa o espaço que sobrar e encolhe para caber inteira (antes
+                        o maxHeight: 100% não valia aqui e o overflow cortava a imagem). */}
+                    {arte.imagemLocal && <div style={{ position: "relative", marginBottom: arte.localizacao ? "3px" : 0, flex: 1, minHeight: "60px", background: white }}><img src={arte.imagemLocal} alt={`Localização ${arte.posicao}`} style={IMG_CABE} /></div>}
+                    {arte.localizacao && <div style={{ fontSize: "7.5px", color: muted, lineHeight: 1.3 }}>{arte.localizacao}</div>}
                   </div>
                 )}
               </div>
@@ -525,7 +530,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
 
           {/* Tagless — layout horizontal compacto */}
           {artes.filter((a: any) => a.posicao === "TAGLESS" && (a.imagem || a.localizacao || a.imagemLocal || a.largura)).map((tg: any, tgi: number) => (
-            <div key={`tagless-${tgi}`} style={{ display: "flex", gap: "0", marginBottom: "10px", border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden" }}>
+            <div key={`tagless-${tgi}`} style={{ display: "flex", gap: "0", marginBottom: "6px", border: `0.5px solid ${line}`, borderRadius: "6px", overflow: "hidden" }}>
               {/* Arte TAGLESS */}
               <div style={{ flex: "0 0 28%", borderRight: `0.5px solid ${line}` }}>
                 <div style={{ background: headerBg, color: white, padding: "4px 8px", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>{tr("Tagless")}</div>
@@ -555,9 +560,10 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
                 </tr></thead>
                 <tbody>{tecnicas.map((t: any, i: number) => (
                   <tr key={i} style={i % 2 ? { background: bg } : {}}>
-                    <td style={{ ...td, textAlign: "center", fontWeight: 800, fontSize: "12px", color: muted }}>{i + 1}</td>
-                    <td style={{ ...td, fontWeight: 700 }}>{t.tecnica || "—"}</td>
-                    {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVarsEst).map(k => <td key={k} style={{ ...td, textAlign: "center", fontSize: "8.5px" }}>{t[k] || "—"}</td>)}
+                    {/* Linhas compactas: a página de estamparia precisa caber inteira com as artes. */}
+                    <td style={{ ...td, padding: "2.5px 6px", textAlign: "center", fontWeight: 800, fontSize: "11px", color: muted }}>{i + 1}</td>
+                    <td style={{ ...td, padding: "2.5px 6px", fontWeight: 700 }}>{t.tecnica || "—"}</td>
+                    {(["var01","var02","var03","var04","var05","var06"] as const).slice(0, numVarsEst).map(k => <td key={k} style={{ ...td, padding: "2.5px 6px", textAlign: "center", fontSize: "8.5px", lineHeight: 1.2 }}>{t[k] || "—"}</td>)}
                   </tr>
                 ))}</tbody>
               </table>
@@ -565,7 +571,7 @@ export default function FichaPDF({ row, tec, avi, pil, pts, grad, pv, an, img, i
           )}
 
           {estamparia?.observacoes && (
-            <div style={{ marginTop: "10px", background: bg, borderRadius: "6px", padding: "10px 14px", border: `0.5px solid ${line}` }}>
+            <div style={{ marginTop: "6px", background: bg, borderRadius: "6px", padding: "6px 10px", border: `0.5px solid ${line}` }}>
               <div style={{ fontSize: "6.5px", fontWeight: 700, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "3px" }}>{tr("Observações")}</div>
               <div style={{ fontSize: "8.5px", color: muted, whiteSpace: "pre-wrap" }}>{estamparia.observacoes}</div>
             </div>
