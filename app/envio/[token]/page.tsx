@@ -25,7 +25,7 @@ function fmtData(iso: string) {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
-const ehVideo = (nome: string) => /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(nome);
+import { ehVideo, iconeArquivo } from "@/lib/tipo-arquivo";
 
 async function buscarEnvio(token: string) {
   const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -93,7 +93,7 @@ export default async function PaginaEnvio({ params }: { params: Promise<{ token:
             // que ele espera.
             <LinkArquivo key={a.id} url={a.url} tamanho={a.tamanho} nome={a.nome} download={!ehVideo(a.nome)}
                style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px", textDecoration: "none", color: "#0C1D2E", background: "#fff" }}>
-              <span style={{ fontSize: 18 }}>{ehVideo(a.nome) ? "🎬" : "📄"}</span>
+              <span style={{ fontSize: 18 }}>{iconeArquivo(a.nome)}</span>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 14, fontWeight: 600, wordBreak: "break-word" }}>{a.nome}</span>
                 {(a.refs?.length || a.tamanho) ? (

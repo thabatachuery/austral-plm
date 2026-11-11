@@ -7,6 +7,7 @@ import LinkArquivo from "./LinkArquivo";
 import { useAuth } from "@/lib/auth-context";
 import { nomeUsuario } from "@/lib/utils";
 import MultiSelect from "@/components/ui/MultiSelect";
+import { iconeArquivo } from "@/lib/tipo-arquivo";
 
 const ESTAGIOS = ["DESENVOLVIMENTO", "MOSTRUÁRIO", "PRODUÇÃO"];
 
@@ -21,7 +22,6 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://plm.austral.com.b
 // Acima do limite do Storage (50 MB por arquivo) o arquivo sobe em partes — ver
 // lib/arquivo-partes.ts. O aviso só prepara para a demora.
 const LIMITE_AVISO_MB = 50;
-const ehVideo = (nome: string) => /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(nome);
 
 function refsDoNome(nome: string): string[] {
   const m = nome.match(/(\d{8})/g);
@@ -54,9 +54,11 @@ export default function EnviosView() {
   const [nArquivos, setNArquivos] = useState<File[]>([]);
   const [arrastando, setArrastando] = useState(false);
   // Soma ao que já foi escolhido (arrastar em várias levas), sem repetir o
-  // mesmo arquivo; só PDF e vídeo passam.
+  // mesmo arquivo. Qualquer tipo passa (PDF, vídeo, JPG, Illustrator,
+  // Photoshop, zip...) — só pasta não (o navegador entrega pasta como arquivo
+  // vazio e sem tipo).
   const addArquivos = (lista: FileList | null) => {
-    const novos = Array.from(lista || []).filter(f => f.type === "application/pdf" || f.type.startsWith("video/"));
+    const novos = Array.from(lista || []).filter(f => f.size > 0 || f.type !== "");
     setNArquivos(prev => [...prev, ...novos.filter(n => !prev.some(p => p.name === n.name && p.size === n.size))]);
   };
   const [enviando, setEnviando] = useState(false);
@@ -77,7 +79,7 @@ export default function EnviosView() {
 
   const criar = async () => {
     if (!nColecao || !nFornecedor) { setMsg({ tipo: "erro", texto: "Escolha a coleção e o fornecedor." }); return; }
-    if (!nArquivos.length) { setMsg({ tipo: "erro", texto: "Anexe pelo menos um PDF ou vídeo." }); return; }
+    if (!nArquivos.length) { setMsg({ tipo: "erro", texto: "Anexe pelo menos um arquivo." }); return; }
     setEnviando(true); setProgresso(0); setMsg(null);
 
     const envio = await criarEnvio({
@@ -180,8 +182,8 @@ export default function EnviosView() {
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--system-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span className="text-[13px] font-medium text-[var(--label-primary)]">Arraste os arquivos aqui ou clique para escolher</span>
-            <span className="text-[11px] text-[var(--label-tertiary)]">PDF e vídeo · pode soltar em várias levas</span>
-            <input type="file" accept="application/pdf,video/*" multiple className="hidden"
+            <span className="text-[11px] text-[var(--label-tertiary)]">Qualquer arquivo — PDF, vídeo, JPG, Illustrator, Photoshop, zip... · pode soltar em várias levas</span>
+            <input type="file" multiple className="hidden"
               onChange={e => { addArquivos(e.target.files); e.target.value = ""; }} />
           </label>
           {nArquivos.length > 0 && (() => {
@@ -244,7 +246,7 @@ export default function EnviosView() {
             <div className="flex flex-col gap-1 mb-3">
               {(e.arquivos || []).map(a => (
                 <LinkArquivo key={a.id} url={a.url} tamanho={a.tamanho} nome={a.nome} className="text-[12px] text-[var(--system-blue)] hover:underline">
-                  {ehVideo(a.nome) ? "🎬" : "📄"} {a.nome} {a.tamanho ? <span className="text-[var(--label-quaternary)]">· {fmtTamanho(a.tamanho)}</span> : null}
+                  {iconeArquivo(a.nome)} {a.nome} {a.tamanho ? <span className="text-[var(--label-quaternary)]">· {fmtTamanho(a.tamanho)}</span> : null}
                 </LinkArquivo>
               ))}
               {!(e.arquivos || []).length && <span className="text-[12px] text-[var(--label-quaternary)]">sem arquivos</span>}

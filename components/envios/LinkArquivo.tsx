@@ -5,6 +5,8 @@ import { ehPartido, urlsDasPartes } from "@/lib/arquivo-partes";
 const TIPOS: Record<string, string> = {
   pdf: "application/pdf", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime",
   webm: "video/webm", avi: "video/x-msvideo", mkv: "video/x-matroska",
+  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", ai: "application/postscript",
+  psd: "image/vnd.adobe.photoshop", zip: "application/zip",
 };
 
 // Link de arquivo de envio. Arquivo pequeno é um <a> comum; arquivo que subiu
@@ -17,7 +19,12 @@ export default function LinkArquivo({ url, tamanho, nome, download, className, s
   const [pct, setPct] = useState<number | null>(null);
 
   if (!ehPartido(url)) {
-    return <a href={url} target="_blank" rel="noopener noreferrer" download={download || undefined} className={className} style={style}>{children}</a>;
+    // O arquivo fica no Storage com nome numérico (1794….ai) e em outro domínio,
+    // onde o atributo "download" do navegador é ignorado. O "?download=nome" faz
+    // o próprio Supabase mandar o arquivo como anexo com o nome original — vale
+    // para qualquer tipo (Illustrator, Photoshop, JPG…).
+    const href = download ? `${url}${url.includes("?") ? "&" : "?"}download=${encodeURIComponent(nome)}` : url;
+    return <a href={href} target="_blank" rel="noopener noreferrer" download={download ? nome : undefined} className={className} style={style}>{children}</a>;
   }
 
   const baixar = async (ev: React.MouseEvent) => {
