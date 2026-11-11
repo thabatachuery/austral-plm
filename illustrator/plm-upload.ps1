@@ -166,13 +166,17 @@ function Chamar-PLM {
     [hashtable]$Extra
   )
 
-  for ($volta = 1; $volta -le 2; $volta++) {
+  $logou = $false
+  for ($volta = 1; $volta -le 4; $volta++) {
     $h = @{ apikey = $APIKEY; Authorization = "Bearer $script:TOKEN" }
     if ($Extra) { $h += $Extra }
 
     # Nada de -SkipHttpErrorCheck: não existe no PowerShell 5.1, então o erro
     # de HTTP vem como exceção e o código sai de $_.Exception.Response.
-    $par = @{ Uri = $Uri; Method = $Metodo; Headers = $h; UseBasicParsing = $true }
+    # DisableKeepAlive: depois dos uploads, a gravação ia numa conexão que o
+    # servidor já tinha fechado; o .NET reenviava o PATCH SEM o corpo e o
+    # Supabase respondia PGRST102 "Empty or invalid json" (REF 12280601).
+    $par = @{ Uri = $Uri; Method = $Metodo; Headers = $h; UseBasicParsing = $true; DisableKeepAlive = $true }
     # Corpo em bytes UTF-8: o PowerShell 5.1 manda string como Latin-1, e um
     # "LOCALIZAÇÃO" na estamparia virava JSON inválido (PGRST102) no PATCH.
     if ($Corpo)        { $par.Body = [Text.Encoding]::UTF8.GetBytes($Corpo) }
@@ -186,11 +190,19 @@ function Chamar-PLM {
     } catch {
       $codigo = 0
       if ($_.Exception.Response) { $codigo = [int]$_.Exception.Response.StatusCode }
-      if (($codigo -eq 401 -or $codigo -eq 403) -and $volta -eq 1) {
+      $detalhe = $_.ErrorDetails.Message
+      if (($codigo -eq 401 -or $codigo -eq 403) -and -not $logou) {
+        $logou = $true
         $script:TOKEN = Escalar-Login
         continue
       }
-      $detalhe = $_.ErrorDetails.Message
+      # Corpo chegou vazio (conexão caiu no meio) ou a rede falhou: repete.
+      $corpoPerdido = $codigo -eq 400 -and "$detalhe" -match 'PGRST102'
+      if (($corpoPerdido -or -not $codigo) -and $volta -lt 4) {
+        Escrever "  Conexao instavel, tentando de novo ($volta)..." 'Yellow'
+        Start-Sleep -Seconds $volta
+        continue
+      }
       if (-not $codigo) { throw $_.Exception.Message }
       throw ("HTTP $codigo " + $detalhe).Trim()
     }
@@ -311,7 +323,13 @@ if ($colunas.Count -gt 0) {
 # Estamparia é um JSONB: lê, mescla e devolve inteiro.
 $deEstamparia = @($enviados | Where-Object { $_.destino -like 'est:*' })
 if ($deEstamparia.Count -gt 0) {
+  # Relê agora: os uploads levam um tempo e alguém pode ter salvo a ficha no
+  # PLM enquanto isso — mesclar no que foi lido no começo apagaria essa edição.
   $est = $ficha.estamparia
+  try {
+    $atual = @(Chamar-PLM -Uri "$BASE/rest/v1/fichas_tecnicas?id=eq.$($ficha.id)&select=estamparia")
+    if ($atual.Count -gt 0) { $est = $atual[0].estamparia }
+  } catch {}
   if (-not $est) {
     $est = [pscustomobject]@{ artes = @(); tecnicas = @(); simulacoes = [pscustomobject]@{}; observacoes = '' }
   }
