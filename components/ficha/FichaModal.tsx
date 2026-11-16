@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, Fragment } from "react";
+import { useState, useRef, useEffect, useMemo, Fragment } from "react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 import { uploadImage, uploadArquivo, deleteImage } from "@/lib/storage";
@@ -12,7 +12,7 @@ import { COR_PALETTE } from "@/lib/cor-palette";
 import { useAuth } from "@/lib/auth-context";
 import { nomeUsuario } from "@/lib/utils";
 import { STATUS_ESTILO } from "@/lib/constants";
-import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num as tamNum } from "@/lib/tamanhos";
+import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, graduacaoEspecial, tamanhoBaseDaTabela, num as tamNum } from "@/lib/tamanhos";
 import { criarTradutor, rotuloProva, rotuloFotosProva, rotuloAnotacoesProva, nomeTipoEstamparia, tituloFichaEstamparia, traduzirPontoMedida } from "@/lib/ficha-i18n";
 import FichaPDF from "./FichaPDF";
 import { pdfEmImagens } from "@/lib/pdf-paginas";
@@ -141,7 +141,12 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   /* Tabela especial (por produto) */
   const [tEsp, setTEsp] = useState(false);
   const [ptsEsp, setPtsEsp] = useState<any[]>([]);
-  const [gradEsp, setGradEsp] = useState<any[]>([]);
+  // A graduação da especial não é guardada à parte: sai da graduação atual da
+  // tabela padrão, partindo das medidas base que a especial alterou.
+  const gradEsp = useMemo(
+    () => (tEsp ? graduacaoEspecial(grad, ptsEsp, tabTamanhos, tamanhoBaseDaTabela(tabTamanhos, tabBase)) : []),
+    [tEsp, grad, ptsEsp, tabTamanhos, tabBase],
+  );
 
   /* Clássicos: seleção de temporada */
   // Também vale para ref de outra coleção que tem ficha por temporada (ex.:
@@ -355,7 +360,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
         if (ficha.obsCusto) setObsCusto(ficha.obsCusto);
         if (ficha.pesoCalculo) setPeso(ficha.pesoCalculo);
         if (ficha.ncm) setNcm(ficha.ncm);
-        if (ficha.tabelaEspecialAtiva) { setTEsp(true); setPtsEsp(ficha.pontosEspeciais || []); setGradEsp(ficha.gradEspecial || []); }
+        if (ficha.tabelaEspecialAtiva) { setTEsp(true); setPtsEsp(ficha.pontosEspeciais || []); }
       }
       /* Se não há ficha, cria linha inicial de tecido */
       if (!ficha) {
@@ -376,10 +381,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
         setTabBase(g.base);
         // Especial ativa mas sem linhas gravadas (fichas em que o save falhou
         // antes desta correção): parte de uma cópia da base em vez de vazia.
-        if (ficha?.tabelaEspecialAtiva) {
-          if (!ficha.pontosEspeciais?.length) setPtsEsp(p.map((pt: any) => ({ ...pt })));
-          if (!ficha.gradEspecial?.length) setGradEsp(g.linhas.map((l: any) => ({ ...l, valores: { ...l.valores }, ampliacoes: { ...l.ampliacoes } })));
-        }
+        if (ficha?.tabelaEspecialAtiva && !ficha.pontosEspeciais?.length) setPtsEsp(p.map((pt: any) => ({ ...pt })));
         if (!ficha?.provas) { const init: any = {}; p.forEach((pt: any) => { init[pt.cod] = { p1: "", p2: "", p3: "" }; }); setPv(init); }
       }
       setIsDataLoaded(true);
@@ -666,10 +668,9 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
     }, 1500);
     return () => { if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; } };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // ptsEsp/gradEsp entram aqui: sem eles, editar a tabela especial não
-  // disparava o save — só o ato de ativar gravava (a cópia da base), e ao
-  // reabrir a ficha as medidas alteradas tinham sumido.
-  }, [tec, avi, pil, obs, pv, an, provaInfo, estamparia, varCodigos, varTingimento, qtdMost, statusLib, estagio, importado, ncm, numVars, custoDet, obsCusto, peso, tEsp, ptsEsp, gradEsp, img, imgModelo, imgModoMedir, imgFrente, imgCostas]);
+  // ptsEsp entra aqui: sem ele, editar a tabela especial não disparava o
+  // save. gradEsp não — é derivado de ptsEsp e da tabela padrão.
+  }, [tec, avi, pil, obs, pv, an, provaInfo, estamparia, varCodigos, varTingimento, qtdMost, statusLib, estagio, importado, ncm, numVars, custoDet, obsCusto, peso, tEsp, ptsEsp, img, imgModelo, imgModoMedir, imgFrente, imgCostas]);
 
   // Tecidos da ficha (o do SKU e os da tabela de cores) que têm a ficha técnica
   // em PDF no Cadastros › Tecidos — só esses viram opção no Exportar.
@@ -861,21 +862,16 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
 
   /* ── Tabela Especial helpers ── */
   const toggleEsp = () => {
-    if (!tEsp) {
-      if (!ptsEsp.length && pts.length) setPtsEsp(pts.map(p => ({ ...p })));
-      if (!gradEsp.length && grad.length) setGradEsp(grad.map(g => ({ ...g, valores: { ...g.valores }, ampliacoes: { ...g.ampliacoes } })));
-    }
+    if (!tEsp && !ptsEsp.length && pts.length) setPtsEsp(pts.map(p => ({ ...p })));
     setTEsp(!tEsp);
   };
   // A medida do tamanho base é UMA só: aparece no quadro de medidas e na coluna
-  // base da graduação. Editar em qualquer um dos dois altera os dois e recalcula
-  // os demais tamanhos usando as AMPLIAÇÕES DA TABELA ORIGINAL (copiadas em
-  // toggleEsp) — a graduação da especial segue a original, só deslocada pela
-  // medida informada. Nada disso toca as tabelas do cadastro: a especial é
-  // gravada por ficha (ficha_pontos_especiais / ficha_graduacao_especial).
+  // base da graduação. Editar em qualquer um dos dois altera os dois; os demais
+  // tamanhos saem das ampliações ATUAIS da tabela padrão (gradEsp é derivado).
+  // Nada disso toca as tabelas do cadastro: a especial é gravada por ficha
+  // (ficha_pontos_especiais / ficha_graduacao_especial).
   const updMedidaEsp = (i: number, v: string) => {
     setPtsEsp(prev => prev.map((p, j) => j === i ? { ...p, tabela: v } : p));
-    setGradEsp(prev => prev.map((g, j) => j === i ? { ...g, valores: calcularDaBase(g, gradTamanhos, gradBase, v) } : g));
   };
   const updPtsEsp = (i: number, k: string, v: string) => {
     if (k === "tabela") return updMedidaEsp(i, v);

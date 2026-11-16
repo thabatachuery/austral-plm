@@ -16,7 +16,7 @@ import {
   fetchGraduacoesByTabelaNome,
 } from "@/lib/db";
 import { montarAviamentosDaFicha } from "@/lib/etiquetas-tamanho";
-import { tamanhosParaExibir } from "@/lib/tamanhos";
+import { tamanhosParaExibir, graduacaoEspecial, tamanhoBaseDaTabela } from "@/lib/tamanhos";
 
 const DEFAULT_AVI = [{ item: "ADESIVO DE CÓDIGO DE BARRAS", cod: "AD0001", qtd: 1, valor: 0.10, local: "COLADO NO VERSO DO TAG", var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" }];
 
@@ -132,7 +132,10 @@ export async function carregarFichaParaPDF(row: any): Promise<DadosFichaPDF> {
     avi,
     pil: ficha?.pilotagem?.length ? ficha.pilotagem : PILOTAGEM_PADRAO,
     pts: tEsp ? (ficha?.pontosEspeciais || []) : pts,
-    grad: tEsp ? (ficha?.gradEspecial || []) : grad,
+    // Especial: medidas base da ficha + graduação atual da tabela padrão.
+    grad: tEsp
+      ? (grad.length ? graduacaoEspecial(grad, ficha?.pontosEspeciais || [], tabTamanhos, tamanhoBaseDaTabela(tabTamanhos, tabBase)) : (ficha?.gradEspecial || []))
+      : grad,
     pv,
     an: { ...ANOTACOES_PADRAO, ...(ficha?.anotacoes || {}) },
     img: ficha?.imagem_url || null,
@@ -154,7 +157,7 @@ export async function carregarFichaParaPDF(row: any): Promise<DadosFichaPDF> {
     vcCompras: vcAll,
     provaInfo,
     gradTamanhos: tamanhosParaExibir(tabTamanhos, row.grade),
-    gradBase: tabBase || tabTamanhos[Math.floor(tabTamanhos.length / 2)] || "",
+    gradBase: tamanhoBaseDaTabela(tabTamanhos, tabBase),
     tabTamanhos,
     importado: !!ficha?.importado,
   };

@@ -155,3 +155,28 @@ export function calcularDaBase(
   }
   return out;
 }
+
+// Tamanho base de uma tabela: o declarado, ou o do meio da lista.
+export function tamanhoBaseDaTabela(tamanhos: string[], base?: string): string {
+  return base || tamanhos[Math.floor(tamanhos.length / 2)] || "";
+}
+
+// Graduação da tabela especial de uma ficha. A especial só altera as medidas
+// do tamanho base (pontosEspeciais[i].tabela); os demais tamanhos saem sempre
+// da graduação ATUAL da tabela padrão em que a especial se baseou — se a
+// tabela padrão for corrigida no cadastro, a especial acompanha. Pontos e
+// linhas de graduação andam na mesma ordem (A, B, C… = linha 0, 1, 2…).
+export function graduacaoEspecial(
+  gradPadrao: LinhaGrad[],
+  pontosEspeciais: { tabela?: string }[],
+  tamanhosTabela: string[],
+  base: string,
+): LinhaGrad[] {
+  return gradPadrao.map((g, i) => {
+    const medida = String(pontosEspeciais[i]?.tabela ?? "").trim();
+    const valores = medida
+      ? calcularDaBase(g, tamanhosTabela, base, medida)
+      : { ...g.valores };
+    return { ...g, valores, ampliacoes: { ...g.ampliacoes } };
+  });
+}
