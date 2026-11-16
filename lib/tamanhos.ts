@@ -141,16 +141,26 @@ export function calcularDaBase(
     return out;
   }
   out[base] = fmt(vb);
-  let acc = vb;
+  // Tamanho de ponta que a tabela não define (grade PP AO GG numa tabela que
+  // começa no P; XGG; 36 numa tabela 38-46) não tem ampliação própria: segue
+  // o passo do vizinho mais próximo, como valorNoTamanho faz. Sem isso o PP
+  // saía igual ao P na Graduação de Produção (ref 22100002).
+  const passoDe = (t: string, anterior: number) => {
+    const bruto = linha.ampliacoes?.[t];
+    if (bruto === undefined) return anterior;
+    const p = num(bruto);
+    return isNaN(p) ? 0 : Math.abs(p);
+  };
+  let acc = vb, ultimo = 0;
   for (let i = b + 1; i < tamanhos.length; i++) {
-    const passo = num(linha.ampliacoes?.[tamanhos[i]]);
-    acc = isNaN(passo) ? acc : acc + Math.abs(passo);
+    ultimo = passoDe(tamanhos[i], ultimo);
+    acc += ultimo;
     out[tamanhos[i]] = fmt(acc);
   }
-  acc = vb;
+  acc = vb; ultimo = 0;
   for (let i = b - 1; i >= 0; i--) {
-    const passo = num(linha.ampliacoes?.[tamanhos[i]]);
-    acc = isNaN(passo) ? acc : acc - Math.abs(passo);
+    ultimo = passoDe(tamanhos[i], ultimo);
+    acc -= ultimo;
     out[tamanhos[i]] = fmt(acc);
   }
   return out;
