@@ -137,6 +137,6 @@ Write-Host '  (se o Illustrator estava aberto, feche e abra de novo)' -Foregroun
 Write-Host ''
 Write-Host "  Endereço gravado: $raizSupabase" -ForegroundColor DarkGray
 Write-Host ''
-Write-Host '  Não pede senha. Só vai pedir e-mail e senha do PLM se o banco' -ForegroundColor Gray
-Write-Host '  recusar a gravação (quando o RLS por papel for ativado).' -ForegroundColor Gray
+Write-Host '  Na primeira vez que subir algo, pede o e-mail e a senha do PLM.' -ForegroundColor Gray
+Write-Host '  Depois a sessão fica guardada nesta máquina e não pergunta mais.' -ForegroundColor Gray
 Write-Host ''
