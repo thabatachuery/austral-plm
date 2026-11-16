@@ -56,5 +56,14 @@ export async function GET(req: Request) {
   }
 
   if (!item.url) return new NextResponse(null, { status: 404, headers: { "Cache-Control": "public, max-age=3600" } });
+  // proxy=1: devolve a imagem pela própria origem (o PDF do mapa desenha em
+  // canvas, e o CDN externo não libera CORS).
+  if (params.get("proxy") === "1") {
+    const r = await fetch(item.url, { cache: "no-store" }).catch(() => null);
+    if (!r?.ok) return new NextResponse(null, { status: 404 });
+    return new NextResponse(await r.arrayBuffer(), {
+      headers: { "Content-Type": r.headers.get("content-type") || "image/jpeg", "Cache-Control": "public, max-age=21600" },
+    });
+  }
   return NextResponse.redirect(item.url, { status: 302, headers: { "Cache-Control": "public, max-age=21600" } });
 }

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchMapaColecao } from "@/lib/db";
 import { exportMapaColecaoPDF } from "@/lib/export-pdf-mapa";
 import TecidoSwatch from "@/components/ui/TecidoSwatch";
+import { ImgCandidatas } from "@/components/ui/ImgCandidatas";
+import { imagensDoMapa } from "@/lib/foto-mapa";
 
 const STATUS_COLORS: Record<string, string> = {
   CANCELADO: "#EA2F46",
@@ -251,13 +253,8 @@ export default function MapaColecaoView({ rows: _rows }: Props) {
 
   // Modo foto: prioriza a foto do produto (do site), depois foto de modelo, e por
   // fim o desenho técnico. Modo desenho: sempre o desenho técnico.
-  const imgOf = (item: any) => imageMode === "foto" ? (item.imagem_frente || item.imagem_modelo || item.imagem_url) : item.imagem_url;
-  // No modo foto, se houver frente E costas, mostra as duas lado a lado; senão, imagem única.
-  const fotosOf = (item: any): string[] => {
-    if (imageMode === "foto" && item.imagem_frente && item.imagem_costas) return [item.imagem_frente, item.imagem_costas];
-    const s = imgOf(item);
-    return s ? [s] : [];
-  };
+  // Ordem completa em lib/foto-mapa.ts: foto da ficha → site/Teceo → modelo → desenho.
+  const fotosOf = (item: any): string[][] => imagensDoMapa(item, imageMode);
 
   const clearAll = () => { setFilters({}); setSearch(""); };
 
@@ -301,8 +298,7 @@ export default function MapaColecaoView({ rows: _rows }: Props) {
               <TecidoSwatch url={zoom.tecido_imagem} nome={zoom.tecido} size={104} />
               {fotosOf(zoom).length ? (
                 fotosOf(zoom).map((u, i) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={i} src={u} alt={zoom.ref} style={{ maxWidth: fotosOf(zoom).length > 1 ? "48%" : "100%", maxHeight: "55vh", objectFit: "contain" }} />
+                  <ImgCandidatas key={i} srcs={u} alt={zoom.ref} style={{ maxWidth: fotosOf(zoom).length > 1 ? "48%" : "100%", maxHeight: "55vh", objectFit: "contain" }} />
                 ))
               ) : (
                 <div style={{ color: "var(--label-tertiary)", textAlign: "center", fontSize: 13 }}>Sem imagem</div>
@@ -482,8 +478,7 @@ export default function MapaColecaoView({ rows: _rows }: Props) {
                     <TecidoSwatch url={item.tecido_imagem} nome={item.tecido} />
                     {fotos.length ? (
                       fotos.map((u, i) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img key={i} src={u} alt={item.ref} style={{ width: fotos.length > 1 ? "50%" : "100%", height: "100%", objectFit: "contain" }} />
+                        <ImgCandidatas key={i} srcs={u} alt={item.ref} style={{ width: fotos.length > 1 ? "50%" : "100%", height: "100%", objectFit: "contain" }} />
                       ))
                     ) : (
                       <div style={{ textAlign: "center", color: "var(--label-tertiary)" }}>

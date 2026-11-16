@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { imagensDoMapa } from "@/lib/foto-mapa";
 
 interface ImgResult { data: string; w: number; h: number }
 
@@ -29,6 +30,12 @@ async function loadImg(url: string): Promise<ImgResult | null> {
     img.onerror = () => { clearTimeout(timer); resolve(null); };
     img.src = url;
   });
+}
+
+/** Primeira candidata que carrega (foto do site pode não existir → próxima). */
+async function loadPrimeira(urls: string[]): Promise<ImgResult | null> {
+  for (const u of urls) { const r = await loadImg(u); if (r) return r; }
+  return null;
 }
 
 /** Swatch da foto do tecido no canto inferior esquerdo da área de imagem. */
@@ -85,14 +92,14 @@ export async function exportMapaColecaoPDF(
   const UW = PW - ML - MR;                       // 277 mm usable
   const date = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-  const imgUrlOf = (it: any) =>
-    imageMode === "foto" ? (it.imagem_frente || it.imagem_modelo || it.imagem_url) : it.imagem_url;
+  // Mesma ordem da tela (lib/foto-mapa.ts); foto do site via proxy por causa do CORS do canvas.
+  const candidatasOf = (it: any) => imagensDoMapa(it, imageMode, true).flat();
 
   // Pre-load all images in parallel
   const imgDataMap: Record<string, ImgResult | null> = {};
   await Promise.all(
-    items.filter(it => imgUrlOf(it)).map(async (it) => {
-      imgDataMap[it.ref] = await loadImg(imgUrlOf(it));
+    items.map(async (it) => {
+      imgDataMap[it.ref] = await loadPrimeira(candidatasOf(it));
     })
   );
 
@@ -222,7 +229,7 @@ export async function exportMapaColecaoPDF(
       doc.roundedRect(cx + 0.5, cy + 0.5, cw - 1, IMG_H - 0.5, 2, 2, "F");
 
       // Image — contained (no stretch)
-      const imgResult = imgUrlOf(item) ? imgDataMap[item.ref] : null;
+      const imgResult = imgDataMap[item.ref] || null;
       if (imgResult) {
         const pad = 2;
         addImageContained(doc, imgResult, cx + pad, cy + pad, cw - pad * 2, IMG_H - pad * 2);

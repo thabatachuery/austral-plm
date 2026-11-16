@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { imagensDoMapa } from "@/lib/foto-mapa";
 
 interface ImgResult { data: string; w: number; h: number }
 
@@ -32,6 +33,12 @@ function addImageContained(doc: jsPDF, img: ImgResult, bx: number, by: number, b
   const scale = Math.min(bw / img.w, bh / img.h);
   const dw = img.w * scale, dh = img.h * scale;
   doc.addImage(img.data, fmt, bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh);
+}
+
+/** Primeira candidata que carrega (foto do site pode não existir → próxima). */
+async function loadPrimeira(urls: string[]): Promise<ImgResult | null> {
+  for (const u of urls) { const r = await loadImg(u); if (r) return r; }
+  return null;
 }
 
 /** Swatch da foto do tecido no canto inferior esquerdo da área de imagem. */
@@ -104,14 +111,15 @@ export async function exportMapaEntregasPDF(
   const UW = PW - ML - MR;
   const date = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-  const imgUrlOf = (it: any) => imageMode === "foto" ? (it.imagem_frente || it.imagem_modelo || it.imagem_url) : it.imagem_url;
+  // Mesma ordem da tela (lib/foto-mapa.ts); foto do site via proxy por causa do CORS do canvas.
+  const candidatasOf = (it: any) => imagensDoMapa(it, imageMode, true).flat();
 
   // Pre-load images
   const imgDataMap: Record<string, ImgResult | null> = {};
   await Promise.all(
-    items.filter(it => imgUrlOf(it)).map(async (it) => {
+    items.map(async (it) => {
       const key = `${it.ref}_${it.data_entrega}`;
-      if (!imgDataMap[key]) imgDataMap[key] = await loadImg(imgUrlOf(it));
+      if (!imgDataMap[key]) imgDataMap[key] = await loadPrimeira(candidatasOf(it));
     })
   );
 
@@ -260,7 +268,7 @@ export async function exportMapaEntregasPDF(
 
         // Image
         const imgKey = `${item.ref}_${item.data_entrega}`;
-        const imgResult = imgUrlOf(item) ? imgDataMap[imgKey] : null;
+        const imgResult = imgDataMap[imgKey] || null;
         if (imgResult) {
           addImageContained(doc, imgResult, cx + 1.5, cy + 2, cw - 3, IMG_H - 3);
         } else {

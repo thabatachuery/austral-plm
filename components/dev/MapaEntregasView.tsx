@@ -4,6 +4,8 @@ import { fetchMapaEntregas } from "@/lib/db";
 import { exportMapaEntregasPDF } from "@/lib/export-pdf-entregas";
 import { STATUS_PRE_PRODUCAO_COLORS } from "@/lib/constants";
 import TecidoSwatch from "@/components/ui/TecidoSwatch";
+import { ImgCandidatas } from "@/components/ui/ImgCandidatas";
+import { imagensDoMapa } from "@/lib/foto-mapa";
 
 // "Ped. X" do mapa (produto_variante_compras.pedido1/2) e o número do pedido
 // digitado no laudo de pré-produção são dois textos livres sem vínculo
@@ -168,11 +170,8 @@ function MultiSelect({ label, options, selected, onChange }: {
 }
 
 /* ── Entry Card ── */
-function fotosDe(item: any, imageMode: "desenho" | "foto"): string[] {
-  if (imageMode === "foto" && item.imagem_frente && item.imagem_costas) return [item.imagem_frente, item.imagem_costas];
-  const s = imageMode === "foto" ? (item.imagem_frente || item.imagem_modelo || item.imagem_url) : item.imagem_url;
-  return s ? [s] : [];
-}
+// Modo foto: foto da ficha → site/Teceo → modelo → desenho (lib/foto-mapa.ts).
+const fotosDe = (item: any, imageMode: "desenho" | "foto"): string[][] => imagensDoMapa(item, imageMode);
 
 function EntregaCard({ item, imageMode, onClick }: { item: any; imageMode: "desenho" | "foto"; onClick: () => void }) {
   const fotos = fotosDe(item, imageMode);
@@ -205,8 +204,7 @@ function EntregaCard({ item, imageMode, onClick }: { item: any; imageMode: "dese
         <TecidoSwatch url={item.tecido_imagem} nome={item.tecido} />
         {fotos.length ? (
           fotos.map((u, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={i} src={u} alt={item.ref} style={{ width: fotos.length > 1 ? "50%" : "100%", height: "100%", objectFit: "contain" }} />
+            <ImgCandidatas key={i} srcs={u} alt={item.ref} style={{ width: fotos.length > 1 ? "50%" : "100%", height: "100%", objectFit: "contain" }} />
           ))
         ) : (
           <div style={{ textAlign: "center", color: "var(--label-tertiary)" }}>
@@ -383,8 +381,7 @@ export default function MapaEntregasView() {
               <TecidoSwatch url={zoom.tecido_imagem} nome={zoom.tecido} size={104} />
               {fotosDe(zoom, imageMode).length ? (
                 fotosDe(zoom, imageMode).map((u, i) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={i} src={u} alt={zoom.ref} style={{ maxWidth: fotosDe(zoom, imageMode).length > 1 ? "48%" : "100%", maxHeight: "50vh", objectFit: "contain" }} />
+                  <ImgCandidatas key={i} srcs={u} alt={zoom.ref} style={{ maxWidth: fotosDe(zoom, imageMode).length > 1 ? "48%" : "100%", maxHeight: "50vh", objectFit: "contain" }} />
                 ))
               ) : (
                 <div style={{ color: "var(--label-tertiary)", fontSize: 13 }}>Sem imagem</div>
