@@ -79,7 +79,17 @@ export function tamanhosParaExibir(tamanhosTabela: string[], grade?: string): st
   if (!tamanhosTabela.length) return daGrade;
   // Só faz sentido cruzar se forem do mesmo tipo (letra × numérica)
   const mesmoTipo = daGrade.some(t => tamanhosTabela.includes(t));
-  return mesmoTipo ? daGrade : tamanhosTabela;
+  if (!mesmoTipo) return tamanhosTabela;
+  // "38 AO 44" é grade de calçado (tamanho a tamanho), mas calça também usa.
+  // Quem decide é a tabela: se ela anda de 2 em 2 (38, 40, 42…), é calça, e
+  // os ímpares (39, 41, 43) saíam como colunas vazias na graduação.
+  const numerica = (l: string[]) => l.every(t => /^\d+$/.test(t));
+  if (numerica(daGrade) && numerica(tamanhosTabela) && tamanhosTabela.length >= 2
+      && Number(tamanhosTabela[1]) - Number(tamanhosTabela[0]) === 2) {
+    const ref = Number(tamanhosTabela[0]);
+    return daGrade.filter(t => Math.abs(Number(t) - ref) % 2 === 0);
+  }
+  return daGrade;
 }
 
 // Valor de uma linha num tamanho. Se a tabela não define esse tamanho (ponta
