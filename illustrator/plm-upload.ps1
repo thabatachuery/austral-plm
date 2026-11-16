@@ -101,7 +101,7 @@ Escrever ''
 # O refresh token fica guardado com DPAPI: só o usuário do Windows que salvou
 # consegue ler de volta. A senha em si nunca é gravada.
 
-$TOKEN = $APIKEY   # começa com a chave pública
+$TOKEN = $APIKEY   # trocado pelo login logo abaixo, antes da primeira chamada
 
 function Salvar-RefreshToken([string]$token) {
   if (-not (Test-Path -LiteralPath $PASTA_TOKEN)) { New-Item -ItemType Directory -Path $PASTA_TOKEN | Out-Null }
@@ -154,6 +154,11 @@ function Escalar-Login {
   }
   Finalizar 'PLM' "Nao consegui autenticar.`n`nSe voce entra no PLM so pelo link do e-mail, defina uma senha (PLM > entrar > esqueci minha senha) e tente de novo." 'Error'
 }
+
+# Login antes de tudo (supabase/038): sem login o banco não devolve erro, só
+# lista vazia — a consulta da ficha diria "REF sem ficha" em vez de pedir a
+# senha. Com a sessão salva, renova sozinho; a senha só é pedida na 1ª vez.
+$TOKEN = Escalar-Login
 
 # Chama a API; se vier 401/403, faz login uma vez e repete a mesma chamada.
 function Chamar-PLM {

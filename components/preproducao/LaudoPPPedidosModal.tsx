@@ -28,7 +28,16 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
 
   const load = async () => {
     setLoading(true);
-    const ficha = await fetchFichaResolvida(row.ref, row.colecao);
+    let ficha;
+    try {
+      ficha = await fetchFichaResolvida(row.ref, row.colecao);
+    } catch (e: any) {
+      // Sem a ficha não dá pra saber os laudos: não recalcula o status (ele
+      // seria zerado como se a ref não tivesse laudo nenhum).
+      alert(`Não foi possível carregar a ficha ${row.ref}.\n\n${e?.message || e}`);
+      setLoading(false);
+      return;
+    }
     const fid = ficha?.id ?? null;
     setFichaId(fid);
     const list = fid ? await fetchLaudoPPPedidos(fid) : [];

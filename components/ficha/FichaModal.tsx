@@ -20,6 +20,14 @@ import { pdfEmImagens } from "@/lib/pdf-paginas";
 // Status em que qualquer alteração de cor/tecido/aviamento dispara o popup de alerta.
 const STATUS_ALERTA = [STATUS_ESTILO.MOSTARIO_LIBERADO, STATUS_ESTILO.PRODUCAO_LIBERADA, STATUS_ESTILO.REPILOTANDO_PRODUCAO] as string[];
 
+// Estado "em branco" da ficha. Funções (e não constantes) para cada carga
+// receber objetos novos — a tela edita esses objetos no lugar em alguns pontos.
+const pilotagemPadrao = (): any[] => [{ num: "Piloto 1", lacre: "", envio: "", receb: "", prova: "", status: "" }, { num: "Piloto 2", lacre: "", envio: "", receb: "", prova: "", status: "" }, { num: "Piloto 3", lacre: "", envio: "", receb: "", prova: "", status: "" }];
+const estampariaPadrao = (): any => ({ artes: [{ posicao: "FRENTE", imagem: "", largura: "", localizacao: "" }, { posicao: "COSTAS", imagem: "", largura: "", localizacao: "" }, { posicao: "TAGLESS", imagem: "", largura: "", localizacao: "" }], tecnicas: [], simulacoes: { var01: { nome: "", imgSim: "", imgFoto: "", status: "" }, var02: { nome: "", imgSim: "", imgFoto: "", status: "" }, var03: { nome: "", imgSim: "", imgFoto: "", status: "" }, var04: { nome: "", imgSim: "", imgFoto: "", status: "" } }, observacoes: "" });
+const porVariante = <T,>(v: T) => ({ var01: v, var02: v, var03: v, var04: v, var05: v, var06: v });
+const provaInfoVazia = () => { const vazia = { data: "", status: "", link: "", fotoFrente: "", fotoLado: "", fotoCostas: "", tipo: "" }; return { p1: { ...vazia }, p2: { ...vazia }, p3: { ...vazia } }; };
+const anotacoesVazias = () => ({ p1: { texto: "", video: "" }, p2: { texto: "", video: "" }, p3: { texto: "", video: "" } });
+
 type Props = { row: any; onClose: () => void; onSave: (r: any, variantesChanged?: boolean) => void; temTemporadas?: boolean; somenteLeitura?: boolean };
 
 export default function FichaModal({ row, onClose, onSave, temTemporadas = false, somenteLeitura = false }: Props) {
@@ -63,7 +71,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   const [tec, setTec] = useState<any[]>([]);
   const DEFAULT_AVI = [{ item: "ADESIVO DE CÓDIGO DE BARRAS", cod: "AD0001", qtd: 1, valor: 0.10, local: "COLADO NO VERSO DO TAG", var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" }];
   const [avi, setAvi] = useState<any[]>(DEFAULT_AVI);
-  const [pil, setPil] = useState<any[]>([{ num: "Piloto 1", lacre: "", envio: "", receb: "", prova: "", status: "" }, { num: "Piloto 2", lacre: "", envio: "", receb: "", prova: "", status: "" }, { num: "Piloto 3", lacre: "", envio: "", receb: "", prova: "", status: "" }]);
+  const [pil, setPil] = useState<any[]>(pilotagemPadrao);
   const [obs, setObs] = useState("");
   const [sap, setSap] = useState(false);
   const [asq, setAsq] = useState("");
@@ -75,7 +83,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   // então é busca + lista, igual ao "+ Adicionar aviamento".
   const [tecPick, setTecPick] = useState<number | null>(null);
   const [tsq, setTsq] = useState("");
-  const [estamparia, setEstamparia] = useState<any>({ artes: [{ posicao: "FRENTE", imagem: "", largura: "", localizacao: "" }, { posicao: "COSTAS", imagem: "", largura: "", localizacao: "" }, { posicao: "TAGLESS", imagem: "", largura: "", localizacao: "" }], tecnicas: [], simulacoes: { var01: { nome: "", imgSim: "", imgFoto: "", status: "" }, var02: { nome: "", imgSim: "", imgFoto: "", status: "" }, var03: { nome: "", imgSim: "", imgFoto: "", status: "" }, var04: { nome: "", imgSim: "", imgFoto: "", status: "" } }, observacoes: "" });
+  const [estamparia, setEstamparia] = useState<any>(estampariaPadrao);
   const [varCodigos, setVarCodigos] = useState<{ var01: string; var02: string; var03: string; var04: string; var05: string; var06: string }>({ var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" });
   const [varTingimento, setVarTingimento] = useState<{ var01: string; var02: string; var03: string; var04: string; var05: string; var06: string }>({ var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" });
   const [qtdMost, setQtdMost] = useState<{ var01: number|null; var02: number|null; var03: number|null; var04: number|null; var05: number|null; var06: number|null }>({ var01: null, var02: null, var03: null, var04: null, var05: null, var06: null });
@@ -105,6 +113,8 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   // Ver a trava em save(): impede que dois salvamentos se atropelem e dupliquem
   // as linhas de tecido, aviamento e tabela especial.
   const salvandoRef = useRef(false);
+  // Resultado do último save — o fechamento consulta para saber se perdeu algo.
+  const ultimoSaveFalhouRef = useRef(false);
   const salvarNovamenteRef = useRef(false);
   const lastCoresRef = useRef<string>("");
   const baselineRef = useRef<{ tec: any[]; avi: any[] }>({ tec: [], avi: [] });
@@ -154,7 +164,7 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   // A barra aparece em toda ficha; ref comum ganha o modo de temporadas ao
   // adicionar a primeira (viraTemporadas), sem esperar a página recarregar.
   const [viraTemporadas, setViraTemporadas] = useState(false);
-  const isClassic = (row.ref || "").startsWith("11") || /cl.ssic/i.test(row.colecao || "") || temTemporadas || viraTemporadas;
+  const isClassic = /cl.ssic/i.test(row.colecao || "") || temTemporadas || viraTemporadas;
   const [selectedColecao, setSelectedColecao] = useState<string | null>(null);
   const [colecaoOpts, setColecaoOpts] = useState<string[]>([]);
   const [newColecaoMode, setNewColecaoMode] = useState(false);
@@ -228,8 +238,10 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
       setColecaoOpts([original]);
       setViraTemporadas(true);
     }
-    // fichaId só existe quando há uma ficha salva na tela pra servir de origem.
-    if (fichaId && isDataLoaded) {
+    // A temporada nova nasce copiando a que está na tela — salva ou não. (A
+    // carga zera tudo antes de aplicar a ficha, então sem este seed a nova
+    // abriria em branco.)
+    if (isDataLoaded) {
       seedTemporadaRef.current = {
         id: null,
         tecidos: tec.map((t: any) => ({ ...t, cores: [] })),
@@ -284,7 +296,19 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
       // Trocar de temporada não pode herdar a marcação da anterior: quem tem
       // ficha salva (ou seed) recebe o valor certo mais abaixo.
       setImportado(false);
-      const [fichaSalva, cadastros, aviCad, tecs, vcAll, tabs] = await Promise.all([fetchFicha(row.ref, fichaColecao), fetchCadastros(), fetchAviamentos(), fetchTecidos(), fetchVarianteCompras(), fetchTabelasMedidas()]);
+      let carregado;
+      try {
+        carregado = await Promise.all([fetchFicha(row.ref, fichaColecao), fetchCadastros(), fetchAviamentos(), fetchTecidos(), fetchVarianteCompras(), fetchTabelasMedidas()]);
+      } catch (e: any) {
+        // Leitura falhou (rede ruim, timeout): abrir em branco deixaria o
+        // auto-save gravar o vazio por cima da ficha real. colecaoCarregada
+        // fica undefined, o que já bloqueia o save — e a ficha fecha.
+        if (carga !== cargaRef.current) return;
+        alert(`Não foi possível carregar a ficha ${row.ref}${fichaColecao ? ` (${fichaColecao})` : ""}.\n\n${e?.message || e}\n\nNada foi alterado. Confira a internet e abra de novo.`);
+        onClose();
+        return;
+      }
+      const [fichaSalva, cadastros, aviCad, tecs, vcAll, tabs] = carregado;
       // A ficha abre sem temporada e logo pula pra temporada certa: se a
       // primeira leitura chegar por último, mostraria (e gravaria) a outra.
       if (carga !== cargaRef.current) return;
@@ -326,6 +350,17 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
         modoMedirTabela = (t as any)?.imagem_modo_medir || "";
       }
       setImgModoMedir(modoMedirTabela || ficha?.imagem_modo_medir || null);
+      // Tudo volta ao "em branco" antes de aplicar a ficha: os campos abaixo só
+      // são preenchidos quando vêm na ficha, e trocando de temporada o que a
+      // anterior tinha (tabela especial, NCM, custo, peso, pilotagem, imagens…)
+      // ficava na tela — e o auto-save gravava na temporada nova.
+      setImg(null); setImgModelo(null); setImgFrente(null); setImgCostas(null);
+      setPil(pilotagemPadrao()); setObs(""); setPv({}); setAn(anotacoesVazias());
+      setEstamparia(estampariaPadrao()); setNumVars(4);
+      setVarCodigos(porVariante("")); setVarTingimento(porVariante("")); setQtdMost(porVariante<number | null>(null));
+      setStatusLib(""); setEstagio(""); setProvaInfo(provaInfoVazia());
+      setCustoDet({ mp: "", mo: "" }); setObsCusto(""); setPeso(null); setNcm(""); setNcmJust("");
+      setTEsp(false); setPtsEsp([]);
       if (ficha) {
         setFichaId(ficha.id); setClonadaDe(ficha.clonadaDe || ""); setImg(ficha.imagem_url); setImgModelo(ficha.imagem_modelo);
         setImgFrente(ficha.imagem_frente || null); setImgCostas(ficha.imagem_costas || null);
@@ -341,20 +376,17 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
         // Prova, anotação, liberação e estágio partem do vazio, não do que está
         // na tela: trocando de temporada, o que a outra tinha e esta não tem
         // continuava aparecendo aqui — e o auto-save gravava nesta temporada.
-        setAn({ p1: { texto: "", video: "" }, p2: { texto: "", video: "" }, p3: { texto: "", video: "" }, ...(ficha.anotacoes || {}) });
-        if (ficha.estamparia) { setEstamparia((prev: any) => ({ ...prev, ...ficha.estamparia, artes: ficha.estamparia.artes?.length ? ficha.estamparia.artes : prev.artes, simulacoes: ficha.estamparia.simulacoes || prev.simulacoes })); if (ficha.estamparia.numVariantes) setNumVars(Math.max(4, ficha.estamparia.numVariantes)); }
+        setAn({ ...anotacoesVazias(), ...(ficha.anotacoes || {}) });
+        if (ficha.estamparia) { const padrao = estampariaPadrao(); setEstamparia({ ...padrao, ...ficha.estamparia, artes: ficha.estamparia.artes?.length ? ficha.estamparia.artes : padrao.artes, simulacoes: ficha.estamparia.simulacoes || padrao.simulacoes }); if (ficha.estamparia.numVariantes) setNumVars(Math.max(4, ficha.estamparia.numVariantes)); }
         if (ficha.pantones) setVarCodigos({ var01: ficha.pantones.var01 || "", var02: ficha.pantones.var02 || "", var03: ficha.pantones.var03 || "", var04: ficha.pantones.var04 || "", var05: ficha.pantones.var05 || "", var06: ficha.pantones.var06 || "" });
-        if (ficha.tingimento) setVarTingimento(prev => ({ ...prev, ...ficha.tingimento }));
-        // Temporada nova: o tingimento é por variante, não vem da anterior.
-        else if (!fichaSalva) setVarTingimento({ var01: "", var02: "", var03: "", var04: "", var05: "", var06: "" });
-        if (ficha.qtdMost) setQtdMost(prev => ({ ...prev, ...ficha.qtdMost }));
+        if (ficha.tingimento) setVarTingimento({ ...porVariante(""), ...ficha.tingimento });
+        if (ficha.qtdMost) setQtdMost({ ...porVariante<number | null>(null), ...ficha.qtdMost });
         setStatusLib(ficha.statusLiberacao || "");
         setEstagio(ficha.estagio || "");
         setImportado(!!ficha.importado);
         {
-          const vazia = { data: "", status: "", link: "", fotoFrente: "", fotoLado: "", fotoCostas: "", tipo: "" };
           const migrated = Object.fromEntries(Object.entries(ficha.provaInfo || {}).map(([k, v]: [string, any]) => [k, { data: v.data || "", status: v.status || "", link: v.link || "", fotoFrente: v.fotoFrente || v.foto || "", fotoLado: v.fotoLado || "", fotoCostas: v.fotoCostas || "", tipo: v.tipo || "", videoArquivo: v.videoArquivo || "" }]));
-          setProvaInfo({ p1: vazia, p2: vazia, p3: vazia, ...migrated });
+          setProvaInfo({ ...provaInfoVazia(), ...migrated });
         }
         if (ficha.custoDet) setCustoDet(ficha.custoDet);
         if (ficha.obsCusto) setObsCusto(ficha.obsCusto);
@@ -634,9 +666,11 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
       const variantesChanged = coresSignature !== lastCoresRef.current;
       lastCoresRef.current = coresSignature;
       onSave({ ...row, ...(autoStatus ? { status: autoStatus } : {}), ficha: { ...fichaData, id: newId || fichaId } }, variantesChanged);
+      ultimoSaveFalhouRef.current = false;
       setAutoSaveStatus("saved");
       setTimeout(() => setAutoSaveStatus("idle"), 3500);
     } catch {
+      ultimoSaveFalhouRef.current = true;
       setAutoSaveStatus("error");
       setTimeout(() => setAutoSaveStatus("idle"), 3000);
     }
@@ -897,12 +931,22 @@ export default function FichaModal({ row, onClose, onSave, temTemporadas = false
   }
 
   const handleClose = async () => {
-    if (autoSaveStatus === "pending" || autoSaveStatus === "saving") {
+    // Fechar desmontava a ficha e o cleanup cancelava o auto-save que ainda
+    // esperava os 1,5s: a última edição se perdia. Agora grava antes de sair —
+    // espera o save em andamento terminar e roda o pendente.
+    const pendente = !!autoSaveTimer.current || salvarNovamenteRef.current;
+    if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; }
+    for (let i = 0; salvandoRef.current && i < 300; i++) await new Promise(r => setTimeout(r, 100));
+    if (pendente && !salvandoRef.current) {
+      salvarNovamenteRef.current = false;
+      await saveRef.current?.(true);
+    }
+    if (salvandoRef.current || ultimoSaveFalhouRef.current) {
       const confirmed = await confirm({
-        title: "Alterações em andamento",
-        message: "Existem alterações ainda sendo salvas. Deseja fechar mesmo assim?",
+        title: "Alterações não salvas",
+        message: "Não foi possível salvar as últimas alterações desta ficha. Deseja fechar mesmo assim?",
         confirmLabel: "Fechar",
-        cancelLabel: "Continuar salvando",
+        cancelLabel: "Continuar na ficha",
       });
       if (!confirmed) return;
     }

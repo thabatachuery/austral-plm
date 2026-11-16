@@ -477,7 +477,8 @@ async function escolherFichaDeTemporada(ref: string, colecaoPreferida?: string |
     .select("id, colecao, imagem_url, imagem_modelo, observacoes, status_liberacao, prova_info, estamparia")
     .eq("produto_ref", ref).not("colecao", "is", null)
     .order("ordem", { ascending: true }).order("id", { ascending: true });
-  if (error || !data?.length) return null;
+  if (error) throw new Error(`Erro ao ler as temporadas da ficha: ${error.message}`);
+  if (!data?.length) return null;
   // estamparia e prova_info vêm como {} ou com a estrutura padrão toda em
   // branco numa ficha vazia — só contam se tiverem algum texto preenchido.
   const temTexto = (v: any): boolean =>
@@ -508,7 +509,10 @@ export async function fetchFicha(ref: string, colecao?: string | null, colecaoPr
     const id = await escolherFichaDeTemporada(ref, colecaoPreferida);
     if (id != null) ({ data: achadas, error } = await sb().from("fichas_tecnicas").select("*").eq("id", id).limit(1));
   }
-  if (error || !achadas?.length) return null;
+  // Erro de leitura NÃO é "ficha não existe": devolver null aqui fazia a ficha
+  // abrir em branco e o auto-save gravar o vazio por cima da ficha real.
+  if (error) throw new Error(`Erro ao ler a ficha: ${error.message}`);
+  if (!achadas?.length) return null;
   const data = achadas[0];
   const fid = data.id;
   const [tec, avi, pil, prv, ant] = await Promise.all([
@@ -518,6 +522,8 @@ export async function fetchFicha(ref: string, colecao?: string | null, colecaoPr
     sb().from("ficha_provas").select("*").eq("ficha_id", fid),
     sb().from("ficha_anotacoes").select("*").eq("ficha_id", fid),
   ]);
+  const erroFilha = [tec, avi, pil, prv, ant].find(r => r.error)?.error;
+  if (erroFilha) throw new Error(`Erro ao ler a ficha: ${erroFilha.message}`);
   const result: any = {
     id: fid, produto_ref: data.produto_ref,
     imagem_url: data.imagem_url || null,
@@ -556,6 +562,8 @@ export async function fetchFicha(ref: string, colecao?: string | null, colecaoPr
       sb().from("ficha_pontos_especiais").select("*").eq("ficha_id", fid).order("ordem"),
       sb().from("ficha_graduacao_especial").select("*").eq("ficha_id", fid).order("ordem"),
     ]);
+    const erroEsp = pe.error || ge.error;
+    if (erroEsp) throw new Error(`Erro ao ler a tabela especial: ${erroEsp.message}`);
     result.pontosEspeciais = (pe.data || []).map((p: any) => ({ cod: p.cod, desc: p.descricao, tabela: p.valor_base, tol: p.tolerancia }));
     result.gradEspecial = (ge.data || []).map((g: any) => ({ desc: g.descricao, valores: g.valores || {}, ampliacoes: g.ampliacoes || {}, tol: g.tolerancia }));
   }
@@ -644,74 +652,28 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
     }
     if (error) { console.error("upsertFicha update:", error); return null; }
   }
-  // Deletar tudo em paralelo, depois inserir tudo em paralelo (mais rápido)
-  await Promise.all([
-    sb().from("ficha_tecidos").delete().eq("ficha_id", fid),
-    sb().from("ficha_aviamentos").delete().eq("ficha_id", fid),
-    sb().from("ficha_pilotagem").delete().eq("ficha_id", fid),
-    sb().from("ficha_provas").delete().eq("ficha_id", fid),
-    sb().from("ficha_anotacoes").delete().eq("ficha_id", fid),
+  // Linhas filhas: apaga e regrava (a ordem de inserção é a ordem da ficha —
+  // o 1º tecido é o Tec.01, que define as variantes), mas com rede de
+  // segurança em regravarFilhas: duplicata sai antes, e se a inserção falhar
+  // as linhas antigas voltam em vez de a ficha ficar sem tecido/aviamento.
+  const tecidos = (f.tecidos || []).map((t: any) => ({ ficha_id: fid, artigo: t.artigo, fornecedor: t.forn || "", preco: t.preco || 0, cores: t.cores || [], localizacao: (t.local || "").trim() }));
+  const aviamentos = (f.aviamentos || []).map((a: any) => ({ ficha_id: fid, item: a.item, codigo: a.cod, qtd: a.qtd || 1, valor: a.valor || 0, localizacao: a.local || "", var01: a.var01 || "", var02: a.var02 || "", var03: a.var03 || "", var04: a.var04 || "", var05: a.var05 || "", var06: a.var06 || "" }));
+  const pilotagem = (f.pilotagem || []).map((p: any) => ({ ficha_id: fid, num: p.num || "", lacre: p.lacre || "", data_envio: p.envio || null, data_recebimento: p.receb || null, data_prova: p.prova || null, status: p.status || "" }));
+  const provas = Object.entries(f.provas || {})
+    .filter(([, v]: any) => v.p1 || v.p2 || v.p3)
+    .map(([cod, v]: any) => ({ ficha_id: fid, ponto_cod: cod, prova1: v.p1 || "", prova2: v.p2 || "", prova3: v.p3 || "" }));
+  const anotacoes = Object.entries(f.anotacoes || {}).map(([k, v]: any) => {
+    const n = parseInt(k.replace("p", ""));
+    return !isNaN(n) ? { ficha_id: fid, prova_num: n, anotacao: v.texto || "", video_link: v.video || "" } : null;
+  }).filter(Boolean) as any[];
+  const resultados = await Promise.all([
+    regravarFilhas("ficha_tecidos", fid, tecidos, l => `${l.artigo}|${l.localizacao}`),
+    regravarFilhas("ficha_aviamentos", fid, aviamentos, l => String(l.codigo ?? "")),
+    regravarFilhas("ficha_pilotagem", fid, pilotagem, l => String(l.num ?? "")),
+    regravarFilhas("ficha_provas", fid, provas, l => String(l.ponto_cod ?? "")),
+    regravarFilhas("ficha_anotacoes", fid, anotacoes, l => String(l.prova_num ?? "")),
   ]);
-
-  // Inserir tudo em paralelo
-  const insertResults = await Promise.all([
-    // Tecidos
-    f.tecidos?.length
-      ? (async () => {
-          const linhas = f.tecidos.map((t: any) => ({ ficha_id: fid, artigo: t.artigo, fornecedor: t.forn || "", preco: t.preco || 0, cores: t.cores || [], localizacao: (t.local || "").trim() }));
-          const r = await sb().from("ficha_tecidos").insert(linhas);
-          // Sem a migration 036 a coluna não existe: grava sem a localização
-          // em vez de deixar a ficha sem tecidos (as linhas já foram apagadas).
-          if (r.error && /localizacao/.test(r.error.message)) {
-            console.error("ficha_tecidos sem localizacao (falta a migration 036?):", r.error.message);
-            // Se alguém digitou localização, ela se perdeu: a tela tem que avisar,
-            // senão parece salvo e a ficha reabre com o campo vazio.
-            if (linhas.some((l: any) => l.localizacao)) falhou = true;
-            return sb().from("ficha_tecidos").insert(linhas.map(({ localizacao, ...l }: any) => l));
-          }
-          return r;
-        })()
-      : Promise.resolve(),
-    // Aviamentos
-    f.aviamentos?.length
-      ? sb().from("ficha_aviamentos").insert(f.aviamentos.map((a: any) => ({ ficha_id: fid, item: a.item, codigo: a.cod, qtd: a.qtd || 1, valor: a.valor || 0, localizacao: a.local || "", var01: a.var01 || "", var02: a.var02 || "", var03: a.var03 || "", var04: a.var04 || "", var05: a.var05 || "", var06: a.var06 || "" })))
-      : Promise.resolve(),
-    // Pilotagem
-    f.pilotagem?.length
-      ? sb().from("ficha_pilotagem").insert(f.pilotagem.map((p: any) => ({ ficha_id: fid, num: p.num || "", lacre: p.lacre || "", data_envio: p.envio || null, data_recebimento: p.receb || null, data_prova: p.prova || null, status: p.status || "" })))
-      : Promise.resolve(),
-    // Provas
-    (async () => {
-      if (f.provas && Object.keys(f.provas).length > 0) {
-        const provasRows = Object.entries(f.provas)
-          .filter(([, v]: any) => v.p1 || v.p2 || v.p3)
-          .map(([cod, v]: any) => ({ ficha_id: fid, ponto_cod: cod, prova1: v.p1 || "", prova2: v.p2 || "", prova3: v.p3 || "" }));
-        if (provasRows.length) return sb().from("ficha_provas").insert(provasRows);
-      }
-    })(),
-    // Anotações
-    (async () => {
-      if (f.anotacoes) {
-        const anotRows = Object.entries(f.anotacoes).map(([k, v]: any) => {
-          const n = parseInt(k.replace("p", ""));
-          return !isNaN(n) ? { ficha_id: fid, prova_num: n, anotacao: v.texto || "", video_link: v.video || "" } : null;
-        }).filter(Boolean);
-        if (anotRows.length) {
-          const { error } = await sb().from("ficha_anotacoes").insert(anotRows);
-          if (error) console.error("Erro ao salvar anotações:", error.message);
-        }
-      }
-    })(),
-  ]);
-  // Verificar se houve erros nos inserts. Antes só ia pro console e a tela
-  // mostrava "salvo" — a ficha reabria sem a alteração e ninguém sabia por quê.
-  insertResults.forEach((result: any, idx: number) => {
-    if (result?.error) {
-      const tableName = ["ficha_tecidos", "ficha_aviamentos", "ficha_pilotagem", "ficha_provas"][idx];
-      console.error(`Erro ao salvar ${tableName}:`, result.error.message);
-      falhou = true;
-    }
-  });
+  if (resultados.some(ok => !ok)) falhou = true;
   // Ficha de importado (rótulos em inglês) — gravado à parte de propósito: se
   // ainda não rodaram a migration 030, só este campo se perde, em vez de o
   // salvamento inteiro cair no retry sem os campos extras.
@@ -720,7 +682,10 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
     if (error) console.error("upsertFicha/importado (falta a migration 030?):", error.message);
   }
   // Tabela especial
-  if (f.tabelaEspecialAtiva !== undefined) await sb().from("fichas_tecnicas").update({ tabela_especial_ativa: f.tabelaEspecialAtiva }).eq("id", fid);
+  if (f.tabelaEspecialAtiva !== undefined) {
+    const { error } = await sb().from("fichas_tecnicas").update({ tabela_especial_ativa: f.tabelaEspecialAtiva }).eq("id", fid);
+    if (error) { console.error("upsertFicha/tabela_especial_ativa:", error.message); falhou = true; }
+  }
   // Grava por UPSERT na chave única (ficha_id+cod / ficha_id+descricao) em vez
   // de apagar e reinserir: o DELETE é restrito a admin, então para os demais
   // ele não apagava nada, a reinserção batia no índice único e falhava calada
@@ -734,6 +699,32 @@ export async function upsertFicha(ref: string, f: any, colecao?: string | null) 
       f.gradEspecial.map((g: any, i: number) => ({ ficha_id: fid, descricao: g.desc, valores: g.valores || {}, ampliacoes: g.ampliacoes || {}, tolerancia: g.tol || "1,0 + OU -", ordem: i })));
   }
   return falhou ? null : fid;
+}
+
+// Regrava as linhas filhas de uma ficha sem risco de perder o que havia:
+//   1. tira duplicatas da chave única (senão a inserção inteira falha);
+//   2. guarda as linhas atuais;
+//   3. apaga e insere as novas — se a inserção falhar, reinsere as antigas.
+// Se o DELETE for negado (RLS), nada é apagado e a inserção também falha pelo
+// índice único: a ficha fica como estava e o save avisa erro. Devolve false
+// quando a gravação não aconteceu.
+async function regravarFilhas(tabela: string, fid: number, linhas: any[], chave: (l: any) => string): Promise<boolean> {
+  const vistas = new Set<string>();
+  const unicas = linhas.filter(l => { const k = chave(l); if (vistas.has(k)) return false; vistas.add(k); return true; });
+  const antes = await sb().from(tabela).select("*").eq("ficha_id", fid).order("id");
+  if (antes.error) { console.error(`upsertFicha/${tabela} (ler):`, antes.error.message); return false; }
+  const del = await sb().from(tabela).delete().eq("ficha_id", fid);
+  if (del.error) { console.error(`upsertFicha/${tabela} (apagar):`, del.error.message); return false; }
+  if (!unicas.length) return true;
+  let ins = await sb().from(tabela).insert(unicas);
+  if (!ins.error) return true;
+  console.error(`upsertFicha/${tabela}:`, ins.error.message);
+  const antigas = (antes.data || []).map(({ id, created_at, ...l }: any) => l);
+  if (antigas.length) {
+    const volta = await sb().from(tabela).insert(antigas);
+    if (volta.error) console.error(`upsertFicha/${tabela} (restaurar):`, volta.error.message);
+  }
+  return false;
 }
 
 async function gravarLinhasEspeciais(tabela: string, fid: number, chave: "cod" | "descricao", linhas: any[]) {

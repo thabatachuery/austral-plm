@@ -144,7 +144,7 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
     rows.forEach((p: any) => {
       // Ref de outra coleção que ganhou temporada (ex.: VERÃO 27 com temporada
       // INVERNO 27) se comporta como clássico: cor por temporada.
-      const isClassic = (p.ref || "").startsWith("11") || /cl.ssic/i.test(p.colecao || "") || !!variantesPorColecao[p.ref];
+      const isClassic = /cl.ssic/i.test(p.colecao || "") || !!variantesPorColecao[p.ref];
       if (isClassic) {
         // Clássicos: uma linha por (temporada, cor) — cada cor pertence à
         // temporada da ficha em que foi cadastrada, não à coleção do produto.

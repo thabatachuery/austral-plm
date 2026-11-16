@@ -84,7 +84,8 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
     (async () => {
       setLoading(true);
       const [ficha, fluxoData, tabs, pedido] = await Promise.all([
-        fetchFichaResolvida(row.ref, row.colecao),
+        // A ficha aqui só fornece a lista de cores; se a leitura falhar, segue sem elas.
+        fetchFichaResolvida(row.ref, row.colecao).catch(() => null),
         fetchControleFluxoByRef(row.ref),
         fetchTabelasMedidas(),
         fetchLaudoPPPedido(laudoPedidoId),

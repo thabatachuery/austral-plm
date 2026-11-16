@@ -10,8 +10,11 @@ import { encadearAutomaticos, gravarMovimento, provasDaFicha, refCancelada, type
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  // Sem CRON_SECRET a rota fica fechada: ela grava com a service role, então
+  // não pode ficar aberta por falta de configuração. A Vercel manda o
+  // "Bearer <CRON_SECRET>" sozinho quando a variável existe no projeto.
   const segredo = process.env.CRON_SECRET;
-  if (segredo && req.headers.get("authorization") !== `Bearer ${segredo}`) {
+  if (!segredo || req.headers.get("authorization") !== `Bearer ${segredo}`) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
   const db = adminClient();
