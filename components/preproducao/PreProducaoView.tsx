@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { fetchControleFluxo } from "@/lib/db";
+import { fetchControleFluxo, upsertControleFluxo } from "@/lib/db";
 import { subscribeRealtime } from "@/lib/realtime";
-import { STATUS_ESTILO, STATUS_PRE_PRODUCAO_COLORS } from "@/lib/constants";
+import { STATUS_ESTILO, STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
 import ScrollTable from "@/components/ui/ScrollTable";
 
 function StatusPPPill({ status }: { status: string }) {
@@ -21,6 +21,18 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
   const [fluxoMap, setFluxoMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+
+  // Marca/desmarca "liberada antes do PLM" (sem laudo) — tira da contagem.
+  const marcarAntes = async (ref: string, marcar: boolean) => {
+    const novo = marcar ? STATUS_PP_LIBERADA_ANTES : "";
+    const anterior = fluxoMap[ref];
+    setFluxoMap(m => ({ ...m, [ref]: { ...(m[ref] || { produto_ref: ref }), status_pre_producao: novo } }));
+    const err = await upsertControleFluxo(ref, "status_pre_producao", novo || null);
+    if (err) {
+      setFluxoMap(m => ({ ...m, [ref]: anterior }));
+      alert(`Não foi possível salvar o status de ${ref}.\n\n${err}`);
+    }
+  };
 
   const load = () => fetchControleFluxo().then(data => {
     const m: Record<string, any> = {};
@@ -57,12 +69,12 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
 
   // Resumo do topo: laudos aprovados, com restrição e pendentes (sem laudo).
   const resumo = useMemo(() => {
-    let ok = 0, restr = 0, reprov = 0, sem = 0;
+    let ok = 0, antes = 0, restr = 0, reprov = 0, sem = 0;
     elegiveis.forEach(r => {
       const st = fluxoMap[r.ref]?.status_pre_producao || "";
-      if (!st) sem++; else if (st === "LIBERADA") ok++; else if (st.startsWith("LIBERADA")) restr++; else reprov++;
+      if (!st) sem++; else if (st === "LIBERADA") ok++; else if (st === STATUS_PP_LIBERADA_ANTES) antes++; else if (st.startsWith("LIBERADA")) restr++; else reprov++;
     });
-    return { ok, restr, reprov, sem };
+    return { ok, antes, restr, reprov, sem };
   }, [elegiveis, fluxoMap]);
 
   if (loading) return <div className="plm-loading"><div className="plm-loading-spinner" /><span>Carregando...</span></div>;
@@ -81,11 +93,13 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
             <div className="flex-1 min-w-[260px]">
               <div className="h-2.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden flex">
                 <div style={{ width: pct(resumo.ok), background: "var(--st-prod)" }} />
+                <div style={{ width: pct(resumo.antes), background: "var(--st-prod)", opacity: 0.45 }} />
                 <div style={{ width: pct(resumo.restr), background: "var(--st-rep)" }} />
                 <div style={{ width: pct(resumo.reprov), background: "var(--st-canc)" }} />
               </div>
               <div className="flex gap-4 mt-2 text-[12px] flex-wrap">
                 <span style={{ color: "var(--st-prod-tx)" }}>● Liberada {resumo.ok}</span>
+                {resumo.antes > 0 && <span style={{ color: "var(--st-prod-tx)", opacity: 0.75 }}>● Liberada antes do PLM {resumo.antes}</span>}
                 <span style={{ color: "var(--st-rep-tx)" }}>● Com restrição {resumo.restr}</span>
                 {resumo.reprov > 0 && <span style={{ color: "var(--st-canc-tx)" }}>● Reprovada {resumo.reprov}</span>}
                 <span style={{ color: "var(--st-canc-tx)", fontWeight: 700 }}>● Sem laudo {resumo.sem}</span>
@@ -114,7 +128,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
             <th style={{ width: 140 }}>Grade</th>
             <th style={{ width: 180 }}>Tab. medidas</th>
             <th style={{ width: 160 }}>Fornecedor</th>
-            <th style={{ width: 200 }}>Status Pré-Produção</th>
+            <th style={{ width: 280 }}>Status Pré-Produção</th>
             <th style={{ width: 90 }}></th>
           </tr></thead>
           <tbody>
@@ -125,7 +139,24 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
                 <td className="px-3">{r.grade || "—"}</td>
                 <td className="px-3">{r.tab_medidas || "—"}</td>
                 <td className="px-3">{r.fornecedor || "—"}</td>
-                <td className="px-3"><StatusPPPill status={fluxoMap[r.ref]?.status_pre_producao || ""} /></td>
+                <td className="px-3">
+                  {(() => {
+                    const st = fluxoMap[r.ref]?.status_pre_producao || "";
+                    return (
+                      <div className="flex items-center gap-2">
+                        <StatusPPPill status={st} />
+                        {!st && (
+                          <button onClick={() => marcarAntes(r.ref, true)} title="Pré-produção já liberada antes do PLM — tira da contagem de pendentes"
+                            className="text-[11px] font-medium hover:underline whitespace-nowrap" style={{ color: "var(--st-prod-tx)" }}>Marcar liberada</button>
+                        )}
+                        {st === STATUS_PP_LIBERADA_ANTES && (
+                          <button onClick={() => marcarAntes(r.ref, false)} title="Voltar para sem laudo"
+                            className="text-[11px] hover:underline whitespace-nowrap text-[var(--label-tertiary)]">Desfazer</button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </td>
                 <td className="text-center px-2">
                   <button onClick={() => onOpenLaudo(r)} className="apple-btn-secondary text-[12px] py-1 px-3 whitespace-nowrap">Abrir laudo</button>
                 </td>

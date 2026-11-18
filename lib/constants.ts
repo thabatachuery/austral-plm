@@ -55,4 +55,10 @@ export const STATUS_PRE_PRODUCAO_COLORS: Record<string, { bg: string; color: str
   "LIBERADA COM RESTRIÇÃO": { bg: "#FDEBDD",  color: "#8A3A08" },
   "REPROVADA - CORRIGIR":   { bg: "#FBE6E5",  color: "#A8221D" },
   "REPROVADA - NEGOCIAR":   { bg: "#FBE6E5",  color: "#A8221D" },
+  "LIBERADA ANTES DO PLM":  { bg: "#E2F2E9",  color: "#0E6A40" },
 };
+
+// Marcação manual (sem laudo) para referências cuja pré-produção foi liberada
+// antes de existir o PLM — tira da contagem de pendentes. Não é opção do laudo:
+// se depois for criado um laudo, o status dele passa a valer.
+export const STATUS_PP_LIBERADA_ANTES = "LIBERADA ANTES DO PLM";

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { fetchFichaResolvida, fetchLaudoPPPedidos, criarLaudoPPPedido, deleteLaudoPPPedido, fetchControleFluxoByRef, upsertControleFluxo, type LaudoPPPedido } from "@/lib/db";
-import { STATUS_PRE_PRODUCAO_COLORS } from "@/lib/constants";
+import { STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LaudoPPModal from "./LaudoPPModal";
 
@@ -46,8 +46,10 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
     // mais recente — ou ficar vazio se não há mais nenhum. Recalcula aqui (não
     // só ao salvar/excluir um laudo) pra também corrigir referências que já
     // ficaram com status "preso" de laudos apagados antes desse recálculo existir.
-    const novoStatus = list[0]?.status || "";
     const fluxo = await fetchControleFluxoByRef(row.ref);
+    // Sem laudo nenhum, preserva a marcação manual "liberada antes do PLM".
+    const atual = fluxo?.status_pre_producao || "";
+    const novoStatus = list[0]?.status || (atual === STATUS_PP_LIBERADA_ANTES ? atual : "");
     if ((fluxo?.status_pre_producao || "") !== novoStatus) {
       await upsertControleFluxo(row.ref, "status_pre_producao", novoStatus || null);
     }
