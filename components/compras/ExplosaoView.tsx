@@ -411,12 +411,16 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-baseline gap-3 mb-4">
-        <span className="text-[28px] font-bold tabnum tracking-[-0.03em]">{sorted.length}</span>
-        <span className="text-[14px] text-[var(--label-secondary)]">linha{sorted.length !== 1 && "s"}</span>
-        <span className="text-[12px] text-[var(--label-tertiary)]">
-          de {filteredProd.length} referência{filteredProd.length !== 1 && "s"}
-        </span>
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        {/* Números em cards: o principal em preto com número neon (identidade) */}
+        <div className="rounded-2xl px-4 py-3 min-w-[180px]" style={{ background: "var(--plm-tinta)" }}>
+          <div className="text-[12px]" style={{ color: "#B5AFA7" }}>Linhas de aviamento</div>
+          <div className="text-[26px] font-bold tabnum tracking-[-0.03em]" style={{ color: "var(--plm-neon)" }}>{sorted.length}</div>
+        </div>
+        <div className="apple-card rounded-2xl px-4 py-3 min-w-[180px]">
+          <div className="text-[12px] text-[var(--label-secondary)]">Referências</div>
+          <div className="text-[26px] font-bold tabnum tracking-[-0.03em]">{filteredProd.length}</div>
+        </div>
         <div className="ml-auto flex gap-2">
           <button onClick={handleExport} className="apple-input flex items-center gap-2 cursor-pointer transition-all hover:!border-[var(--system-green)] hover:text-[var(--system-green)]" title="Exportar para Excel">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -471,7 +475,7 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
                   const isEmpty = val == null || val === "" || val === 0;
                   return (
                     <td key={c.key} style={{ width: c.w, minWidth: c.w, textAlign: (c as any).num ? "right" : "left" }}>
-                      <span className={`text-[13px] px-2.5 py-1 block ${ (c as any).num ? "tabnum" : ""} ${isEmpty ? "text-[var(--label-quaternary)]" : ""}`}>
+                      <span title={typeof display === "string" ? display : undefined} className={`text-[13px] px-2.5 py-1 block line-clamp-2 ${ (c as any).num ? "tabnum" : ""} ${isEmpty ? "text-[var(--label-quaternary)]" : ""}`}>
                         {(c as any).num && val === 0 ? "—" : display}
                       </span>
                     </td>

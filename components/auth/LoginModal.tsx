@@ -1,5 +1,6 @@
 "use client";
 import { useState, FormEvent } from "react";
+import LogoPLM from "@/components/ui/LogoPLM";
 import { useAuth } from "@/lib/auth-context";
 import { getSupabase } from "@/lib/supabase";
 
@@ -73,23 +74,16 @@ export default function LoginModal() {
         width: 360, padding: "36px 32px",
         boxShadow: "0 20px 60px rgba(0,0,0,0.12)",
       }}>
-        {/* Logo */}
+        {/* Logo — identidade AUSTRAL PLM by AusTab */}
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 14, background: "var(--system-blue)",
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            marginBottom: 14,
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-              <path d="M2 17l10 5 10-5"/>
-              <path d="M2 12l10 5 10-5"/>
-            </svg>
+          <div style={{ display: "inline-flex", marginBottom: 14 }}>
+            <LogoPLM size={56} />
           </div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--label-primary)", letterSpacing: "-0.02em" }}>
-            Austral <span style={{ color: "var(--system-blue)" }}>PLM</span>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--label-primary)", letterSpacing: "0.02em" }}>
+            AUSTRAL PLM
           </div>
-          <div style={{ fontSize: 13, color: "var(--label-secondary)", marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: "var(--label-secondary)", marginTop: 2 }}>by AusTab</div>
+          <div style={{ fontSize: 13, color: "var(--label-secondary)", marginTop: 10 }}>
             Faça login para continuar
           </div>
         </div>

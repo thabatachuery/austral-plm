@@ -326,11 +326,11 @@ export default function CadView(){
                 <input type="text" aria-label={`Novo ${info?.l?.toLowerCase()}`} value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addS()} placeholder="Novo item..." className={`${inp} flex-1`}/>
                 <button onClick={addS} className={btn}>Adicionar</button>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {items.map((x:string)=>(
-                  <span key={x} className="inline-flex items-center gap-2 bg-[var(--bg-secondary)] border border-[var(--separator)] rounded-lg px-3.5 py-[7px] text-[13px] font-medium transition-all hover:border-[var(--label-quaternary)]">
+                  <span key={x} className="flex items-center gap-2 bg-[var(--bg-primary)] border border-[var(--separator-opaque)] rounded-[10px] px-3.5 py-3 text-[14px] font-medium transition-all hover:border-[var(--plm-neon-borda)]">
                     {x}
-                    <button onClick={()=>remS(x)} className="text-[var(--label-quaternary)] hover:text-[var(--system-red)] text-[14px] leading-none transition-colors">×</button>
+                    <button onClick={()=>remS(x)} className="ml-auto text-[var(--label-quaternary)] hover:text-[var(--system-red)] text-[14px] leading-none transition-colors">×</button>
                   </span>
                 ))}
                 {items.length === 0 && <p className="text-[13px] text-[var(--label-tertiary)] py-8 text-center w-full">Nenhum item cadastrado</p>}

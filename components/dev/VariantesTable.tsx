@@ -10,9 +10,10 @@ import MultiSelect, { comFiltro } from "@/components/ui/MultiSelect";
 import { useToast } from "@/components/ui/Toast";
 
 // Colunas ESTILO
-const VC=[{key:"ref",label:"Referência",w:120},{key:"desc",label:"Descrição",w:260},{key:"cor",label:"Cor",w:180},{key:"colecao",label:"Coleção",w:140},{key:"tecido",label:"Tecido",w:200},{key:"composicao",label:"Composição",w:160},{key:"forn_tecido",label:"Forn. tecido",w:140},{key:"status",label:"Status",w:180},{key:"fornecedor",label:"Fornecedor",w:140},{key:"grupo",label:"Grupo",w:120},{key:"subgrupo",label:"Subgrupo",w:200},{key:"_ficha",label:"Ficha",w:70}];
+const VC=[{key:"_ficha",label:"Ficha",w:70},{key:"ref",label:"Referência",w:120},{key:"desc",label:"Descrição",w:260},{key:"cor",label:"Cor",w:180},{key:"colecao",label:"Coleção",w:140},{key:"tecido",label:"Tecido",w:200},{key:"composicao",label:"Composição",w:160},{key:"forn_tecido",label:"Forn. tecido",w:140},{key:"status",label:"Status",w:180},{key:"fornecedor",label:"Fornecedor",w:140},{key:"grupo",label:"Grupo",w:120},{key:"subgrupo",label:"Subgrupo",w:200}];
 // Colunas COMPRAS
 const VC_COMPRAS=[
+  {key:"_ficha",        label:"Ficha",           w:70 },
   {key:"ref",           label:"Referência",     w:120},
   {key:"desc",          label:"Descrição",       w:260},
   {key:"cor",           label:"Cor",             w:180},
@@ -27,7 +28,6 @@ const VC_COMPRAS=[
   {key:"status",        label:"Status",          w:180},
   {key:"fornecedor",    label:"Fornecedor",      w:140},
   {key:"grupo",         label:"Grupo",           w:120},
-  {key:"_ficha",        label:"Ficha",           w:70 },
 ];
 
 // Campos armazenados por variante (não por produto)
@@ -38,10 +38,10 @@ const FK_COMPRAS=["grupo","status","status_compras","fornecedor","cor","colecao"
 const FL:Record<string,string>={grupo:"Grupo",subgrupo:"Subgrupo",status:"Status",status_compras:"Status Compras",tecido:"Tecido",fornecedor:"Fornecedor",cor:"Cor",colecao:"Coleção",estilista:"Estilista",linha:"Linha"};
 const SP:Record<string,string>={"MOSTRUÁRIO LIBERADO":"pill-green","PRODUÇÃO LIBERADA":"pill-blue","DESENVOLVIMENTO":"pill-orange","REPILOTANDO PRODUÇÃO":"pill-orange","CANCELADO":"pill-red"};
 const SC_STYLE:Record<string,{bg:string;color:string}>={
-  "PEDIDO MOST. COLOCADO":     {bg:"rgba(255,149,0,0.12)",  color:"#b86a00"},
-  "MOSTRUÁRIO ENTREGUE":       {bg:"rgba(90,120,255,0.12)", color:"#3a4ec4"},
+  "PEDIDO MOST. COLOCADO":     {bg:"#FDEBDD",  color:"#8A3A08"},
+  "MOSTRUÁRIO ENTREGUE":       {bg:"#EBEEFD", color:"#2B44BB"},
   "PED. DE PRODUÇÃO COLOCADO": {bg:"rgba(175,82,222,0.12)", color:"#7c2eaa"},
-  "PRODUÇÃO ENTREGUE":         {bg:"rgba(52,199,89,0.15)",  color:"#1a7a35"},
+  "PRODUÇÃO ENTREGUE":         {bg:"#E2F2E9",  color:"#0E6A40"},
 };
 
 type Props={
@@ -234,9 +234,9 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
           :c.key==="status"&&r.status
             ?<StatusPill status={r.status} />
           :c.key==="status_compras"
-            ?(() => { const s=r.status_compras||""; const st=SC_STYLE[s]; return s?<span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap" style={st?{background:st.bg,color:st.color}:{background:"rgba(142,142,147,0.12)",color:"var(--label-tertiary)"}}>{s}</span>:<span className="text-[var(--label-quaternary)] text-[13px] px-2.5">—</span>; })()
+            ?(() => { const s=r.status_compras||""; const st=SC_STYLE[s]; return s?<span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap" style={st?{background:st.bg,color:st.color}:{background:"var(--bg-secondary)",color:"var(--label-tertiary)"}}>{s}</span>:<span className="text-[var(--label-quaternary)] text-[13px] px-2.5">—</span>; })()
           :c.key==="cor"&&r.cor!=="—"
-            ?(() => { const pal = COR_PALETTE[r.cor]; return <span className="inline-flex items-center rounded-md px-2.5 py-1 text-[12px] font-bold" style={pal ? { background: pal.bg, color: pal.text } : { background: "var(--bg-secondary)" }}>{r.cor}</span>; })()
+            ?(() => { const pal = COR_PALETTE[r.cor]; return <span className="inline-flex items-center gap-2 px-2.5 py-1 text-[13px] font-medium text-[var(--label-primary)]"><span style={{ width: 11, height: 11, borderRadius: "50%", flexShrink: 0, background: pal ? pal.bg : "var(--bg-tertiary)", border: "1px solid rgba(0,0,0,0.18)" }} />{r.cor}</span>; })()
           :c.colType
             ?(canEditOrders
               ?<InlineCell value={r[c.key]??""} type={c.colType} displayFn={c.colType==="number"?(v:number)=>v>0?String(Math.round(v)):"—":undefined} onChange={v=>updOrder(r,c.key,v)}/>

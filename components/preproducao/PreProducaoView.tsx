@@ -6,10 +6,10 @@ import { STATUS_ESTILO, STATUS_PRE_PRODUCAO_COLORS } from "@/lib/constants";
 import ScrollTable from "@/components/ui/ScrollTable";
 
 function StatusPPPill({ status }: { status: string }) {
-  if (!status) return <span className="text-[var(--label-quaternary)] text-[13px]">— sem laudo —</span>;
+  if (!status) return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap bg-[var(--bg-secondary)] text-[var(--label-secondary)]">Sem laudo</span>;
   const st = STATUS_PRE_PRODUCAO_COLORS[status];
   return (
-    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap" style={st ? { background: st.bg, color: st.color } : { background: "rgba(142,142,147,0.12)", color: "var(--label-tertiary)" }}>
+    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap" style={st ? { background: st.bg, color: st.color } : { background: "var(--bg-secondary)", color: "var(--label-tertiary)" }}>
       {status}
     </span>
   );
@@ -55,10 +55,45 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
     [filtered],
   );
 
+  // Resumo do topo: laudos aprovados, com restrição e pendentes (sem laudo).
+  const resumo = useMemo(() => {
+    let ok = 0, restr = 0, reprov = 0, sem = 0;
+    elegiveis.forEach(r => {
+      const st = fluxoMap[r.ref]?.status_pre_producao || "";
+      if (!st) sem++; else if (st === "LIBERADA") ok++; else if (st.startsWith("LIBERADA")) restr++; else reprov++;
+    });
+    return { ok, restr, reprov, sem };
+  }, [elegiveis, fluxoMap]);
+
   if (loading) return <div className="plm-loading"><div className="plm-loading-spinner" /><span>Carregando...</span></div>;
 
   return (
     <div>
+      {(() => {
+        const tot = elegiveis.length || 1;
+        const pct = (n: number) => `${(n / tot) * 100}%`;
+        return (
+          <div className="apple-card flex items-center gap-6 px-5 py-4 mb-4 flex-wrap">
+            <div>
+              <div className="text-[12px] text-[var(--label-secondary)]">Produção liberada</div>
+              <div className="text-[22px] font-bold tabnum tracking-[-0.02em]">{sorted.length} de {elegiveis.length}</div>
+            </div>
+            <div className="flex-1 min-w-[260px]">
+              <div className="h-2.5 rounded-full bg-[var(--bg-secondary)] overflow-hidden flex">
+                <div style={{ width: pct(resumo.ok), background: "var(--st-prod)" }} />
+                <div style={{ width: pct(resumo.restr), background: "var(--st-rep)" }} />
+                <div style={{ width: pct(resumo.reprov), background: "var(--st-canc)" }} />
+              </div>
+              <div className="flex gap-4 mt-2 text-[12px] flex-wrap">
+                <span style={{ color: "var(--st-prod-tx)" }}>● Liberada {resumo.ok}</span>
+                <span style={{ color: "var(--st-rep-tx)" }}>● Com restrição {resumo.restr}</span>
+                {resumo.reprov > 0 && <span style={{ color: "var(--st-canc-tx)" }}>● Reprovada {resumo.reprov}</span>}
+                <span style={{ color: "var(--st-canc-tx)", fontWeight: 700 }}>● Sem laudo {resumo.sem}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 360 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--label-tertiary)" strokeWidth="2.2" strokeLinecap="round"
@@ -92,7 +127,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
                 <td className="px-3">{r.fornecedor || "—"}</td>
                 <td className="px-3"><StatusPPPill status={fluxoMap[r.ref]?.status_pre_producao || ""} /></td>
                 <td className="text-center px-2">
-                  <button onClick={() => onOpenLaudo(r)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir laudo</button>
+                  <button onClick={() => onOpenLaudo(r)} className="apple-btn-secondary text-[12px] py-1 px-3 whitespace-nowrap">Abrir laudo</button>
                 </td>
               </tr>
             ))}

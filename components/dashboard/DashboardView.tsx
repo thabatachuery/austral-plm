@@ -7,20 +7,30 @@ const fmtBrl = (v: number) => _fmtBRL(v, { decimals: 0 });
 
 type Props = { rows: any[]; variantes: Record<string, string[]>; variantesPorColecao?: Record<string, Record<string, string[]>> };
 
-/* ── Paleta ── */
-const B900 = "#00254D"; const B800 = "#003A75"; const B700 = "#00509E";
-const B600 = "#0066CC"; const B500 = "#007AFF"; const B400 = "#3395FF";
-const B300 = "#66B0FF"; const B200 = "#99CAFF"; const B100 = "#CCE5FF"; const B50 = "#E8F2FF";
-const SCALE = [B500, B700, B400, B800, B300, B600, B200, B900];
+/* ── Paleta (identidade AUSTRAL PLM by AusTab) ──
+   Os nomes B900…B50 foram mantidos para não mexer no resto do arquivo; os
+   valores agora são tinta + neutros quentes. Barras usam o neon de gráfico. */
+const B900 = "#16171D"; const B800 = "#16171D"; const B700 = "#16171D";
+const B600 = "#16171D"; const B500 = "#B9D93F"; const B400 = "#57534E";
+const B300 = "#8A847D"; const B200 = "#CFC8C0"; const B100 = "#F3EFEA"; const B50 = "#F3EFEA";
+const SCALE = ["#B9D93F"];  // barras: uma cor só (neon de gráfico), sem arco-íris
+const DONUT_SCALE = ["#16171D", "#B9D93F", "#8A847D", "#CFC8C0", "#57534E", "#E3DDD6", "#3A3732", "#D7F36B"];
 
+// Cores fixas de status — as mesmas das pills, da ficha e dos gráficos.
 const STATUS_CFG: Record<string, { color: string }> = {
-  "DESENVOLVIMENTO":      { color: B400 },
-  "MOSTRUÁRIO LIBERADO":  { color: B600 },
-  "PRODUÇÃO LIBERADA":    { color: B800 },
-  "REPILOTANDO PRODUÇÃO": { color: B700 },
-  "CANCELADO":            { color: B200 },
+  "DESENVOLVIMENTO":      { color: "#3655EA" },
+  "MOSTRUÁRIO LIBERADO":  { color: "#F0BC1F" },
+  "PRODUÇÃO LIBERADA":    { color: "#138350" },
+  "REPILOTANDO PRODUÇÃO": { color: "#F07A2A" },
+  "CANCELADO":            { color: "#D3342E" },
 };
-const STAT_BG = [B900, B700, B600, B500, B400, B300, B200];
+// Cards de número: o primeiro é o destaque (preto + número neon); os demais
+// são brancos e, quando representam um status, mostram só a bolinha da cor.
+const STAT_BG = ["#16171D"];
+const STAT_DOT: Record<string, string> = {
+  "Desenvolvimento": "#3655EA", "Mostr. liberado": "#F0BC1F", "Produção lib.": "#138350",
+  "Repilotando": "#F07A2A", "Cancelado": "#D3342E",
+};
 
 const FLUXO_STAGES = [
   { label: "Pilotagem",      field: "status_mostruario",   options: ["AGUARDANDO PILOTO","PILOTO RECEBIDA - AGUARDANDO PROVA","MOSTRUÁRIO LIBERADO","INCLUÍDO DIRETO P/ MOSTRUÁRIO"] },
@@ -261,7 +271,7 @@ export default function DashboardView({ rows, variantes: variantesTodas, variant
 
   /* ── Render helpers ── */
   const toSeg = (items: [string, number][]) =>
-    items.map(([l, n], i) => ({ label: l, value: n, color: SCALE[i % SCALE.length] }));
+    items.map(([l, n], i) => ({ label: l, value: n, color: DONUT_SCALE[i % DONUT_SCALE.length] }));
 
   const filterBar = (
     <div className="dash-card p-4 mb-5">
@@ -357,17 +367,19 @@ export default function DashboardView({ rows, variantes: variantesTodas, variant
               <div key={a.key}>
                 <button
                   onClick={() => setExpandedAlert(expandedAlert === a.key ? null : a.key)}
-                  style={{ width:"100%", background: expandedAlert===a.key ? a.color : `${a.color}18`, border: `1px solid ${a.color}40`, borderRadius:12, padding:"12px 14px", textAlign:"left", cursor:"pointer", transition:"all .15s" }}>
+                  style={{ width:"100%", background: expandedAlert===a.key ? "var(--alerta)" : "var(--alerta-bg)", border: "1px solid var(--alerta-borda)", borderRadius:12, padding:"12px 14px", textAlign:"left", cursor:"pointer", transition:"all .15s" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={expandedAlert===a.key ? "#fff" : a.color} strokeWidth="2" strokeLinecap="round"><path d={a.icon}/></svg>
-                    <span style={{ fontSize:11, fontWeight:700, color: expandedAlert===a.key ? "#fff" : a.color, textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                    <span style={{ width:24, height:24, borderRadius:7, background: expandedAlert===a.key ? "var(--alerta-tx)" : "var(--alerta)", display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={expandedAlert===a.key ? "#fff" : "var(--alerta-tx)"} strokeWidth="2" strokeLinecap="round"><path d={a.icon}/></svg>
+                    </span>
+                    <span style={{ fontSize:11, fontWeight:700, color: "var(--alerta-tx)", textTransform:"uppercase", letterSpacing:"0.05em" }}>
                       {a.count} SKU{a.count!==1?"s":""}
                     </span>
                   </div>
-                  <div style={{ fontSize:12, fontWeight:500, color: expandedAlert===a.key ? "rgba(255,255,255,0.9)" : "var(--label-primary)", lineHeight:1.35 }}>{a.label}</div>
+                  <div style={{ fontSize:12, fontWeight:500, color: "var(--alerta-tx)", lineHeight:1.35 }}>{a.label}</div>
                 </button>
                 {expandedAlert === a.key && (
-                  <div style={{ background:"var(--surface, var(--bg-secondary))", border:`1px solid ${a.color}30`, borderTop:"none", borderRadius:"0 0 10px 10px", maxHeight:200, overflowY:"auto", zIndex:10, position:"relative" }}>
+                  <div style={{ background:"var(--surface, var(--bg-secondary))", border:"1px solid var(--alerta-borda)", borderTop:"none", borderRadius:"0 0 10px 10px", maxHeight:200, overflowY:"auto", zIndex:10, position:"relative" }}>
                     {a.refs.map((r:any) => (
                       <div key={r.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 14px", borderBottom:"1px solid var(--separator)", fontSize:12 }}>
                         <span style={{ fontWeight:600, color:"var(--label-primary)", fontFamily:"monospace" }}>{r.ref}</span>
@@ -390,9 +402,9 @@ export default function DashboardView({ rows, variantes: variantesTodas, variant
             <button key={g.id} onClick={() => handleGroup(g.id)}
               className="px-5 py-2 rounded-xl text-[13px] font-semibold transition-all duration-150"
               style={{
-                background: group === g.id ? B600 : "var(--bg-secondary)",
-                color: group === g.id ? "#fff" : "var(--label-secondary)",
-                border: `1px solid ${group === g.id ? B600 : "var(--separator)"}`,
+                background: group === g.id ? "var(--plm-neon)" : "#fff",
+                color: group === g.id ? "var(--plm-tinta)" : "var(--label-secondary)",
+                border: `1px solid ${group === g.id ? "var(--plm-neon-borda)" : "var(--separator-opaque)"}`,
               }}>
               {g.label}
             </button>
@@ -587,11 +599,17 @@ export default function DashboardView({ rows, variantes: variantesTodas, variant
 
 /* ── Sub-components ─────────────────────────────────────────────────── */
 
-function StatCard({ label, value, bg }: { label: string; value: number; bg: string }) {
+function StatCard({ label, value, bg }: { label: string; value: number; bg?: string }) {
+  const destaque = !!bg;            // só o 1º card recebe bg (preto + número neon)
+  const dot = STAT_DOT[label];
   return (
-    <div className="rounded-2xl px-4 py-4 transition-all duration-200 hover:scale-[1.02] hover:brightness-110" style={{ background: bg }}>
-      <div className="text-[11px] font-medium leading-tight mb-3" style={{ color: "rgba(255,255,255,0.7)" }}>{label}</div>
-      <div className="text-[28px] font-bold tabnum tracking-[-0.04em] leading-none text-white">
+    <div className="rounded-2xl px-4 py-4 transition-all duration-200"
+      style={destaque ? { background: bg } : { background: "#fff", border: "1px solid var(--separator-opaque)" }}>
+      <div className="text-[11px] font-medium leading-tight mb-3 flex items-center gap-1.5" style={{ color: destaque ? "#B5AFA7" : "var(--label-secondary)" }}>
+        {dot && <span style={{ width: 8, height: 8, borderRadius: "50%", background: dot, flexShrink: 0 }} />}
+        {label}
+      </div>
+      <div className="text-[28px] font-bold tabnum tracking-[-0.04em] leading-none" style={{ color: destaque ? "#D7F36B" : "var(--label-primary)" }}>
         {typeof value === "number" && !Number.isInteger(value) ? value.toFixed(1) : Number(value).toLocaleString("pt-BR")}
       </div>
     </div>

@@ -231,32 +231,37 @@ export default function EnviosView() {
       <div className="flex flex-col gap-3">
         {filtrados.map(e => (
           <div key={e.id} className="apple-card p-4">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="text-[14px] font-semibold">{e.fornecedor}</span>
-              <span className="pill">{e.colecao}</span>
-              <span className="pill">{e.estagio}</span>
-              {!e.ativo && <span className="pill" style={{ background: "rgba(255,59,48,0.12)", color: "var(--system-red)" }}>link desativado</span>}
-              <span className="text-[11px] text-[var(--label-tertiary)] ml-auto">
-                {fmtData(e.created_at)}{e.criado_por_nome ? ` · ${e.criado_por_nome}` : ""}
+            <div className="flex flex-wrap items-center gap-3 mb-3">
+              {/* Iniciais do fornecedor (tinta + neon, identidade) */}
+              <span className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-[13px] font-bold shrink-0" style={{ background: "var(--plm-tinta)", color: "var(--plm-neon)" }}>
+                {String(e.fornecedor || "?").split(/\s+/).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase()}
               </span>
+              <div className="min-w-0">
+                <div className="text-[15px] font-semibold leading-tight">{e.fornecedor}</div>
+                <div className="text-[12px] text-[var(--label-secondary)]">{fmtData(e.created_at)}{e.criado_por_nome ? ` · ${e.criado_por_nome}` : ""}</div>
+              </div>
+              <span className="pill" style={{ background: "var(--bg-secondary)", color: "#3A3732", fontWeight: 500 }}>{e.colecao}</span>
+              <span className={`pill ${e.estagio === "PRODUÇÃO" ? "pill-green" : e.estagio === "MOSTRUÁRIO" ? "pill-yellow" : "pill-blue"}`}>{e.estagio}</span>
+              {!e.ativo && <span className="pill pill-red">link desativado</span>}
+              <div className="flex gap-2 items-center ml-auto">
+                <button onClick={() => copiar(e)} className="apple-btn-secondary text-[12px]">Copiar link</button>
+                <button onClick={() => alternarAtivo(e)} className="apple-btn-secondary text-[12px]">{e.ativo ? "Desativar link" : "Reativar"}</button>
+                <button onClick={() => excluir(e)} className="text-[12px] font-medium px-3 py-2 rounded-lg border bg-white" style={{ borderColor: "#F0B3B0", color: "var(--st-canc-tx)" }}>Excluir</button>
+              </div>
             </div>
 
             {e.observacao && <p className="text-[12px] text-[var(--label-secondary)] mb-2">{e.observacao}</p>}
 
-            <div className="flex flex-col gap-1 mb-3">
+            <div className="flex flex-col gap-1">
               {(e.arquivos || []).map(a => (
-                <LinkArquivo key={a.id} url={a.url} tamanho={a.tamanho} nome={a.nome} className="text-[12px] text-[var(--system-blue)] hover:underline">
+                <LinkArquivo key={a.id} url={a.url} tamanho={a.tamanho} nome={a.nome} className="text-[13px] text-[var(--label-primary)] hover:underline">
                   {iconeArquivo(a.nome)} {a.nome} {a.tamanho ? <span className="text-[var(--label-quaternary)]">· {fmtTamanho(a.tamanho)}</span> : null}
                 </LinkArquivo>
               ))}
               {!(e.arquivos || []).length && <span className="text-[12px] text-[var(--label-quaternary)]">sem arquivos</span>}
             </div>
 
-            <div className="flex gap-2 flex-wrap items-center">
-              <button onClick={() => copiar(e)} className="apple-btn-secondary text-[12px]">Copiar link</button>
-              <button onClick={() => alternarAtivo(e)} className="apple-btn-secondary text-[12px]">{e.ativo ? "Desativar link" : "Reativar"}</button>
-              <button onClick={() => excluir(e)} className="text-[12px] text-[var(--label-quaternary)] hover:text-[var(--system-red)] ml-auto">Excluir</button>
-            </div>
+
           </div>
         ))}
       </div>

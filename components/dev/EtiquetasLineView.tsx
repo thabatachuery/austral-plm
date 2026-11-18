@@ -70,9 +70,9 @@ function MultiSelect({ label, options, selected, onChange }: {
       <button onClick={() => setOpen(o => !o)} style={{
         display: "flex", alignItems: "center", gap: 5, fontSize: 12, padding: "5px 10px",
         borderRadius: 7, border: "1px solid", cursor: "pointer", whiteSpace: "nowrap",
-        background: active ? "var(--system-blue)" : "var(--bg-secondary)",
-        borderColor: active ? "var(--system-blue)" : "var(--separator)",
-        color: active ? "#fff" : "var(--label-secondary)", fontWeight: active ? 600 : 400,
+        background: active ? "var(--plm-neon)" : "var(--bg-secondary)",
+        borderColor: active ? "var(--plm-neon-borda)" : "var(--separator)",
+        color: active ? "var(--plm-tinta)" : "var(--label-secondary)", fontWeight: active ? 600 : 400,
       }}>
         {label}{active ? ` (${selected.length})` : ""}
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
@@ -407,6 +407,23 @@ const STYLES = `
   .etq-check-green { color: #1a7a1a; }
   .etq-check-red { color: #cc0000; }
 }
+
+/* ════ SCREEN — identidade AUSTRAL PLM by AusTab ════
+   Só a visualização na tela. O bloco @media print acima continua igual:
+   o PDF das etiquetas (Pimaco 6083) sai exatamente como antes. */
+@media screen {
+  .etq { border-radius: 12px; border-color: #E3DDD6; font-family: var(--font-inter), -apple-system, sans-serif; }
+  .etq * { font-family: var(--font-inter), -apple-system, sans-serif; }
+  .etq-header { background: #16171D; border-radius: 11px 11px 0 0; }
+  .etq-cor-chip { border-radius: 999px; background: #F3EFEA; border-color: transparent; color: #16171D; }
+  .etq-prices { background: #fff; border-top: 1px dashed #CFC8C0; }
+  .etq-checks { background: #fff; border-top: none; gap: 6px; padding: 4px 8px 8px; }
+  .etq-check { border: 1px solid #CFC8C0; border-radius: 999px; }
+  .etq-check-div { display: none; }
+  .etq-check-green { color: #0E6A40; }
+  .etq-check-red { color: #A8221D; }
+  .etq-forn { background: #F3EFEA; border-radius: 999px; padding: 1px 7px; color: #3A3732; }
+}
 `;
 
 /* ── Main view ── */
@@ -486,9 +503,9 @@ setTecidoCompMap(map);
           <button onClick={() => setFiltersOpen(o => !o)} style={{
             display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600,
             padding: "5px 12px", borderRadius: 7, border: "1px solid", cursor: "pointer",
-            background: activeCount > 0 ? "var(--system-blue)" : "var(--bg-secondary)",
-            borderColor: activeCount > 0 ? "var(--system-blue)" : "var(--separator)",
-            color: activeCount > 0 ? "#fff" : "var(--label-secondary)",
+            background: activeCount > 0 ? "var(--plm-neon)" : "var(--bg-secondary)",
+            borderColor: activeCount > 0 ? "var(--plm-neon-borda)" : "var(--separator)",
+            color: activeCount > 0 ? "var(--plm-tinta)" : "var(--label-secondary)",
           }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
               <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
@@ -552,7 +569,7 @@ setTecidoCompMap(map);
               return (
                 <div key={item.ref} onClick={() => toggleRef(item.ref)} style={{
                   position: "relative", cursor: "pointer",
-                  outline: sel ? "2.5px solid var(--system-blue)" : "2.5px solid transparent",
+                  outline: sel ? "2.5px solid var(--plm-neon-barra)" : "2.5px solid transparent",
                   outlineOffset: 3, borderRadius: 10,
                   opacity: sel ? 1 : 0.4,
                   transition: "opacity .15s, outline .1s",
@@ -560,23 +577,23 @@ setTecidoCompMap(map);
                   <div style={{
                     position: "absolute", top: -7, right: -7, zIndex: 3,
                     width: 20, height: 20, borderRadius: "50%",
-                    background: sel ? "var(--system-blue)" : "#fff",
-                    border: `2px solid ${sel ? "var(--system-blue)" : "#ccc"}`,
+                    background: sel ? "var(--plm-neon)" : "#fff",
+                    border: `2px solid ${sel ? "var(--plm-neon-borda)" : "#ccc"}`,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
                   }}>
-                    {sel && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    {sel && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--plm-tinta)" strokeWidth="3.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
                   </div>
                   {sel && (
                     <div onClick={e => e.stopPropagation()} style={{
                       position: "absolute", bottom: -14, left: "50%", transform: "translateX(-50%)",
                       zIndex: 4, display: "flex", alignItems: "center", gap: 4,
-                      background: "#fff", border: "1.5px solid var(--system-blue)",
+                      background: "#fff", border: "1.5px solid var(--plm-neon-borda)",
                       borderRadius: 20, padding: "2px 6px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
                     }}>
                       <button onClick={() => setQty(item.ref, getQty(item.ref) - 1)} style={{
                         width: 18, height: 18, border: "none", background: "none", cursor: "pointer",
-                        fontSize: 16, lineHeight: 1, color: "var(--system-blue)", fontWeight: 700, padding: 0,
+                        fontSize: 16, lineHeight: 1, color: "var(--plm-tinta)", fontWeight: 700, padding: 0,
                       }}>−</button>
                       <input
                         type="number" min={1} max={99} value={getQty(item.ref)}
@@ -589,7 +606,7 @@ setTecidoCompMap(map);
                       />
                       <button onClick={() => setQty(item.ref, getQty(item.ref) + 1)} style={{
                         width: 18, height: 18, border: "none", background: "none", cursor: "pointer",
-                        fontSize: 16, lineHeight: 1, color: "var(--system-blue)", fontWeight: 700, padding: 0,
+                        fontSize: 16, lineHeight: 1, color: "var(--plm-tinta)", fontWeight: 700, padding: 0,
                       }}>+</button>
                     </div>
                   )}

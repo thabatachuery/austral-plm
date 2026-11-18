@@ -11,6 +11,14 @@ import { STATUS_ESTILO, STATUS_COMPRAS_OPTS } from "@/lib/constants";
 import { fmtBRL, nomeUsuario } from "@/lib/utils";
 
 // Status em que qualquer alteração dispara o popup de alerta pros outros usuários.
+// Contadores por status ao lado do total (cores fixas de status da identidade).
+const STATUS_RESUMO: [string, string, string][] = [
+  ["DESENVOLVIMENTO", "Desenvolvimento", "#3655EA"],
+  ["MOSTRUÁRIO LIBERADO", "Mostruário", "#F0BC1F"],
+  ["PRODUÇÃO LIBERADA", "Produção", "#138350"],
+  ["REPILOTANDO PRODUÇÃO", "Repilotando", "#F07A2A"],
+  ["CANCELADO", "Cancelado", "#D3342E"],
+];
 const STATUS_ALERTA = [STATUS_ESTILO.MOSTARIO_LIBERADO, STATUS_ESTILO.PRODUCAO_LIBERADA, STATUS_ESTILO.REPILOTANDO_PRODUCAO] as string[];
 import ScrollTable from "@/components/ui/ScrollTable";
 import MultiSelect, { normalizarFiltros, comFiltro } from "@/components/ui/MultiSelect";
@@ -34,16 +42,16 @@ const OCULTAS_PADRAO_COMPRAS = ["tecido", "composicao", "forn_tecido", "subgrupo
 // ── Colunas de status exclusivas de Compras ───────────────────────────────
 const STATUS_PRECO_OPTS = ["SEM CUSTO","CUSTO SOLICITADO","EM NEGOCIAÇÃO","CUSTO FECHADO"];
 const SP_PRECO_STYLE: Record<string,{bg:string;color:string}> = {
-  "SEM CUSTO":         {bg:"rgba(142,142,147,0.15)",color:"var(--label-secondary)"},
-  "CUSTO SOLICITADO":  {bg:"rgba(255,149,0,0.15)",  color:"#b86a00"},
+  "SEM CUSTO":         {bg:"#F3EFEA",color:"var(--label-secondary)"},
+  "CUSTO SOLICITADO":  {bg:"#FDEBDD",  color:"#8A3A08"},
   "EM NEGOCIAÇÃO":     {bg:"rgba(0,122,255,0.12)",  color:"var(--system-blue)"},
-  "CUSTO FECHADO":     {bg:"rgba(52,199,89,0.15)",  color:"#1a7a35"},
+  "CUSTO FECHADO":     {bg:"#E2F2E9",  color:"#0E6A40"},
 };
 const SP_COMPRAS_STYLE: Record<string,{bg:string;color:string}> = {
-  "PEDIDO MOST. COLOCADO":     {bg:"rgba(255,149,0,0.12)",  color:"#b86a00"},
-  "MOSTRUÁRIO ENTREGUE":       {bg:"rgba(90,120,255,0.12)", color:"#3a4ec4"},
+  "PEDIDO MOST. COLOCADO":     {bg:"#FDEBDD",  color:"#8A3A08"},
+  "MOSTRUÁRIO ENTREGUE":       {bg:"#EBEEFD", color:"#2B44BB"},
   "PED. DE PRODUÇÃO COLOCADO": {bg:"rgba(175,82,222,0.12)", color:"#7c2eaa"},
-  "PRODUÇÃO ENTREGUE":         {bg:"rgba(52,199,89,0.15)",  color:"#1a7a35"},
+  "PRODUÇÃO ENTREGUE":         {bg:"#E2F2E9",  color:"#0E6A40"},
 };
 const COMPRAS_STATUS_COLS = [
   {key:"status_preco",   label:"Status Preço",   width:165, opts:STATUS_PRECO_OPTS,   styles:SP_PRECO_STYLE},
@@ -649,7 +657,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
         </div>
       )}
 
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-4"><span className="text-[28px] font-bold tabnum tracking-[-0.03em]">{filtered.length}</span><span className="text-[14px] text-[var(--label-secondary)]">SKU{filtered.length!==1&&"s"}</span>{ac>0&&<span className="text-[12px] text-[var(--label-tertiary)]">de {rows.length}</span>}<span className="text-[11px] text-[var(--label-quaternary)] ml-auto italic hidden sm:inline">duplo-clique para editar · salva automaticamente</span></div>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-4"><span className="text-[28px] font-bold tabnum tracking-[-0.03em]">{filtered.length}</span><span className="text-[14px] text-[var(--label-secondary)]">SKU{filtered.length!==1&&"s"}</span>{ac>0&&<span className="text-[12px] text-[var(--label-tertiary)]">de {rows.length}</span>}{permPrefix!=="compras_"&&STATUS_RESUMO.map(([st,rot,cor])=>{const n=filtered.filter((r:any)=>r.status===st).length;return <span key={st} className="inline-flex items-center gap-1.5 self-center text-[12px] px-2.5 py-0.5 rounded-full bg-[var(--bg-primary)] border border-[var(--separator-opaque)] text-[var(--label-primary)]"><span style={{width:8,height:8,borderRadius:"50%",background:cor}}/>{rot} {n}</span>;})}<span className="text-[11px] text-[var(--label-quaternary)] ml-auto italic hidden sm:inline">duplo-clique para editar · salva automaticamente</span></div>
 
       <ScrollTable><table className="plm-table" style={{width:"max-content",minWidth:"100%"}}>
       <caption className="sr-only">Tabela de SKUs com filtros e opções de edição</caption>
@@ -701,7 +709,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
           {!readOnly && canAdd && <td style={{width:36,padding:"0 8px",position:"sticky",left:0,zIndex:2,background:"var(--bg-primary)"}}><input type="checkbox" aria-label={`Selecionar SKU ${row.ref}`} checked={selected.has(row.id)} onChange={()=>toggleSelect(row.id)} style={{cursor:"pointer"}}/></td>}
           {COLS_TABELA.filter(c=>isColVisible(c.key)).flatMap(c=>{
           const isSticky = isStickyCol(c.key);
-          const mainTd = <td key={c.key} style={{width:c.width,minWidth:c.width,...(isSticky?{position:"sticky",left:stickyLeft[c.key as "ref"|"link_ficha"],zIndex:2,background:"var(--bg-primary)",...(c.key===ultimaSticky?{boxShadow:"2px 0 4px rgba(0,0,0,0.04)"}:{})}:{})}}>{c.type==="action"?<div style={{display:"flex",gap:4}}><button onClick={()=>onOpenFicha(colecaoAtiva&&row.colecao!==colecaoAtiva?{...row,_temporada:colecaoAtiva}:row)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir</button>{!readOnly&&canAdd&&permPrefix!=="compras_"&&<button onClick={()=>{setCloneSource(row);setCloneRef("");}} title="Clonar SKU" className="apple-btn-secondary text-[12px] py-1 px-2" style={{color:"var(--system-blue)"}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>}</div>:c.type==="readonly"?<span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-secondary)]">{row[c.key]||"—"}</span>:(readOnly||permPrefix==="compras_")?<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-secondary)"}}>{row[c.key]||"—"}</span>:canEdit(c.key)?<InlineCell value={row[c.key]} type={c.type} options={c.cad?opts(c.cad):undefined} isStatus={c.key==="status"} onChange={v=>upd(row.id,c.key,v)}/>:<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-tertiary)",cursor:"default"}} title="Sem permissão para editar">{row[c.key]||"—"}</span>}</td>;
+          const mainTd = <td key={c.key} style={{width:c.width,minWidth:c.width,...(isSticky?{position:"sticky",left:stickyLeft[c.key as "ref"|"link_ficha"],zIndex:2,background:"var(--bg-primary)",...(c.key===ultimaSticky?{boxShadow:"2px 0 4px rgba(0,0,0,0.04)"}:{})}:{})}}>{c.type==="action"?<div style={{display:"flex",gap:4}}><button onClick={()=>onOpenFicha(colecaoAtiva&&row.colecao!==colecaoAtiva?{...row,_temporada:colecaoAtiva}:row)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir</button>{!readOnly&&canAdd&&permPrefix!=="compras_"&&<button onClick={()=>{setCloneSource(row);setCloneRef("");}} title="Clonar SKU" className="apple-btn-secondary text-[12px] py-1 px-2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>}</div>:c.type==="readonly"?<span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-secondary)]">{row[c.key]||"—"}</span>:(readOnly||permPrefix==="compras_")?<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-secondary)"}}>{row[c.key]||"—"}</span>:canEdit(c.key)?<InlineCell value={row[c.key]} type={c.type} options={c.cad?opts(c.cad):undefined} isStatus={c.key==="status"} onChange={v=>upd(row.id,c.key,v)}/>:<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-tertiary)",cursor:"default"}} title="Sem permissão para editar">{row[c.key]||"—"}</span>}</td>;
           if (c.key === posPrecos) {
             return [mainTd, ...COMPRAS_STATUS_COLS.filter(sc => isColVisible(sc.key)).map(sc => {
               const sv = row[sc.key] || "";

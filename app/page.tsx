@@ -6,6 +6,7 @@ import CadView from "@/components/cadastros/CadView";
 import MedidasView from "@/components/medidas/MedidasView";
 import FichaModal from "@/components/ficha/FichaModal";
 import PreProducaoView from "@/components/preproducao/PreProducaoView";
+import LogoPLM from "@/components/ui/LogoPLM";
 import LaudoPPPedidosModal from "@/components/preproducao/LaudoPPPedidosModal";
 import DashboardView from "@/components/dashboard/DashboardView";
 import LoginModal from "@/components/auth/LoginModal";
@@ -20,7 +21,7 @@ import EtiquetasLineView from "@/components/dev/EtiquetasLineView";
 import CalendarioView from "@/components/calendario/CalendarioView";
 import EnviosView from "@/components/envios/EnviosView";
 import RankingView from "@/components/ranking/RankingView";
-import { fetchProdutos, fetchAllVariantes, fetchVariantesPorColecao, fetchTemporadasPorRef, fetchAlertasPendentes, marcarAlertasCiente, mapProduto } from "@/lib/db";
+import { fetchControleFluxo, fetchProdutos, fetchAllVariantes, fetchVariantesPorColecao, fetchTemporadasPorRef, fetchAlertasPendentes, marcarAlertasCiente, mapProduto } from "@/lib/db";
 import { COMPRAS_STATUS_ALLOW } from "@/lib/constants";
 import { subscribeRealtime } from "@/lib/realtime";
 import { nomeUsuario } from "@/lib/utils";
@@ -81,6 +82,16 @@ export default function Home() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [alertaFila, setAlertaFila] = useState<Alerta[]>([]);
+  // Pré-produção pendente (produção liberada sem laudo) — contador vermelho no menu.
+  const [statusPPPorRef, setStatusPPPorRef] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetchControleFluxo().then(data => {
+      const m: Record<string, string> = {};
+      data.forEach((r: any) => { m[r.produto_ref] = r.status_pre_producao || ""; });
+      setStatusPPPorRef(m);
+    }).catch(() => {});
+  }, [tab]);
+  const preProdPendente = rows.filter(r => r.status === "PRODUÇÃO LIBERADA" && !statusPPPorRef[r.ref]).length;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -271,9 +282,9 @@ export default function Home() {
         <div className="plm-sidebar-header">
           <div className="plm-logo">
             <div className="plm-logo-icon">
-              <img src="/logo-austral.png" alt="Austral" style={{ objectFit: "contain", filter: "invert(1)", mixBlendMode: "screen" }} />
+              <LogoPLM size={36} />
             </div>
-            {!sidebarCollapsed && <span className="plm-logo-text">PLM</span>}
+            {!sidebarCollapsed && <span className="plm-logo-text">AUSTRAL PLM<small>by AusTab</small></span>}
           </div>
           <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label={sidebarCollapsed ? "Expandir menu" : "Recolher menu"} className="plm-sidebar-toggle">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d={sidebarCollapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} /></svg>
@@ -303,6 +314,9 @@ export default function Home() {
                   <button key={t.id} onClick={() => { setTab(t.id as Tab); setMobileOpen(false); }} className={`plm-nav-item ${tab === t.id ? "active" : ""}`}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={t.icon} /></svg>
                     {!sidebarCollapsed && <span>{t.label}</span>}
+                    {t.id === "preprod" && preProdPendente > 0 && (
+                      <span className="plm-nav-badge" title={`${preProdPendente} sem laudo de pré-produção`}>{preProdPendente}</span>
+                    )}
                   </button>
                 ))}
             </div>

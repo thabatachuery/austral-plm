@@ -51,8 +51,8 @@ export const COMPRAS_STATUS_ALLOW = [
 export const STATUS_PRE_PRODUCAO_OPTS = ["", "LIBERADA", "LIBERADA COM RESTRIÇÃO", "REPROVADA - CORRIGIR", "REPROVADA - NEGOCIAR"];
 
 export const STATUS_PRE_PRODUCAO_COLORS: Record<string, { bg: string; color: string }> = {
-  "LIBERADA":               { bg: "rgba(52,199,89,0.15)",  color: "#1a7a35" },
-  "LIBERADA COM RESTRIÇÃO": { bg: "rgba(255,149,0,0.15)",  color: "#b86a00" },
-  "REPROVADA - CORRIGIR":   { bg: "rgba(234,47,70,0.12)",  color: "#c41e3a" },
-  "REPROVADA - NEGOCIAR":   { bg: "rgba(234,47,70,0.12)",  color: "#c41e3a" },
+  "LIBERADA":               { bg: "#E2F2E9",  color: "#0E6A40" },
+  "LIBERADA COM RESTRIÇÃO": { bg: "#FDEBDD",  color: "#8A3A08" },
+  "REPROVADA - CORRIGIR":   { bg: "#FBE6E5",  color: "#A8221D" },
+  "REPROVADA - NEGOCIAR":   { bg: "#FBE6E5",  color: "#A8221D" },
 };

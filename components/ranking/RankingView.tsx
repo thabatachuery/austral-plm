@@ -240,8 +240,10 @@ export default function RankingView({ modo, rows }: Props) {
 
   const nomePrincipal = modo === "vendas" ? "Vendido" : "Estoque";
   const nomeApoio = modo === "vendas" ? "Estoque" : "Vendido";
-  const cor = modo === "vendas" ? "var(--system-blue)" : "#1a7a35";
-  const corFundo = modo === "vendas" ? "rgba(0,122,255,0.12)" : "rgba(52,199,89,0.15)";
+  // Identidade: barras em neon de gráfico (mesma cor em vendas e estoque);
+  // números em tinta; o destaque do topo é o card preto com número neon.
+  const cor = "#B9D93F";
+  const corFundo = "#EEF8C4";
 
   // Semanas de estoque no ritmo de venda do período.
   const cobertura = (it: RankingItem) => {
@@ -319,14 +321,14 @@ export default function RankingView({ modo, rows }: Props) {
         <div className="flex gap-3">
           <div className="relative">
             <Foto refProd={it.ref} tamanho={84} />
-            <span className="absolute -top-2 -left-2 min-w-[26px] h-[26px] px-1.5 rounded-full text-[12px] font-bold text-white flex items-center justify-center shadow" style={{ background: pos <= 3 ? cor : "var(--label-secondary)" }}>{pos}</span>
+            <span className="absolute -top-2 -left-2 min-w-[26px] h-[26px] px-2.5 rounded-full text-[12px] font-bold flex items-center justify-center" style={pos <= 3 ? { background: "var(--plm-neon)", color: "var(--plm-tinta)", border: "1px solid var(--plm-neon-borda)" } : { background: "#fff", color: "var(--plm-tinta)", border: "1px solid var(--separator-opaque)" }}>#{pos}</span>
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-[13px] font-bold">{it.ref}</div>
             <div className="text-[12px] text-[var(--label-secondary)] leading-tight line-clamp-2">{it.desc || "—"}</div>
             <div className="text-[11px] text-[var(--label-tertiary)] mt-0.5 truncate">{[campo(it, "grupo"), campo(it, "colecao")].filter(Boolean).join(" · ")}</div>
             <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-[24px] font-bold leading-none tabular-nums" style={{ color: cor }}>{n(p)}</span>
+              <span className="text-[24px] font-bold leading-none tabular-nums" style={{ color: "var(--plm-tinta)" }}>{n(p)}</span>
               <span className="text-[11px] text-[var(--label-tertiary)]">{modo === "vendas" ? "peças vendidas" : porTotal ? "peças atual + futuro" : "peças em estoque"}</span>
             </div>
             <div className="h-1.5 rounded-full bg-[var(--bg-secondary)] mt-1.5 overflow-hidden">
@@ -435,7 +437,7 @@ export default function RankingView({ modo, rows }: Props) {
           <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--label-tertiary)] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           <input type="text" placeholder="Buscar referência ou descrição..." value={q} onChange={e => setQ(e.target.value)} className="apple-input w-full !pl-10 pr-3" />
         </div>
-        <button onClick={() => setPainelFiltros(!painelFiltros)} className={`apple-input flex items-center gap-2 cursor-pointer transition-all ${painelFiltros || filtrosAtivos > 0 ? "!border-[var(--system-blue)] !bg-blue-50 text-[var(--system-blue)] font-semibold" : ""}`}>
+        <button onClick={() => setPainelFiltros(!painelFiltros)} className={`apple-input flex items-center gap-2 cursor-pointer transition-all ${painelFiltros || filtrosAtivos > 0 ? "!border-[var(--plm-neon-borda)] !bg-[var(--plm-neon)] text-[var(--plm-tinta)] font-semibold" : ""}`}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" /></svg>
           Filtros{filtrosAtivos > 0 && <span className="bg-[var(--system-blue)] text-white text-[10px] font-bold w-[18px] h-[18px] rounded-full flex items-center justify-center">{filtrosAtivos}</span>}
         </button>
@@ -475,9 +477,9 @@ export default function RankingView({ modo, rows }: Props) {
       {filtrosAtivos > 0 && !painelFiltros && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {Object.entries(fl).map(([k, v]) => v.length ? (
-            <span key={k} className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 text-[12px] font-medium">
+            <span key={k} className="inline-flex items-center gap-1 bg-[var(--plm-neon-claro)] text-[var(--plm-tinta)] rounded-lg px-2.5 py-1 text-[12px] font-medium">
               <span className="text-blue-300">{FILTROS.find(f => f.key === k)?.label}:</span>{v.join(", ")}
-              <button onClick={() => setFiltro(k, [])} className="ml-0.5 text-blue-300 hover:text-[var(--system-blue)]">×</button>
+              <button onClick={() => setFiltro(k, [])} className="ml-0.5 text-[var(--label-tertiary)] hover:text-[var(--plm-tinta)]">×</button>
             </span>
           ) : null)}
           <button onClick={() => setFl({})} className="text-[12px] text-[var(--label-tertiary)] px-2 py-1">Limpar</button>
@@ -503,7 +505,7 @@ export default function RankingView({ modo, rows }: Props) {
         </div>
       )}
       {carregando && dados && (
-        <div className="sticky top-2 z-20 flex items-center gap-2 rounded-xl px-4 py-2.5 mb-3 text-[13px] font-medium bg-[var(--bg-primary)] border border-[var(--system-blue)] text-[var(--system-blue)] shadow-md">
+        <div className="sticky top-2 z-20 flex items-center gap-2 rounded-xl px-4 py-2.5 mb-3 text-[13px] font-medium bg-[var(--bg-primary)] border border-[var(--plm-neon-borda)] text-[var(--plm-tinta)] shadow-md">
           <div className="plm-loading-spinner !w-4 !h-4" />
           Atualizando {fmtData(de)} – {fmtData(ate)}... os números abaixo ainda são do período anterior.
         </div>
@@ -519,9 +521,9 @@ export default function RankingView({ modo, rows }: Props) {
                 ? [{ rot: "Peças vendidas", val: n(totPrincipal), destaque: true }, { rot: "Valor vendido", val: vendasOk ? brl(totValor) : "—" }, { rot: "Estoque atual", val: n(totApoio) }]
                 : [{ rot: "Estoque atual", val: n(totEst), destaque: !porTotal }, { rot: "Futuro (a receber)", val: n(totFuturo) }, { rot: "Total (atual + futuro)", val: n(totEst + totFuturo), destaque: porTotal }, { rot: "Vendido no período", val: vendasOk ? n(totApoio) : "—" }]),
             ].map(k => (
-              <div key={k.rot} className="apple-card px-4 py-3">
-                <div className="text-[11px] text-[var(--label-tertiary)] font-medium">{k.rot}</div>
-                <div className="text-[22px] font-bold tabular-nums" style={k.destaque ? { color: cor } : undefined}>{k.val}</div>
+              <div key={k.rot} className="apple-card px-4 py-3" style={k.destaque ? { background: "var(--plm-tinta)", borderColor: "var(--plm-tinta)" } : undefined}>
+                <div className="text-[11px] font-medium" style={{ color: k.destaque ? "#B5AFA7" : "var(--label-tertiary)" }}>{k.rot}</div>
+                <div className="text-[22px] font-bold tabular-nums" style={k.destaque ? { color: "var(--plm-neon)" } : undefined}>{k.val}</div>
               </div>
             ))}
           </div>

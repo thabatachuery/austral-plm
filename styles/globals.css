@@ -2,26 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ═══ Apple HIG Design Tokens ═══ */
+/* ═══ Design Tokens — identidade AUSTRAL PLM by AusTab ═══
+   Neon = seleção e ação principal · Tinta = textos/logo · neutros quentes no fundo.
+   --system-blue virou "tinta" (#16171D): era a cor de destaque da Apple e
+   aparece em links, foco e itens ativos; na identidade nova esses pontos são
+   pretos e o destaque fica com o neon. */
 :root {
-  --system-blue: #007AFF;
-  --system-green: #34C759;
-  --system-orange: #FF9F0A;
-  --system-red: #FF3B30;
-  --system-yellow: #FFCC00;
+  --system-blue: #16171D;
+  --system-green: #138350;
+  --system-orange: #F07A2A;
+  --system-red: #D3342E;
+  --system-yellow: #F0BC1F;
   --system-purple: #AF52DE;
   --system-teal: #5AC8FA;
 
-  --label-primary: #1d1d1f;
-  --label-secondary: #86868b;
-  --label-tertiary: #aeaeb2;
-  --label-quaternary: #c7c7cc;
+  /* Identidade */
+  --plm-neon: #D7F36B;          /* seleção, item ativo, ação principal */
+  --plm-neon-borda: #C2DE55;
+  --plm-neon-barra: #B9D93F;    /* barras de gráfico (neon com contraste) */
+  --plm-neon-claro: #F6FBDF;    /* fundos de destaque suaves */
+  --plm-tinta: #16171D;
+  --plm-giz: #FAF8F5;           /* fundo da página */
+  --plm-linho: #F3EFEA;         /* barra lateral, cabeçalhos de tabela */
+
+  /* Status (tons A+B) — mesma cor em pill, gráfico, card e ficha */
+  --st-dev: #3655EA;   --st-dev-bg: #EBEEFD;   --st-dev-tx: #2B44BB;
+  --st-mos: #F0BC1F;   --st-mos-bg: #FDF5D6;   --st-mos-tx: #6E5200;
+  --st-prod: #138350;  --st-prod-bg: #E2F2E9;  --st-prod-tx: #0E6A40;
+  --st-rep: #F07A2A;   --st-rep-bg: #FDEBDD;   --st-rep-tx: #8A3A08;
+  --st-canc: #D3342E;  --st-canc-bg: #FBE6E5;  --st-canc-tx: #A8221D;
+
+  /* Alerta ("atenção necessária") */
+  --alerta: #FF5F45;  --alerta-bg: #FFEDE8;  --alerta-borda: #FFC9BC;  --alerta-tx: #5A1220;
+
+  --label-primary: #16171D;
+  --label-secondary: #5F5A54;
+  --label-tertiary: #8A847D;
+  --label-quaternary: #B5AFA7;
 
   --bg-primary: #ffffff;
-  --bg-secondary: #f5f5f7;
-  --bg-tertiary: #e8e8ed;
-  --separator: rgba(60, 60, 67, 0.12);
-  --separator-opaque: #d2d2d7;
+  --bg-secondary: #F3EFEA;
+  --bg-tertiary: #EBE5DF;
+  --separator: rgba(60, 50, 40, 0.12);
+  --separator-opaque: #E3DDD6;
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -31,11 +54,11 @@
 
 /* ═══ Base ═══ */
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--label-primary);
-  background: var(--bg-secondary);
+  background: var(--plm-giz);
   font-size: 14px;
   line-height: 1.47;
   letter-spacing: -0.008em;
@@ -43,14 +66,14 @@ body {
 
 /* ═══ Focus — Apple ring ═══ */
 input:focus, select:focus, textarea:focus {
-  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.2);
+  box-shadow: 0 0 0 3px rgba(215, 243, 107, 0.6);
   outline: none;
   border-color: var(--system-blue) !important;
 }
 
 /* ═══ Selection ═══ */
 ::selection {
-  background: rgba(0, 122, 255, 0.15);
+  background: rgba(215, 243, 107, 0.6);
 }
 
 /* ═══ Scrollbar — subtle ═══ */
@@ -68,11 +91,11 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap;
   letter-spacing: 0.01em;
 }
-.pill-green  { background: rgba(52,199,89,0.14); color: #248a3d; }
-.pill-blue   { background: rgba(0,122,255,0.12); color: #0055d4; }
-.pill-orange { background: rgba(255,159,10,0.14); color: #c77c00; }
-.pill-yellow { background: rgba(255,214,10,0.18); color: #7A5C00; }
-.pill-red    { background: rgba(255,59,48,0.12); color: #d70015; }
+.pill-green  { background: var(--st-prod-bg); color: var(--st-prod-tx); }
+.pill-blue   { background: var(--st-dev-bg);  color: var(--st-dev-tx); }
+.pill-orange { background: var(--st-rep-bg);  color: var(--st-rep-tx); }
+.pill-yellow { background: var(--st-mos-bg);  color: var(--st-mos-tx); }
+.pill-red    { background: var(--st-canc-bg); color: var(--st-canc-tx); }
 
 /* ═══ PLM Table — refined Apple aesthetic ═══ */
 .plm-table {
@@ -110,7 +133,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .plm-table tbody tr:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: #F6F3EE;
 }
 
 .plm-table tbody tr:last-child td {
@@ -155,8 +178,9 @@ input:focus, select:focus, textarea:focus {
   padding: 8px 20px;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--system-blue);
-  color: white;
+  background: var(--plm-neon);
+  box-shadow: inset 0 0 0 1px var(--plm-neon-borda);
+  color: var(--plm-tinta);
   cursor: pointer;
   transition: opacity 0.12s, transform 0.1s;
   letter-spacing: -0.01em;
@@ -170,12 +194,18 @@ input:focus, select:focus, textarea:focus {
   padding: 8px 16px;
   border-radius: var(--radius-sm);
   border: none;
-  background: rgba(0, 122, 255, 0.08);
-  color: var(--system-blue);
+  background: var(--plm-linho);
+  box-shadow: inset 0 0 0 1px var(--separator-opaque);
+  color: var(--plm-tinta);
   cursor: pointer;
   transition: background 0.12s;
 }
-.apple-btn-secondary:hover { background: rgba(0, 122, 255, 0.14); }
+/* Abrir / Clonar / Filtros ficam neon ao passar o mouse (e na linha sob o mouse) */
+.apple-btn-secondary:hover,
+.plm-table tbody tr:hover .apple-btn-secondary {
+  background: var(--plm-neon);
+  box-shadow: inset 0 0 0 1px var(--plm-neon-borda);
+}
 
 /* ═══ Segmented Control ═══ */
 .seg-control {
@@ -251,15 +281,15 @@ input:focus, select:focus, textarea:focus {
 .plm-shell {
   display: flex;
   min-height: 100vh;
-  background: var(--bg-secondary);
+  background: var(--plm-giz);
 }
 
 /* Sidebar */
 .plm-sidebar {
   width: 240px;
   min-width: 240px;
-  background: var(--bg-primary);
-  border-right: 0.5px solid var(--separator-opaque);
+  background: var(--plm-linho);
+  border-right: 1px solid var(--separator-opaque);
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -288,24 +318,32 @@ input:focus, select:focus, textarea:focus {
   gap: 10px;
 }
 .plm-logo-icon {
-  width: 88px;
-  height: 88px;
-  border-radius: 16px;
-  background: #13131f;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 .plm-logo-text {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.02em;
   color: var(--label-primary);
+  line-height: 1.1;
 }
-.plm-logo-icon img { width: 76%; height: 76%; }
-/* Menu recolhido (68px): o quadrado do logo encolhe para caber. */
-.plm-sidebar.collapsed .plm-logo-icon { width: 44px; height: 44px; border-radius: 10px; }
+.plm-logo-text small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--label-secondary);
+}
+.plm-logo-icon svg { width: 100%; height: 100%; display: block; }
+/* Menu recolhido (68px): o símbolo continua 36px. */
+.plm-sidebar.collapsed .plm-logo-icon { width: 36px; height: 36px; }
 .plm-logo-sub {
   font-size: 10px;
   font-weight: 600;
@@ -362,7 +400,7 @@ input:focus, select:focus, textarea:focus {
   border-radius: 10px;
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--label-secondary);
+  color: #3A3732;
   background: transparent;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -370,17 +408,31 @@ input:focus, select:focus, textarea:focus {
   text-align: left;
 }
 .plm-nav-item:hover {
-  background: var(--bg-secondary);
+  background: #E9E3DC;
   color: var(--label-primary);
 }
 .plm-nav-item.active {
-  background: rgba(0, 122, 255, 0.10);
-  color: var(--system-blue);
+  background: var(--plm-neon);
+  box-shadow: inset 0 0 0 1px var(--plm-neon-borda);
+  color: var(--plm-tinta);
   font-weight: 600;
 }
 .plm-nav-item.active svg {
-  stroke: var(--system-blue);
+  stroke: var(--plm-tinta);
 }
+/* Contador vermelho no menu (ex.: pré-produção pendente) */
+.plm-nav-badge {
+  margin-left: auto;
+  background: var(--st-canc);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.plm-sidebar.collapsed .plm-nav-item { position: relative; }
+.plm-sidebar.collapsed .plm-nav-badge { position: absolute; top: 2px; right: 2px; padding: 0 5px; font-size: 10px; line-height: 16px; }
 .plm-sidebar.collapsed .plm-nav-item {
   justify-content: center;
   padding: 10px;
@@ -435,8 +487,8 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   justify-content: space-between;
   padding: 20px 28px 16px;
-  background: var(--bg-primary);
-  border-bottom: 0.5px solid var(--separator-opaque);
+  background: var(--plm-giz);
+  border-bottom: 1px solid var(--separator-opaque);
 }
 .plm-header-title {
   font-size: 22px;
@@ -471,7 +523,7 @@ input:focus, select:focus, textarea:focus {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--system-blue);
+  background: var(--st-dev);
   animation: pulse-dot 2s infinite;
 }
 @keyframes pulse-dot {
@@ -577,6 +629,25 @@ input:focus, select:focus, textarea:focus {
     display: none !important;
   }
 }
+
+/* ═══ Identidade — seleções em neon ═══
+   Chips e abas selecionados usam bg-[var(--label-primary)]/bg-[var(--system-blue)]
+   com texto branco; na identidade nova a seleção é neon com texto tinta. */
+.bg-\[var\(--label-primary\)\].text-\[var\(--bg-primary\)\],
+.bg-\[var\(--system-blue\)\].text-white {
+  background: var(--plm-neon) !important;
+  color: var(--plm-tinta) !important;
+  border-color: var(--plm-neon-borda) !important;
+  box-shadow: inset 0 0 0 1px var(--plm-neon-borda);
+}
+.bg-\[var\(--system-blue\)\].text-white * { color: var(--plm-tinta) !important; }
+.apple-card, .dash-card, .apple-card-scroll { border-color: var(--separator-opaque); }
+
+/* Azuis do Tailwind usados como destaque passam para neutro/neon */
+.bg-blue-50, .hover\:bg-blue-50:hover { background-color: var(--plm-neon-claro) !important; }
+.bg-blue-50\/40, .bg-blue-50\/60 { background-color: #F7F4EF !important; }
+.border-blue-100 { border-color: var(--separator-opaque) !important; }
+.text-blue-300 { color: var(--label-tertiary) !important; }
 
 /* ═══ Print — PDF Export ═══ */
 @media print {
