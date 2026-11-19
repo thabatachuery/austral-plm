@@ -12,6 +12,7 @@
 // diária do servidor (app/api/cron/fluxo).
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ehDiaUtil } from "./feriados";
 
 export type Area = "E" | "C" | "EC";
 export type Pergunta = "prevPiloto" | "prevMost" | "cores" | "preprod";
@@ -78,10 +79,10 @@ export function addDias(iso: string, n: number): string {
   const d = s2d(iso); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
 }
 export const diasEntre = (a: string, b: string) => Math.round((s2d(b).getTime() - s2d(a).getTime()) / 86400000);
-// Dias úteis inteiros (seg–sex) contados a partir do dia seguinte.
+// Dias úteis inteiros (seg–sex, sem feriado) contados a partir do dia seguinte.
 export function maisDiasUteis(iso: string, n: number): string {
   let d = iso;
-  while (n > 0) { d = addDias(d, 1); const w = s2d(d).getUTCDay(); if (w !== 0 && w !== 6) n--; }
+  while (n > 0) { d = addDias(d, 1); if (ehDiaUtil(d)) n--; }
   return d;
 }
 export const fmtBR = (iso?: string | null) => iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—";
