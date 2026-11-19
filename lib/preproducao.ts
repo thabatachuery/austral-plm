@@ -60,6 +60,29 @@ export function menosDias(iso: string, dias: number) {
 
 export const previsaoPre = (entregaProducao: string) => menosDias(entregaProducao, DIAS_PRE_ANTES_PRODUCAO);
 
+// Prazo do laudo: de 1 a 3 dias úteis (seg–sex, expediente 9h–18h) depois da
+// entrega da pré. Vence às 18h do 3º dia útil; passou disso = atrasado.
+export const DIAS_UTEIS_LAUDO = 3;
+export const FIM_EXPEDIENTE_H = 18;
+
+function maisDiasUteis(iso: string, n: number) {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 12));
+  while (n > 0) { dt.setUTCDate(dt.getUTCDate() + 1); const w = dt.getUTCDay(); if (w !== 0 && w !== 6) n--; }
+  return dt.toISOString().slice(0, 10);
+}
+
+export type PrazoLaudo = { limite: string; situacao: "no_prazo" | "vence_hoje" | "atrasado" };
+
+export function prazoLaudo(entregaPre: string, agora = new Date()): PrazoLaudo | null {
+  if (!entregaPre) return null;
+  const limite = maisDiasUteis(entregaPre, DIAS_UTEIS_LAUDO);
+  const hoje = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}-${String(agora.getDate()).padStart(2, "0")}`;
+  const situacao = hoje > limite || (hoje === limite && agora.getHours() >= FIM_EXPEDIENTE_H) ? "atrasado"
+    : hoje === limite ? "vence_hoje" : "no_prazo";
+  return { limite, situacao };
+}
+
 export const fmtBR = (iso: string) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : "");
 
 // Linhas de produto_variante_compras (uma por cor) -> pedidos por ref.
@@ -93,6 +116,15 @@ export const SITUACAO_PP: Record<SituacaoPP, { label: string; bg: string; color:
   entregue:  { label: "Produção entregue · sem laudo", bg: "#E6EEF7", color: "#1F4E80" },
 };
 
+// Pré entregue e laudo por fazer: selo conforme o prazo de 3 dias úteis.
+export const LAUDO_ATRASADO = { bg: "#FBE6E5", color: "#A8221D" };
+export function pillPreRecebida(p: { prazoLaudo: PrazoLaudo | null }): { label: string; bg: string; color: string } {
+  const pz = p.prazoLaudo;
+  if (pz?.situacao === "atrasado") return { label: `Laudo atrasado (prazo ${fmtBR(pz.limite)})`, ...LAUDO_ATRASADO };
+  if (pz?.situacao === "vence_hoje") return { label: `Laudo vence hoje às ${FIM_EXPEDIENTE_H}h`, bg: "#FDEBDD", color: "#8A3A08" };
+  return { ...SITUACAO_PP.recebida, label: pz ? `Pré entregue · laudo até ${fmtBR(pz.limite)}` : SITUACAO_PP.recebida.label };
+}
+
 // Selo da produção (independe do laudo).
 export const PRODUCAO_PP = {
   entregue: { label: "Produção entregue", bg: "#E6EEF7", color: "#1F4E80" },
@@ -117,6 +149,8 @@ export type PedidoPP = {
   pendente: number;             // saldo ainda não entregue
   situacao: SituacaoPP;
   atrasada: boolean;            // pré não chegou e a previsão já passou
+  prazoLaudo: PrazoLaudo | null; // pré entregue e laudo por fazer: até quando
+  laudoAtrasado: boolean;       // passou dos 3 dias úteis sem laudo
 };
 
 export function situacaoDe(p: { status: string; dataLaudo: string; entregaPre: string; producaoEntregue?: string }): SituacaoPP {
@@ -142,7 +176,11 @@ export function juntarPedidos(lista: PedidoListaPP[], laudos: LaudoLinha[], hoje
       producaoEntregue: (p?.entregueEm || "").slice(0, 10), parcial: p?.situacaoLinx === "PARCIAL", pendente: p?.pendente || 0,
     };
     const situacao = situacaoDe(base);
-    return { ...base, situacao, atrasada: situacao === "pendente" && !!base.previsaoPre && base.previsaoPre < hoje };
+    const prazo = situacao === "recebida" ? prazoLaudo(base.entregaPre) : null;
+    return {
+      ...base, situacao, atrasada: situacao === "pendente" && !!base.previsaoPre && base.previsaoPre < hoje,
+      prazoLaudo: prazo, laudoAtrasado: prazo?.situacao === "atrasado",
+    };
   };
   for (const p of lista) {
     const l = laudos.find(x => !usados.has(x.id) && (p.numero

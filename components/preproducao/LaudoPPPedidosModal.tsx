@@ -5,7 +5,7 @@ import {
   fetchControleFluxoByRef, upsertControleFluxo, fetchPedidosProducao, setProducaoEntregue, type LaudoPPPedido,
 } from "@/lib/db";
 import { STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
-import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, SITUACAO_PP, PRODUCAO_PP, type PedidoPP, type PedidoListaPP } from "@/lib/preproducao";
+import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, SITUACAO_PP, PRODUCAO_PP, pillPreRecebida, type PedidoPP, type PedidoListaPP } from "@/lib/preproducao";
 
 function ProducaoPill({ p }: { p: PedidoPP }) {
   if (p.producaoEntregue) return <Pill label={`${PRODUCAO_PP.entregue.label} ${fmtBR(p.producaoEntregue)}`} bg={PRODUCAO_PP.entregue.bg} color={PRODUCAO_PP.entregue.color} />;
@@ -25,6 +25,7 @@ function SituacaoPill({ p }: { p: PedidoPP }) {
     const st = STATUS_PRE_PRODUCAO_COLORS[p.status];
     return <Pill label={`Laudo concluído · ${p.status}`} bg={st?.bg || s.bg} color={st?.color || s.color} />;
   }
+  if (p.situacao === "recebida") { const pr = pillPreRecebida(p); return <Pill label={pr.label} bg={pr.bg} color={pr.color} />; }
   if (p.atrasada) return <Pill label={`Pré atrasada (prev. ${fmtBR(p.previsaoPre)})`} bg="#FBE6E5" color="#A8221D" />;
   return <Pill label={s.label} bg={s.bg} color={s.color} />;
 }

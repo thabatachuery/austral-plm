@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { fetchControleFluxo, upsertControleFluxo, fetchLaudosPPTodos, fetchPedidosProducao, fetchFichaResolvida, criarLaudoPPPedido, upsertLaudoPPPedido, type LaudoPPPedido } from "@/lib/db";
 import { subscribeRealtime } from "@/lib/realtime";
 import { STATUS_ESTILO, STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
-import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, SITUACAO_PP, PRODUCAO_PP, type PedidoPP, type PedidoListaPP, type SituacaoPP } from "@/lib/preproducao";
+import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, pillPreRecebida, LAUDO_ATRASADO, DIAS_UTEIS_LAUDO, SITUACAO_PP, PRODUCAO_PP, type PedidoPP, type PedidoListaPP, type SituacaoPP } from "@/lib/preproducao";
 
 // Em que pé está a PRODUÇÃO da ref (independe do laudo): pedidos em aberto
 // no Linx, entregues, ou nenhum pedido.
@@ -36,7 +36,10 @@ function SituacaoRef({ peds }: { peds: PedidoPP[] }) {
   const conc = peds.filter(p => p.situacao === "concluido").length;
   let pill: { label: string; bg: string; color: string };
   const entr = peds.filter(p => p.situacao === "entregue").length;
-  if (rec) pill = { ...SITUACAO_PP.recebida, label: rec > 1 ? `${rec} pré entregues · laudo pendente` : SITUACAO_PP.recebida.label };
+  const recs = peds.filter(p => p.situacao === "recebida");
+  // A mais urgente: atrasada > vence hoje > menor prazo.
+  const urg = [...recs].sort((a, b) => (a.prazoLaudo?.limite || "9").localeCompare(b.prazoLaudo?.limite || "9"))[0];
+  if (rec) { pill = pillPreRecebida(urg); if (rec > 1) pill = { ...pill, label: `${pill.label} · ${rec} pedidos` }; }
   else if (entr && !pend.length) pill = { ...SITUACAO_PP.entregue };
   else if (atras) pill = { label: `Pré atrasada (prev. ${fmtBR(pend.find(p => p.atrasada)!.previsaoPre)})`, bg: "#FBE6E5", color: "#A8221D" };
   else if (pend.length) {
@@ -110,7 +113,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
   const [fStatus, setFStatus] = useState<"" | Cat>("");
   const [fFornecedor, setFFornecedor] = useState("");
   const [fGrupo, setFGrupo] = useState("");
-  const [fSit, setFSit] = useState<"" | SituacaoPP | "atrasada">("");
+  const [fSit, setFSit] = useState<"" | SituacaoPP | "atrasada" | "laudo_atrasado">("");
   const [laudos, setLaudos] = useState<(LaudoPPPedido & { ref: string })[]>([]);
   const [listaPorProduto, setListaPorProduto] = useState<Record<number, PedidoListaPP[]>>({});
   const [linxPorRef, setLinxPorRef] = useState<Record<string, PedidoListaPP[]>>({});
@@ -249,8 +252,8 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
   // Resumo por pedido: laudos pendentes (aguardando pré), pré recebida sem
   // laudo e laudo concluído — respeita coleção, fornecedor e grupo.
   const resumoPed = useMemo(() => {
-    const c = { pendente: 0, atrasada: 0, recebida: 0, entregue: 0, concluido: 0 };
-    doColecao.forEach(r => pedidosQueContam(r).forEach(p => { c[p.situacao]++; if (p.atrasada) c.atrasada++; }));
+    const c = { pendente: 0, atrasada: 0, recebida: 0, entregue: 0, concluido: 0, laudoAtrasado: 0 };
+    doColecao.forEach(r => pedidosQueContam(r).forEach(p => { c[p.situacao]++; if (p.atrasada) c.atrasada++; if (p.laudoAtrasado) c.laudoAtrasado++; }));
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doColecao, pedidosPorRef, fluxoMap]);
@@ -258,7 +261,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
   const sorted = useMemo(() => {
     const s = q.toLowerCase();
     return doColecao
-      .filter(r => !fSit || pedidosQueContam(r).some(p => (fSit === "atrasada" ? p.atrasada : p.situacao === fSit)))
+      .filter(r => !fSit || pedidosQueContam(r).some(p => (fSit === "atrasada" ? p.atrasada : fSit === "laudo_atrasado" ? p.laudoAtrasado : p.situacao === fSit)))
       .filter(r => !fStatus || catDe(stDe(r)) === fStatus)
       .filter(r => !s || `${r.ref} ${r.desc}`.toLowerCase().includes(s))
       .sort((a, b) => String(a.ref || "").localeCompare(String(b.ref || ""), "pt-BR", { numeric: true }));
@@ -268,9 +271,10 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
   const temFiltro = !!(q || fColecao || fStatus || fFornecedor || fGrupo || fSit);
   const limpar = () => { setQ(""); setFColecao(""); setFStatus(""); setFFornecedor(""); setFGrupo(""); setFSit(""); };
 
-  const CARDS_PED: { key: SituacaoPP | "atrasada"; label: string; n: number; cor: string; dica: string }[] = [
+  const CARDS_PED: { key: SituacaoPP | "atrasada" | "laudo_atrasado"; label: string; n: number; cor: string; dica: string }[] = [
     { key: "pendente",  label: "Laudos pendentes",            n: resumoPed.pendente,  cor: SITUACAO_PP.pendente.color,  dica: "Pedidos aguardando a pré-produção chegar" },
     { key: "recebida",  label: "Pré recebida · sem laudo",    n: resumoPed.recebida,  cor: SITUACAO_PP.recebida.color,  dica: "A pré chegou e o laudo ainda não foi feito" },
+    { key: "laudo_atrasado", label: "Laudos atrasados",       n: resumoPed.laudoAtrasado, cor: LAUDO_ATRASADO.color, dica: `Pré entregue há mais de ${DIAS_UTEIS_LAUDO} dias úteis (até 18h) e o laudo ainda não foi feito` },
     { key: "concluido", label: "Laudos concluídos",           n: resumoPed.concluido, cor: SITUACAO_PP.concluido.color, dica: "Pedidos com laudo feito" },
     { key: "entregue",  label: "Produção entregue · sem laudo", n: resumoPed.entregue, cor: SITUACAO_PP.entregue.color, dica: "A produção saiu do Linx (entregue) e o pedido não teve pré nem laudo registrados" },
   ];
@@ -280,7 +284,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
   return (
     <div>
       {/* Resumo por pedido — clicar filtra a lista */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
         {CARDS_PED.map(c => {
           const ativo = fSit === c.key;
           return (
