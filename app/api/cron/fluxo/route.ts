@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminClient } from "@/lib/supabase-server";
 import { linxParaFluxo } from "@/lib/linx-fluxo";
 import { sincronizarPedidosProducao } from "@/lib/pedidos-producao-sync";
+import { dispararAvisosPre } from "@/lib/avisos-pre";
 import { encadearAutomaticos, gravarMovimento, provasDaFicha, refCancelada, type FluxoEstado } from "@/lib/fluxo";
 
 // Rotina diária (vercel.json) do Kanban de Fluxo: aplica as mesmas regras
@@ -22,6 +23,9 @@ export async function GET(req: NextRequest) {
   // Pré-Produção: registra a entrega dos pedidos que saíram do Linx, mesmo
   // se ninguém abrir a aba. Falha aqui não impede o kanban.
   await sincronizarPedidosProducao(db).catch(e => console.error("cron sincronizarPedidosProducao:", e));
+  // E-mails de cobrança da pré (15 dias / 5 dias da entrega da produção).
+  const avisos = await dispararAvisosPre(db).catch(e => ({ erro: String(e?.message || e) }));
+  console.log("cron avisos pré:", JSON.stringify(avisos));
   const { data: linhas, error } = await db.from("controle_fluxo").select("produto_ref, etapa, ciclo, etapa_desde, fluxo_meta").in("etapa", [3, 6, 9, 10, 11, 16]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!linhas?.length) return NextResponse.json({ movidos: 0 });
