@@ -4,7 +4,12 @@
 // Uma ref com 3 pedidos (3 datas) = 3 laudos, cada um com as cores do pedido.
 // Sem import de servidor: usado pela rota /api/linx/pedidos e pelas telas.
 
-export type PedidoListaPP = { numero: string; data: string; cores: string[]; qtd: number; tipo?: string; fornecedor?: string; linx?: boolean };
+export type PedidoListaPP = {
+  numero: string; data: string; cores: string[]; qtd: number; tipo?: string; fornecedor?: string; linx?: boolean;
+  pendente?: number;            // saldo ainda não entregue (Linx)
+  situacaoLinx?: string;        // EM ABERTO | PARCIAL | ENTREGUE
+  entregueEm?: string;          // produção entregue (saiu do Linx ou marcada à mão)
+};
 
 // Compras que não passam por pré-produção.
 export const TIPOS_SEM_PRE_PRODUCAO = ["MATERIAIS", "PÓS - PRODUÇÃO", "POS - PRODUCAO"];
@@ -78,12 +83,20 @@ export function pedidosDaLista(linhas: { cor?: string; pedido1?: string; data_en
   return Object.values(m).sort((a, b) => (a.data || "9").localeCompare(b.data || "9"));
 }
 
-export type SituacaoPP = "concluido" | "recebida" | "pendente";
+// entregue = produção já entregue e o pedido ficou sem pré nem laudo.
+export type SituacaoPP = "concluido" | "recebida" | "entregue" | "pendente";
 
 export const SITUACAO_PP: Record<SituacaoPP, { label: string; bg: string; color: string }> = {
   pendente:  { label: "Aguardando pré",                bg: "#F1EEE8", color: "#5E5850" },
   recebida:  { label: "Pré entregue · laudo pendente", bg: "#FDEBDD", color: "#8A3A08" },
   concluido: { label: "Laudo concluído",               bg: "#E2F2E9", color: "#0E6A40" },
+  entregue:  { label: "Produção entregue · sem laudo", bg: "#E6EEF7", color: "#1F4E80" },
+};
+
+// Selo da produção (independe do laudo).
+export const PRODUCAO_PP = {
+  entregue: { label: "Produção entregue", bg: "#E6EEF7", color: "#1F4E80" },
+  parcial:  { label: "Entrega parcial",   bg: "#EEF3F9", color: "#1F4E80" },
 };
 
 // Um pedido na aba: vem da lista, do laudo gravado, ou dos dois.
@@ -99,13 +112,17 @@ export type PedidoPP = {
   qtd: number;
   tipo: string;                 // tipo de compra no Linx (PRODUÇÃO, VAREJO…)
   fornecedor: string;
+  producaoEntregue: string;     // data em que a produção foi entregue ("" = não)
+  parcial: boolean;             // Linx: entrega parcial
+  pendente: number;             // saldo ainda não entregue
   situacao: SituacaoPP;
   atrasada: boolean;            // pré não chegou e a previsão já passou
 };
 
-export function situacaoDe(p: { status: string; dataLaudo: string; entregaPre: string }): SituacaoPP {
+export function situacaoDe(p: { status: string; dataLaudo: string; entregaPre: string; producaoEntregue?: string }): SituacaoPP {
   if (p.status || p.dataLaudo) return "concluido";
   if (p.entregaPre) return "recebida";
+  if (p.producaoEntregue) return "entregue";
   return "pendente";
 }
 
@@ -122,6 +139,7 @@ export function juntarPedidos(lista: PedidoListaPP[], laudos: LaudoLinha[], hoje
       entregaPre: (l?.data_entrega_pre || "").slice(0, 10), dataLaudo: (l?.data_laudo || "").slice(0, 10),
       status: l?.status || "", cores: p?.cores || [], qtd: p?.qtd || 0,
       tipo: p?.tipo || "", fornecedor: p?.fornecedor || "",
+      producaoEntregue: (p?.entregueEm || "").slice(0, 10), parcial: p?.situacaoLinx === "PARCIAL", pendente: p?.pendente || 0,
     };
     const situacao = situacaoDe(base);
     return { ...base, situacao, atrasada: situacao === "pendente" && !!base.previsaoPre && base.previsaoPre < hoje };

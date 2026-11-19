@@ -901,6 +901,18 @@ export async function fetchLaudoPPPedidos(fichaId: number): Promise<LaudoPPPedid
   return (data || []).map(laudoPPDeLinha);
 }
 
+// Data de entrega da produção corrigida à mão (pedidos_producao, migration
+// 040). Vazio = desfaz; a sincronização volta a cuidar do pedido.
+export async function setProducaoEntregue(ref: string, numero: string, data: string): Promise<string | null> {
+  const { error } = await sb().from("pedidos_producao").upsert(
+    data
+      ? { ref, numero, entregue_em: data, entregue_manual: true, situacao: "ENTREGUE" }
+      : { ref, numero, entregue_em: null, entregue_manual: false },
+    { onConflict: "ref,numero" });
+  if (error) { console.error("setProducaoEntregue:", error); return error.message || "Erro ao salvar"; }
+  return null;
+}
+
 // Todos os laudos de pré-produção, com a ref (para o resumo da aba).
 export async function fetchLaudosPPTodos(): Promise<(LaudoPPPedido & { ref: string })[]> {
   const [laudos, fichas] = await Promise.all([

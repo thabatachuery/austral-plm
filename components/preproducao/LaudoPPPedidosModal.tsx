@@ -2,10 +2,16 @@
 import { useState, useEffect } from "react";
 import {
   fetchFichaResolvida, fetchLaudoPPPedidos, criarLaudoPPPedido, deleteLaudoPPPedido, upsertLaudoPPPedido,
-  fetchControleFluxoByRef, upsertControleFluxo, fetchPedidosProducao, type LaudoPPPedido,
+  fetchControleFluxoByRef, upsertControleFluxo, fetchPedidosProducao, setProducaoEntregue, type LaudoPPPedido,
 } from "@/lib/db";
 import { STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
-import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, SITUACAO_PP, type PedidoPP, type PedidoListaPP } from "@/lib/preproducao";
+import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, SITUACAO_PP, PRODUCAO_PP, type PedidoPP, type PedidoListaPP } from "@/lib/preproducao";
+
+function ProducaoPill({ p }: { p: PedidoPP }) {
+  if (p.producaoEntregue) return <Pill label={`${PRODUCAO_PP.entregue.label} ${fmtBR(p.producaoEntregue)}`} bg={PRODUCAO_PP.entregue.bg} color={PRODUCAO_PP.entregue.color} />;
+  if (p.parcial) return <Pill label={`${PRODUCAO_PP.parcial.label}${p.pendente ? ` · faltam ${p.pendente}` : ""}`} bg={PRODUCAO_PP.parcial.bg} color={PRODUCAO_PP.parcial.color} />;
+  return null;
+}
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LaudoPPModal from "./LaudoPPModal";
 
@@ -123,6 +129,14 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
     load();
   };
 
+  const setEntregue = async (p: PedidoPP, v: string) => {
+    setBusy(chave(p));
+    const err = await setProducaoEntregue(row.ref, p.numero, v);
+    setBusy(null);
+    if (err) alert(`Não foi possível salvar a entrega da produção.\n\n${err}\n\nSe o erro fala de tabela inexistente, falta rodar a migration 040 no Supabase.`);
+    load();
+  };
+
   const novoAvulso = async () => {
     if (!fichaId) return;
     setBusy("novo");
@@ -158,7 +172,7 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
     );
   }
 
-  const conta = { pendente: 0, recebida: 0, concluido: 0 };
+  const conta = { pendente: 0, recebida: 0, entregue: 0, concluido: 0 };
   pedidos.forEach(p => { conta[p.situacao]++; });
 
   return (
@@ -186,6 +200,7 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
                   <span style={{ color: SITUACAO_PP.pendente.color }}>● Aguardando pré {conta.pendente}</span>
                   <span style={{ color: SITUACAO_PP.recebida.color, fontWeight: 700 }}>● Pré entregue, sem laudo {conta.recebida}</span>
                   <span style={{ color: SITUACAO_PP.concluido.color }}>● Laudo concluído {conta.concluido}</span>
+                  {conta.entregue > 0 && <span style={{ color: SITUACAO_PP.entregue.color }}>● Produção entregue sem laudo {conta.entregue}</span>}
                 </div>
               )}
 
@@ -210,12 +225,18 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
                                 : <span className="text-[11px] text-[var(--label-quaternary)]">{p.laudoId && !p.entregaProducao ? "laudo avulso" : "pedido fora da lista"}</span>}
                             </div>
                           </div>
-                          <SituacaoPill p={p} />
+                          <div className="flex flex-col items-end gap-1">
+                            <SituacaoPill p={p} />
+                            <ProducaoPill p={p} />
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 items-end">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3 items-end">
                           <Data l="Entrega produção" v={p.entregaProducao} />
                           <Data l="Previsão da pré" v={p.previsaoPre} />
+                          {p.numero
+                            ? <DataInput l="Produção entregue" v={p.producaoEntregue} onChange={v => setEntregue(p, v)} />
+                            : <Data l="Produção entregue" v={p.producaoEntregue} />}
                           <DataInput l="Pré entregue" v={p.entregaPre} onChange={v => setData(p, "data_entrega_pre", v)} />
                           <DataInput l="Laudo feito" v={p.dataLaudo} onChange={v => setData(p, "data_laudo", v)} />
                         </div>

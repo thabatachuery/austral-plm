@@ -1,37 +1,44 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/supabase-server";
-import { getPedidosProduto, getCores } from "@/lib/linx";
-import { numeroPedidoNorm, TIPOS_SEM_PRE_PRODUCAO, type PedidoListaPP } from "@/lib/preproducao";
+import { requireAuth, adminClient } from "@/lib/supabase-server";
+import { sincronizarPedidosProducao, pedidosLinxAgrupados, linhaParaPedido } from "@/lib/pedidos-producao-sync";
+import type { PedidoListaPP } from "@/lib/preproducao";
 
-// GET /api/linx/pedidos[?ref=XXXX] -> { pedidos: { [ref]: PedidoListaPP[] } }
-// Pedidos de produção em aberto no Linx, agrupados por número (o Linx manda
-// uma linha por cor). Usado na aba Pré-Produção: cada pedido vira um laudo.
-// Compras de MATERIAIS / PÓS-PRODUÇÃO não passam por pré-produção.
+// GET /api/linx/pedidos[?ref=XXXX] -> { pedidos: { [ref]: PedidoListaPP[] }, aviso? }
+// Pedidos de produção do Linx para a aba Pré-Produção — cada pedido vira um
+// laudo. Sincroniza antes com a tabela pedidos_producao para registrar a
+// entrega dos que saíram da lista de pendentes; sem a tabela (migration 040
+// não rodada), devolve só os pendentes ao vivo.
+export const dynamic = "force-dynamic";
+
 export async function GET(req: Request) {
   const user = await requireAuth();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const soRef = new URL(req.url).searchParams.get("ref")?.trim() || "";
-  try {
-    const [linhas, cores] = await Promise.all([getPedidosProduto(), getCores().catch(() => ({} as Record<string, string>))]);
-    const porRef: Record<string, Record<string, PedidoListaPP>> = {};
-    for (const p of linhas) {
-      const ref = String(p.produto_pai || "").trim();
-      const numero = numeroPedidoNorm(p.numero_pedido);
-      const tipo = String(p.tipo_compra || "").trim().toUpperCase();
-      if (!ref || !numero || TIPOS_SEM_PRE_PRODUCAO.includes(tipo)) continue;
-      if (soRef && ref !== soRef) continue;
-      const data = String(p.data_programada || "").slice(0, 10);
-      const ped = ((porRef[ref] ||= {})[numero] ||= { numero, data, cores: [], qtd: 0, tipo, fornecedor: String(p.fornecedor || "").trim(), linx: true });
-      if (data && (!ped.data || data < ped.data)) ped.data = data;
-      const cor = String(p.cor || "").trim();
-      const corTxt = cor ? (cores[cor] ? `${cor} - ${cores[cor]}` : cor) : "";
-      if (corTxt && !ped.cores.includes(corTxt)) ped.cores.push(corTxt);
-      ped.qtd += Number(p.quantidade) || 0;
-    }
+  const agrupa = (linhas: any[]) => {
     const pedidos: Record<string, PedidoListaPP[]> = {};
-    for (const [ref, m] of Object.entries(porRef)) pedidos[ref] = Object.values(m).sort((a, b) => a.data.localeCompare(b.data));
-    return NextResponse.json({ pedidos });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Falha ao consultar o Linx." }, { status: 502 });
+    for (const r of linhas) {
+      if (soRef && r.ref !== soRef) continue;
+      (pedidos[r.ref] ||= []).push(linhaParaPedido(r));
+    }
+    for (const l of Object.values(pedidos)) l.sort((a, b) => a.data.localeCompare(b.data));
+    return pedidos;
+  };
+
+  let aviso = "";
+  try {
+    const db = adminClient();
+    try { await sincronizarPedidosProducao(db); } catch (e: any) { aviso = `Sincronização com o Linx falhou: ${e?.message || e}`; }
+    let q = db.from("pedidos_producao").select("*");
+    if (soRef) q = q.eq("ref", soRef);
+    const { data, error } = await q;
+    if (error) throw error;
+    return NextResponse.json({ pedidos: agrupa(data || []), aviso: aviso || undefined });
+  } catch {
+    // Sem a tabela: só o que está pendente agora no Linx.
+    try {
+      return NextResponse.json({ pedidos: agrupa(await pedidosLinxAgrupados()), aviso: "Rode a migration 040 para registrar a entrega da produção." });
+    } catch (e: any) {
+      return NextResponse.json({ error: e?.message || "Falha ao consultar o Linx." }, { status: 502 });
+    }
   }
 }

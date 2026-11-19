@@ -3,7 +3,29 @@ import { useState, useEffect, useMemo } from "react";
 import { fetchControleFluxo, upsertControleFluxo, fetchLaudosPPTodos, fetchPedidosProducao, type LaudoPPPedido } from "@/lib/db";
 import { subscribeRealtime } from "@/lib/realtime";
 import { STATUS_ESTILO, STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
-import { juntarPedidos, mesclarFontes, fmtBR, SITUACAO_PP, type PedidoPP, type PedidoListaPP, type SituacaoPP } from "@/lib/preproducao";
+import { juntarPedidos, mesclarFontes, fmtBR, SITUACAO_PP, PRODUCAO_PP, type PedidoPP, type PedidoListaPP, type SituacaoPP } from "@/lib/preproducao";
+
+// Em que pé está a PRODUÇÃO da ref (independe do laudo): pedidos em aberto
+// no Linx, entregues, ou nenhum pedido.
+function ProducaoRef({ peds }: { peds: PedidoPP[] }) {
+  if (!peds.length) return <span className="text-[11px] text-[var(--label-tertiary)]">Sem pedido de produção no Linx</span>;
+  const abertos = peds.filter(p => !p.producaoEntregue);
+  const entregues = peds.filter(p => p.producaoEntregue);
+  return (
+    <div className="flex flex-col gap-0.5 text-[11px]">
+      {abertos.map(p => (
+        <span key={`a${p.numero}${p.entregaProducao}`} style={{ color: "var(--label-secondary)" }}>
+          Pedido {p.numero || "s/ nº"} {p.parcial ? `entrega parcial (faltam ${p.pendente})` : "em aberto"}{p.entregaProducao ? ` · entrega ${fmtBR(p.entregaProducao)}` : ""}
+        </span>
+      ))}
+      {entregues.map(p => (
+        <span key={`e${p.numero}`} style={{ color: PRODUCAO_PP.entregue.color, fontWeight: 600 }}>
+          {PRODUCAO_PP.entregue.label} {fmtBR(p.producaoEntregue)} · pedido {p.numero}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // Situação de pré-produção da referência, a partir dos pedidos: o que pede
 // ação primeiro (pré entregue sem laudo > aguardando pré > concluído).
@@ -13,7 +35,9 @@ function SituacaoRef({ peds }: { peds: PedidoPP[] }) {
   const atras = pend.filter(p => p.atrasada).length;
   const conc = peds.filter(p => p.situacao === "concluido").length;
   let pill: { label: string; bg: string; color: string };
+  const entr = peds.filter(p => p.situacao === "entregue").length;
   if (rec) pill = { ...SITUACAO_PP.recebida, label: rec > 1 ? `${rec} pré entregues · laudo pendente` : SITUACAO_PP.recebida.label };
+  else if (entr && !pend.length) pill = { ...SITUACAO_PP.entregue };
   else if (atras) pill = { label: `Pré atrasada (prev. ${fmtBR(pend.find(p => p.atrasada)!.previsaoPre)})`, bg: "#FBE6E5", color: "#A8221D" };
   else if (pend.length) {
     const prox = pend.map(p => p.previsaoPre).filter(Boolean).sort()[0];
@@ -27,6 +51,11 @@ function SituacaoRef({ peds }: { peds: PedidoPP[] }) {
     <div className="flex flex-col gap-0.5">
       <span className="inline-flex self-start items-center px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap" style={{ background: pill.bg, color: pill.color }}>{pill.label}</span>
       {peds.length > 1 && <span className="text-[11px] text-[var(--label-tertiary)]">{peds.length} pedidos · {conc} concluído{conc === 1 ? "" : "s"}</span>}
+      {peds.some(p => p.producaoEntregue) && (
+        <span className="text-[11px] font-semibold" style={{ color: PRODUCAO_PP.entregue.color }}>
+          {PRODUCAO_PP.entregue.label}: {peds.filter(p => p.producaoEntregue).map(p => `${p.numero} (${fmtBR(p.producaoEntregue)})`).join(", ")}
+        </span>
+      )}
     </div>
   );
 }
@@ -95,6 +124,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
       setLinxPorRef(j.pedidos || {});
+      if (j.aviso) setLinxErro(j.aviso);
     }).catch(e => setLinxErro(String(e?.message || e)));
     const unsub = subscribeRealtime("preproducao-laudos", [
       { table: "ficha_laudo_pp_pedidos", onInsert: loadLaudos, onUpdate: loadLaudos, onDelete: loadLaudos },
@@ -192,7 +222,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
   // Resumo por pedido: laudos pendentes (aguardando pré), pré recebida sem
   // laudo e laudo concluído — respeita coleção, fornecedor e grupo.
   const resumoPed = useMemo(() => {
-    const c = { pendente: 0, atrasada: 0, recebida: 0, concluido: 0 };
+    const c = { pendente: 0, atrasada: 0, recebida: 0, entregue: 0, concluido: 0 };
     doColecao.forEach(r => pedidosQueContam(r).forEach(p => { c[p.situacao]++; if (p.atrasada) c.atrasada++; }));
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,6 +245,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
     { key: "pendente",  label: "Laudos pendentes",            n: resumoPed.pendente,  cor: SITUACAO_PP.pendente.color,  dica: "Pedidos aguardando a pré-produção chegar" },
     { key: "recebida",  label: "Pré recebida · sem laudo",    n: resumoPed.recebida,  cor: SITUACAO_PP.recebida.color,  dica: "A pré chegou e o laudo ainda não foi feito" },
     { key: "concluido", label: "Laudos concluídos",           n: resumoPed.concluido, cor: SITUACAO_PP.concluido.color, dica: "Pedidos com laudo feito" },
+    { key: "entregue",  label: "Produção entregue · sem laudo", n: resumoPed.entregue, cor: SITUACAO_PP.entregue.color, dica: "A produção saiu do Linx (entregue) e o pedido não teve pré nem laudo registrados" },
   ];
 
   if (loading) return <div className="plm-loading"><div className="plm-loading-spinner" /><span>Carregando...</span></div>;
@@ -222,7 +253,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
   return (
     <div>
       {/* Resumo por pedido — clicar filtra a lista */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
         {CARDS_PED.map(c => {
           const ativo = fSit === c.key;
           return (
@@ -244,7 +275,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
           );
         })}
       </div>
-      {linxErro && <div className="text-[12px] mb-3" style={{ color: "var(--st-canc-tx)" }}>Não foi possível ler os pedidos do Linx ({linxErro}) — mostrando só os pedidos da lista de Variantes.</div>}
+      {linxErro && <div className="text-[12px] mb-3" style={{ color: "var(--st-canc-tx)" }}>Pedidos do Linx: {linxErro}</div>}
 
       {/* Resumo geral (respeita coleção, fornecedor e grupo) */}
       <div className="apple-card flex items-center gap-6 px-5 py-4 mb-4 flex-wrap">
@@ -379,6 +410,8 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
                       )}
                     </div>
                     )}
+                    {/* Liberada antes do PLM: mostra se a produção já foi entregue / tem pedido no Linx. */}
+                    {st === STATUS_PP_LIBERADA_ANTES && !peds.length && <div className="mt-1"><ProducaoRef peds={todos} /></div>}
                   </td>
                   <td className="text-center px-2">
                     <button onClick={() => onOpenLaudo(r)} className="apple-btn-secondary text-[12px] py-1 px-3 whitespace-nowrap">Abrir laudo</button>
