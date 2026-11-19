@@ -1,5 +1,6 @@
 import { getSupabase } from "./supabase";
 import { gravarMovimento, hojeISO, type FluxoEstado, type FluxoMeta, type FluxoEvento, type Movimento } from "./fluxo";
+import { pedidosDaLista, type PedidoListaPP } from "./preproducao";
 const sb = () => getSupabase();
 
 // ── Cache simples em memória com TTL de 5 minutos ─────────────────────────
@@ -409,6 +410,22 @@ export async function fetchVarianteCompras(): Promise<Record<string, any>> {
     map[`${r.produto_id}:${r.cor}`] = r;
   });
   return map;
+}
+
+// Pedidos de produção da lista de Variantes, por ref (para os laudos de
+// pré-produção). produtoId restringe a uma referência.
+export async function fetchPedidosProducao(produtoId?: number): Promise<Record<number, PedidoListaPP[]>> {
+  const data = produtoId != null
+    ? ((await sb().from("produto_variante_compras").select("*").eq("produto_id", produtoId)).data || [])
+    : await selectAll((de, ate) => sb().from("produto_variante_compras").select("*").range(de, ate), "fetchPedidosProducao");
+  const porProduto: Record<number, any[]> = {};
+  data.forEach((r: any) => { (porProduto[r.produto_id] ||= []).push(r); });
+  const out: Record<number, PedidoListaPP[]> = {};
+  for (const [id, linhas] of Object.entries(porProduto)) {
+    const peds = pedidosDaLista(linhas);
+    if (peds.length) out[Number(id)] = peds;
+  }
+  return out;
 }
 
 export async function upsertVarianteCompra(produtoId: number, cor: string, field: string, value: any): Promise<string | null> {
@@ -864,33 +881,64 @@ export async function fetchNomesTabelasMedidas() {
 // cores diferentes e aprovado/reprovado separadamente — por isso o laudo é
 // por PEDIDO (ficha_laudo_pp_pedidos), não por ficha. As medidas em si
 // (ficha_laudo_pp) apontam pro pedido.
-export type LaudoPPPedido = { id: number; numero_pedido: string; status: string; updated_at: string };
+// Datas por pedido (migration 039): entrega da produção (copiada do Linx),
+// entrega da pré e laudo feito. Lidas com select("*") para o app não quebrar
+// se a migration ainda não tiver rodado — os campos só vêm vazios.
+export type LaudoPPPedido = {
+  id: number; numero_pedido: string; status: string; updated_at: string;
+  data_entrega_producao: string; data_entrega_pre: string; data_laudo: string;
+};
+type LaudoPPDatas = { data_entrega_producao?: string | null; data_entrega_pre?: string | null; data_laudo?: string | null };
+
+const laudoPPDeLinha = (r: any): LaudoPPPedido => ({
+  id: r.id, numero_pedido: r.numero_pedido || "", status: r.status || "", updated_at: r.updated_at || "",
+  data_entrega_producao: r.data_entrega_producao || "", data_entrega_pre: r.data_entrega_pre || "", data_laudo: r.data_laudo || "",
+});
 
 export async function fetchLaudoPPPedidos(fichaId: number): Promise<LaudoPPPedido[]> {
-  const { data, error } = await sb().from("ficha_laudo_pp_pedidos").select("id, numero_pedido, status, updated_at").eq("ficha_id", fichaId).order("updated_at", { ascending: false });
+  const { data, error } = await sb().from("ficha_laudo_pp_pedidos").select("*").eq("ficha_id", fichaId).order("updated_at", { ascending: false });
   if (error) { console.error("fetchLaudoPPPedidos:", error); return []; }
-  return data || [];
+  return (data || []).map(laudoPPDeLinha);
 }
 
-export async function criarLaudoPPPedido(fichaId: number): Promise<number | null> {
-  const { data, error } = await sb().from("ficha_laudo_pp_pedidos").insert({ ficha_id: fichaId }).select("id").single();
+// Todos os laudos de pré-produção, com a ref (para o resumo da aba).
+export async function fetchLaudosPPTodos(): Promise<(LaudoPPPedido & { ref: string })[]> {
+  const [laudos, fichas] = await Promise.all([
+    selectAll((de, ate) => sb().from("ficha_laudo_pp_pedidos").select("*").order("id").range(de, ate), "fetchLaudosPPTodos"),
+    selectAll((de, ate) => sb().from("fichas_tecnicas").select("id, produto_ref").order("id").range(de, ate), "fetchLaudosPPTodos/fichas"),
+  ]);
+  const refDe: Record<number, string> = {};
+  fichas.forEach((f: any) => { refDe[f.id] = f.produto_ref; });
+  return laudos
+    .filter((l: any) => refDe[l.ficha_id])
+    .map((l: any) => ({ ...laudoPPDeLinha(l), ref: refDe[l.ficha_id] }));
+}
+
+export async function criarLaudoPPPedido(fichaId: number, inicial?: { numero_pedido?: string } & LaudoPPDatas): Promise<number | null> {
+  const ins = async (row: any) => sb().from("ficha_laudo_pp_pedidos").insert(row).select("id").single();
+  let { data, error } = await ins({ ficha_id: fichaId, ...(inicial || {}) });
+  // Sem a migration 039 a coluna de data não existe: cria só com o número.
+  if (error && inicial?.data_entrega_producao !== undefined) {
+    ({ data, error } = await ins({ ficha_id: fichaId, numero_pedido: inicial.numero_pedido || "" }));
+  }
   if (error) { console.error("criarLaudoPPPedido:", error); return null; }
-  return data.id;
+  return data!.id;
 }
 
-export async function fetchLaudoPPPedido(id: number): Promise<{ numero_pedido: string; status: string; comentarios: string; fotos: string[]; cores_tamanho: Record<string, string> } | null> {
-  const { data, error } = await sb().from("ficha_laudo_pp_pedidos").select("numero_pedido, status, comentarios, fotos, cores_tamanho").eq("id", id).maybeSingle();
+export async function fetchLaudoPPPedido(id: number): Promise<({ numero_pedido: string; status: string; comentarios: string; fotos: string[]; cores_tamanho: Record<string, string> } & LaudoPPPedido) | null> {
+  const { data, error } = await sb().from("ficha_laudo_pp_pedidos").select("*").eq("id", id).maybeSingle();
   if (error) { console.error("fetchLaudoPPPedido:", error); return null; }
   if (!data) return null;
   return {
-    numero_pedido: data.numero_pedido || "", status: data.status || "",
+    ...laudoPPDeLinha(data),
     comentarios: data.comentarios || "", fotos: data.fotos || [], cores_tamanho: data.cores_tamanho || {},
   };
 }
 
-export async function upsertLaudoPPPedido(id: number, patch: { numero_pedido?: string; status?: string; comentarios?: string; fotos?: string[]; cores_tamanho?: Record<string, string> }) {
+export async function upsertLaudoPPPedido(id: number, patch: { numero_pedido?: string; status?: string; comentarios?: string; fotos?: string[]; cores_tamanho?: Record<string, string> } & LaudoPPDatas): Promise<string | null> {
   const { error } = await sb().from("ficha_laudo_pp_pedidos").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
-  if (error) console.error("upsertLaudoPPPedido:", error);
+  if (error) { console.error("upsertLaudoPPPedido:", error); return error.message || "Erro ao salvar"; }
+  return null;
 }
 
 // As medidas em ficha_laudo_pp caem junto via ON DELETE CASCADE (laudo_pedido_id).

@@ -1,8 +1,35 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { fetchControleFluxo, upsertControleFluxo } from "@/lib/db";
+import { fetchControleFluxo, upsertControleFluxo, fetchLaudosPPTodos, fetchPedidosProducao, type LaudoPPPedido } from "@/lib/db";
 import { subscribeRealtime } from "@/lib/realtime";
 import { STATUS_ESTILO, STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
+import { juntarPedidos, mesclarFontes, fmtBR, SITUACAO_PP, type PedidoPP, type PedidoListaPP, type SituacaoPP } from "@/lib/preproducao";
+
+// Situação de pré-produção da referência, a partir dos pedidos: o que pede
+// ação primeiro (pré entregue sem laudo > aguardando pré > concluído).
+function SituacaoRef({ peds }: { peds: PedidoPP[] }) {
+  const rec = peds.filter(p => p.situacao === "recebida").length;
+  const pend = peds.filter(p => p.situacao === "pendente");
+  const atras = pend.filter(p => p.atrasada).length;
+  const conc = peds.filter(p => p.situacao === "concluido").length;
+  let pill: { label: string; bg: string; color: string };
+  if (rec) pill = { ...SITUACAO_PP.recebida, label: rec > 1 ? `${rec} pré entregues · laudo pendente` : SITUACAO_PP.recebida.label };
+  else if (atras) pill = { label: `Pré atrasada (prev. ${fmtBR(pend.find(p => p.atrasada)!.previsaoPre)})`, bg: "#FBE6E5", color: "#A8221D" };
+  else if (pend.length) {
+    const prox = pend.map(p => p.previsaoPre).filter(Boolean).sort()[0];
+    pill = { ...SITUACAO_PP.pendente, label: `Aguardando pré${prox ? ` · prev. ${fmtBR(prox)}` : ""}` };
+  } else {
+    const ult = [...peds].sort((a, b) => (b.dataLaudo || "").localeCompare(a.dataLaudo || ""))[0];
+    const st = STATUS_PRE_PRODUCAO_COLORS[ult?.status || ""];
+    pill = { label: `Laudo concluído${ult?.status ? ` · ${ult.status}` : ""}`, bg: st?.bg || SITUACAO_PP.concluido.bg, color: st?.color || SITUACAO_PP.concluido.color };
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="inline-flex self-start items-center px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap" style={{ background: pill.bg, color: pill.color }}>{pill.label}</span>
+      {peds.length > 1 && <span className="text-[11px] text-[var(--label-tertiary)]">{peds.length} pedidos · {conc} concluído{conc === 1 ? "" : "s"}</span>}
+    </div>
+  );
+}
 import ScrollTable from "@/components/ui/ScrollTable";
 
 function StatusPPPill({ status }: { status: string }) {
@@ -54,6 +81,27 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
   const [fStatus, setFStatus] = useState<"" | Cat>("");
   const [fFornecedor, setFFornecedor] = useState("");
   const [fGrupo, setFGrupo] = useState("");
+  const [fSit, setFSit] = useState<"" | SituacaoPP | "atrasada">("");
+  const [laudos, setLaudos] = useState<(LaudoPPPedido & { ref: string })[]>([]);
+  const [listaPorProduto, setListaPorProduto] = useState<Record<number, PedidoListaPP[]>>({});
+  const [linxPorRef, setLinxPorRef] = useState<Record<string, PedidoListaPP[]>>({});
+  const [linxErro, setLinxErro] = useState("");
+
+  const loadLaudos = () => fetchLaudosPPTodos().then(setLaudos).catch(() => {});
+  useEffect(() => {
+    loadLaudos();
+    fetchPedidosProducao().then(setListaPorProduto).catch(() => {});
+    fetch("/api/linx/pedidos").then(async r => {
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+      setLinxPorRef(j.pedidos || {});
+    }).catch(e => setLinxErro(String(e?.message || e)));
+    const unsub = subscribeRealtime("preproducao-laudos", [
+      { table: "ficha_laudo_pp_pedidos", onInsert: loadLaudos, onUpdate: loadLaudos, onDelete: loadLaudos },
+    ]);
+    return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Marca/desmarca "liberada antes do PLM" (sem laudo) — tira da contagem.
   const marcarAntes = async (ref: string, marcar: boolean) => {
@@ -91,6 +139,26 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
     [rows],
   );
 
+  // Pedidos de cada ref (Linx + lista de Variantes + laudos gravados).
+  const pedidosPorRef = useMemo(() => {
+    const laudosRef: Record<string, typeof laudos> = {};
+    laudos.forEach(l => { (laudosRef[l.ref] ||= []).push(l); });
+    const out: Record<string, PedidoPP[]> = {};
+    elegiveis.forEach(r => {
+      const peds = juntarPedidos(mesclarFontes(linxPorRef[r.ref] || [], listaPorProduto[r.id] || []), laudosRef[r.ref] || []);
+      if (peds.length) out[r.ref] = peds;
+    });
+    return out;
+  }, [elegiveis, laudos, listaPorProduto, linxPorRef]);
+
+  // Ref marcada "liberada antes do PLM" sem nenhum laudo gravado: os pedidos
+  // dela não entram como pendência (a pré já foi aprovada fora do PLM).
+  const pedidosQueContam = (r: any): PedidoPP[] => {
+    const peds = pedidosPorRef[r.ref] || [];
+    if (stDe(r) === STATUS_PP_LIBERADA_ANTES && !peds.some(p => p.laudoId)) return [];
+    return peds;
+  };
+
   const opColecao = useMemo(() => uniq(elegiveis.map(r => r.colecao || "")), [elegiveis]);
   const opFornecedor = useMemo(() => uniq(elegiveis.map(r => r.fornecedor || "")), [elegiveis]);
   const opGrupo = useMemo(() => uniq(elegiveis.map(r => r.grupo || "")), [elegiveis]);
@@ -121,22 +189,63 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doColecao, fluxoMap]);
 
+  // Resumo por pedido: laudos pendentes (aguardando pré), pré recebida sem
+  // laudo e laudo concluído — respeita coleção, fornecedor e grupo.
+  const resumoPed = useMemo(() => {
+    const c = { pendente: 0, atrasada: 0, recebida: 0, concluido: 0 };
+    doColecao.forEach(r => pedidosQueContam(r).forEach(p => { c[p.situacao]++; if (p.atrasada) c.atrasada++; }));
+    return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doColecao, pedidosPorRef, fluxoMap]);
+
   const sorted = useMemo(() => {
     const s = q.toLowerCase();
     return doColecao
+      .filter(r => !fSit || pedidosQueContam(r).some(p => (fSit === "atrasada" ? p.atrasada : p.situacao === fSit)))
       .filter(r => !fStatus || catDe(stDe(r)) === fStatus)
       .filter(r => !s || `${r.ref} ${r.desc}`.toLowerCase().includes(s))
       .sort((a, b) => String(a.ref || "").localeCompare(String(b.ref || ""), "pt-BR", { numeric: true }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doColecao, fStatus, q, fluxoMap]);
+  }, [doColecao, fStatus, fSit, q, fluxoMap, pedidosPorRef]);
 
-  const temFiltro = !!(q || fColecao || fStatus || fFornecedor || fGrupo);
-  const limpar = () => { setQ(""); setFColecao(""); setFStatus(""); setFFornecedor(""); setFGrupo(""); };
+  const temFiltro = !!(q || fColecao || fStatus || fFornecedor || fGrupo || fSit);
+  const limpar = () => { setQ(""); setFColecao(""); setFStatus(""); setFFornecedor(""); setFGrupo(""); setFSit(""); };
+
+  const CARDS_PED: { key: SituacaoPP | "atrasada"; label: string; n: number; cor: string; dica: string }[] = [
+    { key: "pendente",  label: "Laudos pendentes",            n: resumoPed.pendente,  cor: SITUACAO_PP.pendente.color,  dica: "Pedidos aguardando a pré-produção chegar" },
+    { key: "recebida",  label: "Pré recebida · sem laudo",    n: resumoPed.recebida,  cor: SITUACAO_PP.recebida.color,  dica: "A pré chegou e o laudo ainda não foi feito" },
+    { key: "concluido", label: "Laudos concluídos",           n: resumoPed.concluido, cor: SITUACAO_PP.concluido.color, dica: "Pedidos com laudo feito" },
+  ];
 
   if (loading) return <div className="plm-loading"><div className="plm-loading-spinner" /><span>Carregando...</span></div>;
 
   return (
     <div>
+      {/* Resumo por pedido — clicar filtra a lista */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+        {CARDS_PED.map(c => {
+          const ativo = fSit === c.key;
+          return (
+            <button key={c.key} onClick={() => setFSit(ativo ? "" : c.key)} title={c.dica}
+              className="apple-card px-4 py-3 text-left transition-shadow hover:shadow-md"
+              style={ativo ? { outline: `2px solid ${c.cor}`, outlineOffset: -2 } : undefined}>
+              <div className="text-[12px] text-[var(--label-secondary)]">{c.label}</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-[24px] font-bold tabnum tracking-[-0.02em]" style={{ color: c.cor }}>{c.n}</span>
+                <span className="text-[11px] text-[var(--label-tertiary)]">pedido{c.n === 1 ? "" : "s"}</span>
+                {c.key === "pendente" && resumoPed.atrasada > 0 && (
+                  <span role="button" onClick={e => { e.stopPropagation(); setFSit(fSit === "atrasada" ? "" : "atrasada"); }}
+                    className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full hover:underline" style={{ background: "#FBE6E5", color: "#A8221D" }}>
+                    {resumoPed.atrasada} atrasada{resumoPed.atrasada === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      {linxErro && <div className="text-[12px] mb-3" style={{ color: "var(--st-canc-tx)" }}>Não foi possível ler os pedidos do Linx ({linxErro}) — mostrando só os pedidos da lista de Variantes.</div>}
+
       {/* Resumo geral (respeita coleção, fornecedor e grupo) */}
       <div className="apple-card flex items-center gap-6 px-5 py-4 mb-4 flex-wrap">
         <div>
@@ -232,12 +341,15 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
             <th style={{ width: 140 }}>Grade</th>
             <th style={{ width: 180 }}>Tab. medidas</th>
             <th style={{ width: 160 }}>Fornecedor</th>
-            <th style={{ width: 280 }}>Status Pré-Produção</th>
+            <th style={{ width: 200 }}>Pedidos (entrega)</th>
+            <th style={{ width: 300 }}>Status Pré-Produção</th>
             <th style={{ width: 90 }}></th>
           </tr></thead>
           <tbody>
             {sorted.map(r => {
               const st = stDe(r);
+              const todos = pedidosPorRef[r.ref] || [];
+              const peds = pedidosQueContam(r);
               return (
                 <tr key={r.id}>
                   <td className="font-medium px-3">{r.ref}</td>
@@ -246,7 +358,15 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
                   <td className="px-3">{r.grade || "—"}</td>
                   <td className="px-3">{r.tab_medidas || "—"}</td>
                   <td className="px-3">{r.fornecedor || "—"}</td>
+                  <td className="px-3 text-[12px] tabnum">
+                    {todos.length ? todos.map(p => (
+                      <div key={`${p.laudoId}|${p.numero}|${p.entregaProducao}`} className="whitespace-nowrap" style={{ color: SITUACAO_PP[p.situacao].color }}>
+                        {p.numero || "s/ nº"}{p.entregaProducao ? ` · ${fmtBR(p.entregaProducao)}` : ""}
+                      </div>
+                    )) : <span className="text-[var(--label-quaternary)]">—</span>}
+                  </td>
                   <td className="px-3">
+                    {peds.length ? <SituacaoRef peds={peds} /> : (
                     <div className="flex items-center gap-2">
                       <StatusPPPill status={st} />
                       {!st && (
@@ -258,6 +378,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
                           className="text-[11px] hover:underline whitespace-nowrap text-[var(--label-tertiary)]">Desfazer</button>
                       )}
                     </div>
+                    )}
                   </td>
                   <td className="text-center px-2">
                     <button onClick={() => onOpenLaudo(r)} className="apple-btn-secondary text-[12px] py-1 px-3 whitespace-nowrap">Abrir laudo</button>
@@ -266,7 +387,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
               );
             })}
             {sorted.length === 0 && (
-              <tr><td colSpan={8} className="py-16 text-center text-[var(--label-tertiary)]">
+              <tr><td colSpan={9}className="py-16 text-center text-[var(--label-tertiary)]">
                 Nenhuma referência com produção liberada{temFiltro ? " para esses filtros" : ""}.
               </td></tr>
             )}

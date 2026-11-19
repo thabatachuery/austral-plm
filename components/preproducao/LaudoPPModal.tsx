@@ -3,8 +3,9 @@ import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import {
   fetchFichaResolvida, fetchPontosByTabelaNome, fetchGraduacoesByTabelaNome, fetchTabelasMedidas,
   fetchLaudoPPMedidas, upsertLaudoPPMedidas, fetchLaudoPPPedido, upsertLaudoPPPedido,
-  fetchControleFluxoByRef, upsertControleFluxo,
+  upsertControleFluxo,
 } from "@/lib/db";
+import { previsaoPre, fmtBR, hojeISO } from "@/lib/preproducao";
 import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num, parseTolerancia } from "@/lib/tamanhos";
 import { uploadImage, deleteImage } from "@/lib/storage";
 import { STATUS_PRE_PRODUCAO_OPTS, STATUS_PRE_PRODUCAO_COLORS } from "@/lib/constants";
@@ -53,9 +54,11 @@ const CELL_STYLE: Record<string, React.CSSProperties> = {
 
 const fmtDateInput = (v: any) => (v ? String(v).slice(0, 10) : "");
 
-type Props = { row: any; fichaId: number; laudoPedidoId: number; onClose: () => void };
+// coresPedido: cores do pedido na lista de Variantes — limitam as cores que
+// podem ser escolhidas por tamanho (vazio = todas as cores da ficha).
+type Props = { row: any; fichaId: number; laudoPedidoId: number; coresPedido?: string[]; onClose: () => void };
 
-export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: Props) {
+export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido = [], onClose }: Props) {
   // Ficha completa ao lado do laudo, só para conferir o que foi entregue
   // (tecidos, aviamentos, estamparia, medidas). Não grava nada.
   const [verFicha, setVerFicha] = useState(false);
@@ -69,7 +72,9 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
   const [numeroPedido, setNumeroPedido] = useState("");
   const [coresTamanho, setCoresTamanho] = useState<Record<string, string>>({});
   const [coresDisponiveis, setCoresDisponiveis] = useState<string[]>([]);
-  const [fluxo, setFluxo] = useState<any>(null);
+  const [entregaProducao, setEntregaProducao] = useState("");
+  const [entregaPre, setEntregaPre] = useState("");
+  const [dataLaudo, setDataLaudo] = useState("");
   const [imgModoMedir, setImgModoMedir] = useState<string | null>(null);
   const [comentarios, setComentarios] = useState("");
   const [fotos, setFotos] = useState<string[]>([]);
@@ -83,17 +88,20 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [ficha, fluxoData, tabs, pedido] = await Promise.all([
+      const [ficha, tabs, pedido] = await Promise.all([
         // A ficha aqui só fornece a lista de cores; se a leitura falhar, segue sem elas.
         fetchFichaResolvida(row.ref, row.colecao).catch(() => null),
-        fetchControleFluxoByRef(row.ref),
         fetchTabelasMedidas(),
         fetchLaudoPPPedido(laudoPedidoId),
       ]);
-      setFluxo(fluxoData);
       const tabInfo = tabs.find((t: any) => t.nome === row.tab_medidas);
       setImgModoMedir((tabInfo as any)?.imagem_modo_medir || null);
-      const cores = Array.from(new Set((ficha?.tecidos || []).flatMap((t: any) => t.cores || []).filter(Boolean)));
+      const coresFicha = Array.from(new Set((ficha?.tecidos || []).flatMap((t: any) => t.cores || []).filter(Boolean))) as string[];
+      // Cor do pedido ("C02 - PRETO") vira a cor escrita como na ficha, se houver.
+      const cod = (c: string) => String(c).trim().split(/[\s-]/)[0].toUpperCase();
+      const cores = coresPedido.length
+        ? coresPedido.map(c => coresFicha.find(f => cod(f) === cod(c)) || c)
+        : coresFicha;
       setCoresDisponiveis(cores as string[]);
 
       if (row.tab_medidas) {
@@ -112,6 +120,9 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
         setComentarios(pedido.comentarios);
         setFotos(pedido.fotos);
         setCoresTamanho(pedido.cores_tamanho);
+        setEntregaProducao(pedido.data_entrega_producao.slice(0, 10));
+        setEntregaPre(pedido.data_entrega_pre.slice(0, 10));
+        setDataLaudo(pedido.data_laudo.slice(0, 10));
       }
       setMedidas(await fetchLaudoPPMedidas(laudoPedidoId));
       setLoading(false);
@@ -164,9 +175,16 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
     await Promise.all([
       upsertLaudoPPPedido(laudoPedidoId, { status: sugerido }),
       upsertControleFluxo(row.ref, "status_pre_producao", sugerido || null),
+      marcaLaudoFeito(sugerido),
     ]);
     setSaving(false);
     success("Laudo salvo.");
+  };
+
+  // Laudo com resultado e sem data: "laudo feito" = hoje.
+  const marcaLaudoFeito = async (st: string) => {
+    if (!st || dataLaudo) return;
+    await handleDataChange("data_laudo", hojeISO());
   };
 
   const handleStatusChange = async (v: string) => {
@@ -174,7 +192,20 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
     await Promise.all([
       upsertLaudoPPPedido(laudoPedidoId, { status: v }),
       upsertControleFluxo(row.ref, "status_pre_producao", v || null),
+      marcaLaudoFeito(v),
     ]);
+  };
+
+  // Datas do pedido; entrega da pré e laudo feito também vão para a
+  // referência (o kanban lê a entrega da pré de lá).
+  const handleDataChange = async (campo: "data_entrega_producao" | "data_entrega_pre" | "data_laudo", v: string) => {
+    if (campo === "data_entrega_producao") setEntregaProducao(v);
+    if (campo === "data_entrega_pre") setEntregaPre(v);
+    if (campo === "data_laudo") setDataLaudo(v);
+    const err = await upsertLaudoPPPedido(laudoPedidoId, { [campo]: v || null });
+    if (err) { alert(`Não foi possível salvar a data.\n\n${err}\n\nSe o erro fala de coluna inexistente, falta rodar a migration 039 no Supabase.`); return; }
+    if (campo === "data_entrega_pre" && v) await upsertControleFluxo(row.ref, "data_entrega_pre_producao", v);
+    if (campo === "data_laudo" && v) await upsertControleFluxo(row.ref, "data_retorno_pre_producao", v);
   };
 
   const handleNumeroPedidoChange = async (v: string) => {
@@ -183,10 +214,6 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
     await upsertLaudoPPPedido(laudoPedidoId, { numero_pedido: v });
   };
 
-  const handleFluxoDateChange = async (field: "data_entrega_pre_producao" | "data_retorno_pre_producao", v: string) => {
-    setFluxo((prev: any) => ({ ...(prev || {}), [field]: v }));
-    await upsertControleFluxo(row.ref, field, v || null);
-  };
 
   const setCorTamanho = (t: string, cor: string) => {
     const next = { ...coresTamanho, [t]: cor };
@@ -264,7 +291,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
           row={row} pts={pts} gradTamanhos={gradTamanhos} gradBase={gradBase} esperados={esperados} medidas={medidas}
           statusPP={status} imgModoMedir={imgModoMedir} comentarios={comentarios} fotos={fotos}
           numeroPedido={numeroPedido} coresTamanho={coresTamanho}
-          dataRecebimentoPre={fmtDateInput(fluxo?.data_entrega_pre_producao)} dataLiberacao={fmtDateInput(fluxo?.data_retorno_pre_producao)}
+          dataRecebimentoPre={entregaPre} dataLiberacao={dataLaudo}
         />
       </div>
     );
@@ -322,12 +349,17 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, onClose }: P
                 <EditableField l="Número do pedido">
                   <input type="text" defaultValue={numeroPedido} placeholder="—" className="apple-input text-[12px] py-1 flex-1 min-w-0" onBlur={e => handleNumeroPedidoChange(e.target.value.trim())} />
                 </EditableField>
-                <EditableField l="Data receb. da pré">
-                  <input type="date" value={fmtDateInput(fluxo?.data_entrega_pre_producao)} onChange={e => handleFluxoDateChange("data_entrega_pre_producao", e.target.value)} className="apple-input text-[12px] py-1" />
+                <EditableField l="Entrega da produção">
+                  <input type="date" value={entregaProducao} onChange={e => handleDataChange("data_entrega_producao", e.target.value)} className="apple-input text-[12px] py-1" />
                 </EditableField>
-                <EditableField l="Data de liberação">
-                  <input type="date" value={fmtDateInput(fluxo?.data_retorno_pre_producao)} onChange={e => handleFluxoDateChange("data_retorno_pre_producao", e.target.value)} className="apple-input text-[12px] py-1" />
+                <Field l="Previsão da pré (−10 dias)" v={fmtBR(previsaoPre(entregaProducao))} />
+                <EditableField l="Pré entregue">
+                  <input type="date" value={entregaPre} onChange={e => handleDataChange("data_entrega_pre", e.target.value)} className="apple-input text-[12px] py-1" />
                 </EditableField>
+                <EditableField l="Laudo feito">
+                  <input type="date" value={dataLaudo} onChange={e => handleDataChange("data_laudo", e.target.value)} className="apple-input text-[12px] py-1" />
+                </EditableField>
+                {coresPedido.length > 0 && <Field l="Cores do pedido" v={coresPedido.join(", ")} />}
               </div>
             </div>
 
