@@ -3,6 +3,7 @@
 // com os laudos já gravados no PLM e diz em que pé cada um está.
 // Uma ref com 3 pedidos (3 datas) = 3 laudos, cada um com as cores do pedido.
 // Sem import de servidor: usado pela rota /api/linx/pedidos e pelas telas.
+import { ehDiaUtil } from "./feriados";
 
 export type PedidoListaPP = {
   numero: string; data: string; cores: string[]; qtd: number; tipo?: string; fornecedor?: string; linx?: boolean;
@@ -60,15 +61,15 @@ export function menosDias(iso: string, dias: number) {
 
 export const previsaoPre = (entregaProducao: string) => menosDias(entregaProducao, DIAS_PRE_ANTES_PRODUCAO);
 
-// Prazo do laudo: de 1 a 3 dias úteis (seg–sex, expediente 9h–18h) depois da
-// entrega da pré. Vence às 18h do 3º dia útil; passou disso = atrasado.
+// Prazo do laudo: de 1 a 3 dias úteis (seg–sex sem feriado, expediente
+// 9h–18h) depois da entrega da pré. Vence às 18h do 3º dia útil; passou = atrasado.
 export const DIAS_UTEIS_LAUDO = 3;
 export const FIM_EXPEDIENTE_H = 18;
 
 function maisDiasUteis(iso: string, n: number) {
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d, 12));
-  while (n > 0) { dt.setUTCDate(dt.getUTCDate() + 1); const w = dt.getUTCDay(); if (w !== 0 && w !== 6) n--; }
+  while (n > 0) { dt.setUTCDate(dt.getUTCDate() + 1); if (ehDiaUtil(dt.toISOString().slice(0, 10))) n--; }
   return dt.toISOString().slice(0, 10);
 }
 
