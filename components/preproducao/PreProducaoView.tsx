@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { fetchControleFluxo, upsertControleFluxo, fetchLaudosPPTodos, fetchPedidosProducao, type LaudoPPPedido } from "@/lib/db";
+import { fetchControleFluxo, upsertControleFluxo, fetchLaudosPPTodos, fetchPedidosProducao, fetchFichaResolvida, criarLaudoPPPedido, upsertLaudoPPPedido, type LaudoPPPedido } from "@/lib/db";
 import { subscribeRealtime } from "@/lib/realtime";
 import { STATUS_ESTILO, STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
-import { juntarPedidos, mesclarFontes, fmtBR, SITUACAO_PP, PRODUCAO_PP, type PedidoPP, type PedidoListaPP, type SituacaoPP } from "@/lib/preproducao";
+import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, SITUACAO_PP, PRODUCAO_PP, type PedidoPP, type PedidoListaPP, type SituacaoPP } from "@/lib/preproducao";
 
 // Em que pé está a PRODUÇÃO da ref (independe do laudo): pedidos em aberto
 // no Linx, entregues, ou nenhum pedido.
@@ -134,6 +134,33 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
   }, []);
 
   // Marca/desmarca "liberada antes do PLM" (sem laudo) — tira da contagem.
+  // "Pré chegou hoje" direto na lista: grava a entrega da pré no laudo do
+  // pedido (cria o laudo se ainda não existe) — ao abrir o laudo a data já está lá.
+  const [salvandoPre, setSalvandoPre] = useState<string | null>(null);
+  const preChegouHoje = async (r: any, p: PedidoPP) => {
+    const k = `${r.ref}|${p.laudoId}|${p.numero}|${p.entregaProducao}`;
+    setSalvandoPre(k);
+    const hoje = hojeISO();
+    let err: string | null = null;
+    try {
+      if (p.laudoId) {
+        err = await upsertLaudoPPPedido(p.laudoId, { data_entrega_pre: hoje });
+      } else {
+        const ficha = await fetchFichaResolvida(r.ref, r.colecao);
+        if (!ficha?.id) err = "Esta referência ainda não tem ficha técnica.";
+        else {
+          const id = await criarLaudoPPPedido(ficha.id, { numero_pedido: p.numero, data_entrega_producao: p.entregaProducao || null, data_entrega_pre: hoje });
+          if (!id) err = "Não foi possível criar o laudo do pedido.";
+        }
+      }
+      // O kanban (etapa 19) lê a entrega da pré na referência.
+      if (!err) await upsertControleFluxo(r.ref, "data_entrega_pre_producao", hoje);
+    } catch (e: any) { err = e?.message || String(e); }
+    setSalvandoPre(null);
+    if (err) alert(`Não foi possível marcar a pré de ${r.ref}.\n\n${err}`);
+    loadLaudos();
+  };
+
   const marcarAntes = async (ref: string, marcar: boolean) => {
     const novo = marcar ? STATUS_PP_LIBERADA_ANTES : "";
     const anterior = fluxoMap[ref];
@@ -372,7 +399,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
             <th style={{ width: 140 }}>Grade</th>
             <th style={{ width: 180 }}>Tab. medidas</th>
             <th style={{ width: 160 }}>Fornecedor</th>
-            <th style={{ width: 200 }}>Pedidos (entrega)</th>
+            <th style={{ width: 260 }}>Pedidos (entrega)</th>
             <th style={{ width: 300 }}>Status Pré-Produção</th>
             <th style={{ width: 90 }}></th>
           </tr></thead>
@@ -390,11 +417,24 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
                   <td className="px-3">{r.tab_medidas || "—"}</td>
                   <td className="px-3">{r.fornecedor || "—"}</td>
                   <td className="px-3 text-[12px] tabnum">
-                    {todos.length ? todos.map(p => (
-                      <div key={`${p.laudoId}|${p.numero}|${p.entregaProducao}`} className="whitespace-nowrap" style={{ color: SITUACAO_PP[p.situacao].color }}>
-                        {p.numero || "s/ nº"}{p.entregaProducao ? ` · ${fmtBR(p.entregaProducao)}` : ""}
-                      </div>
-                    )) : <span className="text-[var(--label-quaternary)]">—</span>}
+                    {todos.length ? todos.map(p => {
+                      const k = `${r.ref}|${p.laudoId}|${p.numero}|${p.entregaProducao}`;
+                      const semPre = p.situacao === "pendente" || p.situacao === "entregue";
+                      return (
+                        <div key={k} className="flex items-center gap-2 whitespace-nowrap py-0.5" style={{ color: SITUACAO_PP[p.situacao].color }}>
+                          <span>{p.numero || "s/ nº"}{p.entregaProducao ? ` · ${fmtBR(p.entregaProducao)}` : ""}</span>
+                          {semPre ? (
+                            <button onClick={() => preChegouHoje(r, p)} disabled={salvandoPre === k}
+                              title={`Marca a pré do pedido ${p.numero || ""} como entregue hoje (vai para o laudo)`}
+                              className="text-[11px] font-medium px-2 py-0.5 rounded-md border border-[var(--separator)] text-[var(--label-secondary)] hover:bg-[var(--bg-secondary)] disabled:opacity-50">
+                              {salvandoPre === k ? "Salvando..." : "Pré chegou hoje"}
+                            </button>
+                          ) : p.entregaPre ? (
+                            <span className="text-[11px] text-[var(--label-tertiary)]">pré {fmtBR(p.entregaPre)}</span>
+                          ) : null}
+                        </div>
+                      );
+                    }) : <span className="text-[var(--label-quaternary)]">—</span>}
                   </td>
                   <td className="px-3">
                     {peds.length ? <SituacaoRef peds={peds} /> : (
