@@ -1468,3 +1468,11 @@ export async function atualizarPrevisaoFluxo(ref: string, etapa: number, ciclo: 
   if (ev.error) console.error("atualizarPrevisaoFluxo/evento:", ev.error);
   return null;
 }
+
+// E-mail "PRÉ PRODUÇÃO RECEBIDA" (o servidor decide destinatários e evita
+// repetir). Não bloqueia a tela nem avisa erro: e-mail é complemento.
+export function avisarPreRecebida(laudoId: number | null | undefined) {
+  if (!laudoId) return;
+  fetch("/api/avisos-pre/recebida", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ laudoId }) })
+    .then(r => r.json()).then(j => { if (!j?.enviado) console.info("aviso pré recebida:", j?.motivo); }).catch(() => {});
+}

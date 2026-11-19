@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { fetchControleFluxo, upsertControleFluxo, fetchLaudosPPTodos, fetchPedidosProducao, fetchFichaResolvida, criarLaudoPPPedido, upsertLaudoPPPedido, type LaudoPPPedido } from "@/lib/db";
+import { fetchControleFluxo, upsertControleFluxo, fetchLaudosPPTodos, fetchPedidosProducao, fetchFichaResolvida, criarLaudoPPPedido, upsertLaudoPPPedido, avisarPreRecebida, type LaudoPPPedido } from "@/lib/db";
 import { subscribeRealtime } from "@/lib/realtime";
 import { STATUS_ESTILO, STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
 import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, pillPreRecebida, LAUDO_ATRASADO, DIAS_UTEIS_LAUDO, SITUACAO_PP, PRODUCAO_PP, type PedidoPP, type PedidoListaPP, type SituacaoPP } from "@/lib/preproducao";
@@ -145,6 +145,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
     setSalvandoPre(k);
     const hoje = hojeISO();
     let err: string | null = null;
+    let laudoId = p.laudoId;
     try {
       if (p.laudoId) {
         err = await upsertLaudoPPPedido(p.laudoId, { data_entrega_pre: hoje });
@@ -154,10 +155,11 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
         else {
           const id = await criarLaudoPPPedido(ficha.id, { numero_pedido: p.numero, data_entrega_producao: p.entregaProducao || null, data_entrega_pre: hoje });
           if (!id) err = "Não foi possível criar o laudo do pedido.";
+          laudoId = id;
         }
       }
       // O kanban (etapa 19) lê a entrega da pré na referência.
-      if (!err) await upsertControleFluxo(r.ref, "data_entrega_pre_producao", hoje);
+      if (!err) { await upsertControleFluxo(r.ref, "data_entrega_pre_producao", hoje); avisarPreRecebida(laudoId); }
     } catch (e: any) { err = e?.message || String(e); }
     setSalvandoPre(null);
     if (err) alert(`Não foi possível marcar a pré de ${r.ref}.\n\n${err}`);

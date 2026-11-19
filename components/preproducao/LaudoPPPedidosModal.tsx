@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import {
   fetchFichaResolvida, fetchLaudoPPPedidos, criarLaudoPPPedido, deleteLaudoPPPedido, upsertLaudoPPPedido,
-  fetchControleFluxoByRef, upsertControleFluxo, fetchPedidosProducao, setProducaoEntregue, type LaudoPPPedido,
+  fetchControleFluxoByRef, upsertControleFluxo, fetchPedidosProducao, setProducaoEntregue, avisarPreRecebida, type LaudoPPPedido,
 } from "@/lib/db";
 import { STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
 import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, SITUACAO_PP, PRODUCAO_PP, pillPreRecebida, type PedidoPP, type PedidoListaPP } from "@/lib/preproducao";
@@ -123,7 +123,7 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
     if (!id) { setBusy(null); alert("Não foi possível criar o laudo deste pedido."); return; }
     const err = await upsertLaudoPPPedido(id, { [campo]: v || null });
     // O kanban (etapa 19) lê a entrega da pré na referência.
-    if (!err && campo === "data_entrega_pre" && v) await upsertControleFluxo(row.ref, "data_entrega_pre_producao", v);
+    if (!err && campo === "data_entrega_pre" && v) { await upsertControleFluxo(row.ref, "data_entrega_pre_producao", v); avisarPreRecebida(id); }
     if (!err && campo === "data_laudo" && v) await upsertControleFluxo(row.ref, "data_retorno_pre_producao", v);
     setBusy(null);
     if (err) alert(`Não foi possível salvar a data.\n\n${err}\n\nSe o erro fala de coluna inexistente, falta rodar a migration 039 no Supabase.`);

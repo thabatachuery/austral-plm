@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import {
   fetchFichaResolvida, fetchPontosByTabelaNome, fetchGraduacoesByTabelaNome, fetchTabelasMedidas,
   fetchLaudoPPMedidas, upsertLaudoPPMedidas, fetchLaudoPPPedido, upsertLaudoPPPedido,
-  upsertControleFluxo,
+  upsertControleFluxo, avisarPreRecebida,
 } from "@/lib/db";
 import { previsaoPre, fmtBR, hojeISO } from "@/lib/preproducao";
 import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num, parseTolerancia } from "@/lib/tamanhos";
@@ -204,7 +204,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
     if (campo === "data_laudo") setDataLaudo(v);
     const err = await upsertLaudoPPPedido(laudoPedidoId, { [campo]: v || null });
     if (err) { alert(`Não foi possível salvar a data.\n\n${err}\n\nSe o erro fala de coluna inexistente, falta rodar a migration 039 no Supabase.`); return; }
-    if (campo === "data_entrega_pre" && v) await upsertControleFluxo(row.ref, "data_entrega_pre_producao", v);
+    if (campo === "data_entrega_pre" && v) { await upsertControleFluxo(row.ref, "data_entrega_pre_producao", v); avisarPreRecebida(laudoPedidoId); }
     if (campo === "data_laudo" && v) await upsertControleFluxo(row.ref, "data_retorno_pre_producao", v);
   };
 

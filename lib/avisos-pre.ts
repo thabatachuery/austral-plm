@@ -31,15 +31,28 @@ const diasEntre = (de: string, ate: string) =>
 
 const dataBR = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
-export function textoAviso(tipo: TipoAviso, itens: ItemAviso[]): { assunto: string; texto: string } {
+// Linhas agrupadas por fornecedor, ex.:
+//   HABIB:
+//   21060301 - PEDIDO 5864 - ENTREGA SOLICITADA PARA 11/12/2026
+function blocosPorFornecedor(itens: ItemAviso[]): string {
   const porForn: Record<string, ItemAviso[]> = {};
   itens.forEach(i => { (porForn[i.fornecedor] ||= []).push(i); });
-  const blocos = Object.keys(porForn).sort((a, b) => a.localeCompare(b, "pt-BR")).map(f =>
+  return Object.keys(porForn).sort((a, b) => a.localeCompare(b, "pt-BR")).map(f =>
     `${f}:\n` + porForn[f]
       .sort((a, b) => a.entrega.localeCompare(b.entrega) || a.ref.localeCompare(b.ref))
-      .map(i => `${i.ref} - ${i.numero ? `PEDIDO ${i.numero}` : "SEM Nº DE PEDIDO"} - ENTREGA SOLICITADA PARA ${dataBR(i.entrega)}`)
-      .join("\n"));
-  return { assunto: ASSUNTO[tipo], texto: `Bom dia, tudo bem?\n\n${ABERTURA[tipo]}\n\n${blocos.join("\n\n")}\n\nObrigada!` };
+      .map(i => `${i.ref} - ${i.numero ? `PEDIDO ${i.numero}` : "SEM Nº DE PEDIDO"} - ENTREGA SOLICITADA PARA ${i.entrega ? dataBR(i.entrega) : "SEM DATA"}`)
+      .join("\n")).join("\n\n");
+}
+
+export function textoAviso(tipo: TipoAviso, itens: ItemAviso[]): { assunto: string; texto: string } {
+  return { assunto: ASSUNTO[tipo], texto: `Bom dia, tudo bem?\n\n${ABERTURA[tipo]}\n\n${blocosPorFornecedor(itens)}\n\nObrigada!` };
+}
+
+export function textoPreRecebida(itens: ItemAviso[]): { assunto: string; texto: string } {
+  return {
+    assunto: "PRÉ PRODUÇÃO RECEBIDA",
+    texto: `Bom dia, tudo bem?\n\nRecebemos a seguinte pré produção:\n\n${blocosPorFornecedor(itens)}\n\nAguardamos o laudo.\nObrigada!`,
+  };
 }
 
 // Lê tudo em páginas de 1000 (limite do Supabase).

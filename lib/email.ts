@@ -10,7 +10,7 @@ export function emailConfigurado(): string | null {
   return faltam.length ? `Faltam as variáveis ${faltam.join(", ")}.` : null;
 }
 
-export async function enviarEmail(para: string[], assunto: string, texto: string): Promise<void> {
+export async function enviarEmail(para: string[], assunto: string, texto: string, cc: string[] = []): Promise<void> {
   const falta = emailConfigurado();
   if (falta) throw new Error(falta);
   const { MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_EMAIL_REMETENTE } = process.env;
@@ -30,6 +30,7 @@ export async function enviarEmail(para: string[], assunto: string, texto: string
         subject: assunto,
         body: { contentType: "Text", content: texto },
         toRecipients: para.map(address => ({ emailAddress: { address } })),
+        ccRecipients: cc.map(address => ({ emailAddress: { address } })),
       },
       saveToSentItems: true,
     }),
