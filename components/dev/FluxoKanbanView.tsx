@@ -200,6 +200,26 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
     ]},
   ];
   const itensAtivos = RESUMO.flatMap(g => g.itens).filter(i => resumoAtivos.includes(i.key));
+
+  /* ── piloto por fornecedor (confecção) ──
+     Entregue = card já passou da etapa 2 (piloto recebida em diante).
+     Aguardando = etapa 2; atrasado = previsão do piloto vencida.
+     Sem envio = ainda na etapa 1 (desenvolvimento não enviado). */
+  const pilotoPorForn = useMemo(() => {
+    const m: Record<string, { forn: string; total: number; semEnvio: number; aguardando: number; atrasado: number; entregue: number }> = {};
+    filtrados.forEach((x: any) => {
+      const forn = String(x.fornecedor || "").trim() || "Sem fornecedor";
+      const e = estadoDe(String(x.ref).trim());
+      const l = (m[forn] ||= { forn, total: 0, semEnvio: 0, aguardando: 0, atrasado: 0, entregue: 0 });
+      l.total++;
+      if (e.etapa <= 1) l.semEnvio++;
+      else if (e.etapa === 2) { l.aguardando++; if (e.meta.prevPiloto && e.meta.prevPiloto < hoje) l.atrasado++; }
+      else l.entregue++;
+    });
+    return Object.values(m).sort((a, b) => (b.aguardando + b.semEnvio) - (a.aguardando + a.semEnvio) || a.forn.localeCompare(b.forn, "pt-BR"));
+  }, [filtrados, estadoDe, hoje]);
+  const [mostrarPilotoForn, setMostrarPilotoForn] = useState(false);
+  const fornFiltrado = fl.fornecedor || [];
   // Mudou o recorte: a seleção recomeça, para não mover cards que saíram da tela.
   useEffect(() => { setSel(new Set()); }, [search, fl, colecoesAtivas, resumoAtivos]);
 
@@ -428,6 +448,67 @@ export default function FluxoKanbanView({ rows, temporadasPorRef = {}, perm, use
           ))}
         </div>
       )}
+      {mostrarResumo && pilotoPorForn.length > 0 && (() => {
+        const tot = pilotoPorForn.reduce((s, l) => ({ total: s.total + l.total, semEnvio: s.semEnvio + l.semEnvio, aguardando: s.aguardando + l.aguardando, atrasado: s.atrasado + l.atrasado, entregue: s.entregue + l.entregue }), { total: 0, semEnvio: 0, aguardando: 0, atrasado: 0, entregue: 0 });
+        const cor = FASES[0].cor;
+        const num = (n: number, c?: string) => <span className="tabnum" style={{ color: n ? c : "var(--label-quaternary)" }}>{n}</span>;
+        return (
+          <div className="apple-card p-3 mb-4" style={{ borderTop: `3px solid ${cor}` }}>
+            <button type="button" onClick={() => setMostrarPilotoForn(v => !v)} className="w-full flex items-center justify-between gap-2 text-left">
+              <span className="text-[11px] font-bold uppercase tracking-[0.06em]" style={{ color: cor }}>Piloto por fornecedor</span>
+              <span className="text-[12px] text-[var(--label-secondary)] tabnum">
+                <b style={{ color: "#15803d" }}>{tot.entregue}</b> entregues · <b style={{ color: cor }}>{tot.aguardando}</b> aguardando
+                {tot.atrasado > 0 && <> · <b style={{ color: "#d70015" }}>{tot.atrasado}</b> atrasados</>} · {tot.semEnvio} sem envio
+                <span className="ml-2 text-[var(--system-blue)] font-medium">{mostrarPilotoForn ? "Ocultar" : "Ver por fornecedor"}</span>
+              </span>
+            </button>
+            {mostrarPilotoForn && (
+              <div className="overflow-x-auto mt-2">
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="text-[11px] text-[var(--label-tertiary)] uppercase tracking-[0.04em]">
+                      <th className="text-left font-semibold py-1.5 pr-2">Fornecedor</th>
+                      <th className="text-right font-semibold px-2">Refs</th>
+                      <th className="text-right font-semibold px-2">Entregue</th>
+                      <th className="text-right font-semibold px-2">Aguardando</th>
+                      <th className="text-right font-semibold px-2">Atrasado</th>
+                      <th className="text-right font-semibold px-2">Sem envio</th>
+                      <th className="text-left font-semibold pl-2 min-w-[120px]">% entregue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pilotoPorForn.map(l => {
+                      const pct = l.total ? Math.round((l.entregue / l.total) * 100) : 0;
+                      const ativo = fornFiltrado.length === 1 && fornFiltrado[0] === l.forn;
+                      const filtravel = l.forn !== "Sem fornecedor";
+                      return (
+                        <tr key={l.forn} onClick={() => filtravel && sf2("fornecedor", ativo ? [] : [l.forn])}
+                          title={filtravel ? (ativo ? "Tirar o filtro de fornecedor" : "Mostrar só este fornecedor no quadro") : undefined}
+                          className={`border-t border-[var(--separator)] ${filtravel ? "cursor-pointer hover:bg-[var(--bg-secondary)]" : ""}`}
+                          style={ativo ? { background: cor + "14" } : undefined}>
+                          <td className="py-1.5 pr-2 font-medium text-[var(--label-primary)]">{l.forn}</td>
+                          <td className="text-right px-2 tabnum">{l.total}</td>
+                          <td className="text-right px-2 font-semibold">{num(l.entregue, "#15803d")}</td>
+                          <td className="text-right px-2 font-semibold">{num(l.aguardando, cor)}</td>
+                          <td className="text-right px-2 font-semibold">{num(l.atrasado, "#d70015")}</td>
+                          <td className="text-right px-2">{num(l.semEnvio, "var(--label-secondary)")}</td>
+                          <td className="pl-2">
+                            <div className="flex items-center gap-2">
+                              <div className="h-[5px] flex-1 rounded-full bg-[var(--bg-secondary)] overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "#15803d" }} /></div>
+                              <span className="tabnum text-[11px] text-[var(--label-tertiary)] w-8 text-right">{pct}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="text-[11px] text-[var(--label-tertiary)] mt-2">Entregue = piloto recebida ou etapa posterior. Aguardando = desenvolvimento enviado (etapa 2); atrasado = previsão do piloto vencida. Sem envio = ainda em desenvolvimento. Segue os filtros e a coleção escolhidos; clique num fornecedor para filtrar o quadro.</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {itensAtivos.length > 0 && (
         <div className="flex items-center gap-2 mb-3 text-[12px]">
           <span className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 font-medium">
