@@ -13,6 +13,10 @@ import LoginModal from "@/components/auth/LoginModal";
 import SetNewPasswordModal from "@/components/auth/SetNewPasswordModal";
 import UsersModal from "@/components/settings/UsersModal";
 import AlertaFichaModal, { type Alerta } from "@/components/ui/AlertaFichaModal";
+
+// Popup "alteração na ficha": desligado por enquanto (pedido da Thabata, 23/11).
+// As alterações continuam sendo registradas; true volta a mostrar as pendentes.
+const POPUP_ALTERACOES_ATIVO = false;
 import ExplosaoView from "@/components/compras/ExplosaoView";
 import FluxoKanbanView from "@/components/dev/FluxoKanbanView";
 import MapaColecaoView from "@/components/dev/MapaColecaoView";
@@ -407,7 +411,7 @@ export default function Home() {
       {fichaRow && <FichaModal row={fichaRow} onClose={() => setFichaRow(null)} onSave={handleFichaSave} temTemporadas={!!temporadasPorRef[fichaRow.ref]?.length} somenteLeitura={tab === "compras_dev"} />}
       {laudoRow && <LaudoPPPedidosModal row={laudoRow} onClose={() => setLaudoRow(null)} />}
       {showUsers && <UsersModal onClose={() => setShowUsers(false)} />}
-      {grupoAtual && <AlertaFichaModal grupo={grupoAtual} avisosPendentes={gruposAlerta.length} alteracoesPendentes={alertaFila.length} onCiente={handleAlertaCiente} onCienteTodos={handleAlertaCienteTodos} />}
+      {POPUP_ALTERACOES_ATIVO && grupoAtual && <AlertaFichaModal grupo={grupoAtual} avisosPendentes={gruposAlerta.length} alteracoesPendentes={alertaFila.length} onCiente={handleAlertaCiente} onCienteTodos={handleAlertaCienteTodos} />}
     </div>
   );
 }
