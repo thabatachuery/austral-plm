@@ -15,7 +15,10 @@ export function middleware(request: NextRequest) {
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js necessita unsafe-inline para HMR em dev
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https://notcdmsqbbtuhsgtupck.supabase.co https://austral.vteximg.com.br https://austral.vtexassets.com https://d22oza65jfl1r0.cloudfront.net", // Bucket Supabase + fotos do site VTEX + catálogo Teceo
+    // Bucket Supabase + fotos do site VTEX + catálogo Teceo. blob: é a foto
+    // escolhida no aparelho, que lib/storage.ts abre para reduzir antes de
+    // subir — sem ele a redução falhava e a foto subia no tamanho original.
+    "img-src 'self' data: blob: https://notcdmsqbbtuhsgtupck.supabase.co https://austral.vteximg.com.br https://austral.vtexassets.com https://d22oza65jfl1r0.cloudfront.net",
     "font-src 'self' data:",
     "connect-src 'self' https://notcdmsqbbtuhsgtupck.supabase.co wss://notcdmsqbbtuhsgtupck.supabase.co",
     "frame-ancestors 'none'",

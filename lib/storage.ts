@@ -5,26 +5,42 @@ const BUCKET = "fichas-imagens";
 const MAX_SIDE = 1200; // px — boa qualidade para PDF, upload ~2x mais rápido
 const QUALITY = 0.80;
 
+// Reduz para MAX_SIDE e regrava em JPEG. Foto de celular tem 12–48 MP
+// (3–30 MB); sem reduzir, o PDF de um laudo com 6 fotos passou de 160 MB.
+function reduzir(fonte: CanvasImageSource, w: number, h: number): Promise<Blob | null> {
+  const scale = Math.min(1, MAX_SIDE / Math.max(w, h));
+  const canvas = document.createElement("canvas");
+  canvas.width  = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  canvas.getContext("2d")!.drawImage(fonte, 0, 0, canvas.width, canvas.height);
+  return new Promise(res => canvas.toBlob(res, "image/jpeg", QUALITY));
+}
+
+// 1º <img> com blob: (precisa de "blob:" no img-src do CSP, ver middleware.ts);
+// se falhar, createImageBitmap, que lê o arquivo direto e não passa pelo CSP.
+// Só sobe o original se nenhum dos dois conseguir abrir a foto.
 function compressImage(file: File): Promise<Blob> {
   return new Promise((resolve) => {
+    const viaBitmap = async () => {
+      try {
+        if (typeof createImageBitmap !== "function") throw new Error("sem createImageBitmap");
+        const bmp = await createImageBitmap(file);
+        const blob = await reduzir(bmp, bmp.width, bmp.height);
+        bmp.close?.();
+        if (blob) return resolve(blob);
+      } catch (e) {
+        console.warn("compressImage: não deu para reduzir, sobe o original", e);
+      }
+      resolve(file);
+    };
     const img = new Image();
     const url = URL.createObjectURL(file);
-    img.onload = () => {
+    img.onload = async () => {
       URL.revokeObjectURL(url);
-      const { naturalWidth: w, naturalHeight: h } = img;
-      const scale = Math.min(1, MAX_SIDE / Math.max(w, h));
-      const canvas = document.createElement("canvas");
-      canvas.width  = Math.round(w * scale);
-      canvas.height = Math.round(h * scale);
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(
-        (blob) => resolve(blob ?? file),
-        "image/jpeg",
-        QUALITY
-      );
+      const blob = await reduzir(img, img.naturalWidth, img.naturalHeight);
+      if (blob) resolve(blob); else viaBitmap();
     };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.onerror = () => { URL.revokeObjectURL(url); viaBitmap(); };
     img.src = url;
   });
 }
