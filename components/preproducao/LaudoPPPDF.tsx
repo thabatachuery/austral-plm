@@ -1,5 +1,5 @@
 "use client";
-import { Fragment } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { cellStatus } from "./LaudoPPModal";
 import { CHECKLIST_PP, resultadoCheck, valorCheck, obsKey, type ChecklistPP, type CheckValor, type ItemCheck } from "@/lib/preproducao";
@@ -42,9 +42,34 @@ const warn = "#D97706";
 const danger = "#DC2626";
 const white = "#FFFFFF";
 
-const th: React.CSSProperties = { padding: "5px 6px", textAlign: "left", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: light, borderBottom: `1px solid ${lineDark}` };
-const td: React.CSSProperties = { padding: "4.5px 6px", borderBottom: `0.5px solid ${line}`, fontSize: "9px", verticalAlign: "middle", color: navy };
+const th: React.CSSProperties = { padding: "4px 6px", textAlign: "left", fontSize: "7px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: light, borderBottom: `1px solid ${lineDark}` };
+const td: React.CSSProperties = { padding: "3.5px 6px", borderBottom: `0.5px solid ${line}`, fontSize: "9.5px", verticalAlign: "middle", color: navy };
 const tbl: React.CSSProperties = { width: "100%", borderCollapse: "collapse" };
+const rotulo: React.CSSProperties = { fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "2px" };
+
+// Área útil da folha A4 retrato com as margens do @page (12mm × 10mm), em px
+// CSS (96 dpi). A folha 1 (dados + conferência + medidas) e a folha 2
+// (comentários + fotos) têm de caber cada uma numa página só.
+const MM = 96 / 25.4;
+const FOLHA_W = 190 * MM;
+const FOLHA_H = 273 * MM - 30; // desconta o rodapé "Austral® · Confidencial" e uma folga
+const ALTURA_MIDIA = 215;      // modo de medir / foto do produto, lado a lado
+const ALTURA_MIDIA_MAX = 380;  // se sobrar folha, crescem até aqui
+
+// Grade de fotos que deixa cada foto o maior possível no espaço livre.
+// Fotos de celular: assume 4:3 e mostra a foto inteira (contain).
+function melhorGrade(n: number, w: number, h: number, gap = 8) {
+  let melhor = { cols: 1, cw: w, ch: h, area: 0 };
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const cw = (w - gap * (cols - 1)) / cols;
+    const ch = (h - gap * (rows - 1)) / rows;
+    if (cw <= 0 || ch <= 0) continue;
+    const fw = Math.min(cw, ch * 4 / 3), fh = Math.min(ch, cw * 3 / 4);
+    if (fw * fh > melhor.area) melhor = { cols, cw, ch, area: fw * fh };
+  }
+  return melhor;
+}
 
 const STATUS_PP_COLOR: Record<string, string> = {
   "LIBERADA": success,
@@ -61,22 +86,69 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
     </span>
   );
   const headerBg = STATUS_PP_COLOR[statusPP] || "#4464AF";
-  const wTam = gradTamanhos.length > 5 ? "42px" : "52px";
+  // Colunas de tamanho só com a largura dos números: sobra espaço para o
+  // nome do ponto não quebrar em duas linhas (cada quebra rouba altura da folha).
+  const tdNum: React.CSSProperties = { ...td, textAlign: "center", fontVariantNumeric: "tabular-nums", padding: "3.5px 3px", whiteSpace: "nowrap" };
   const bulletsList = (comentarios || "").split("\n").map(s => s.trim()).filter(Boolean);
   const temNotas = bulletsList.length > 0 || fotos.length > 0;
   const temCores = Object.keys(coresTamanho).length > 0;
 
+  // ── Encaixe automático em uma folha ──
+  // Folha 1: monta no tamanho "confortável"; se passar da altura da A4,
+  // reduz (zoom) só o necessário — e alarga na mesma proporção, para o
+  // conteúdo continuar ocupando a largura toda da folha.
+  // Folha 2: mede o título + comentários e dá às fotos o resto da folha.
+  // As alturas de imagem são fixas, então a medida não depende de a foto já
+  // ter carregado.
+  const folha1Ref = useRef<HTMLDivElement>(null);
+  const notasRef = useRef<HTMLDivElement>(null);
+  const [zoom1, setZoom1] = useState(1);
+  const [alturaFotos, setAlturaFotos] = useState(FOLHA_H - 60);
+  useLayoutEffect(() => {
+    const el = folha1Ref.current;
+    if (el) {
+      // Altura visível com zoom z (largura alargada na mesma proporção).
+      el.style.zoom = "1";
+      const midias = Array.from(el.querySelectorAll<HTMLElement>("[data-midia]"));
+      midias.forEach(m => { m.style.height = `${ALTURA_MIDIA}px`; });
+      const alturaCom = (z: number) => { el.style.width = `${FOLHA_W / z}px`; return el.scrollHeight * z; };
+      // Maior zoom que cabe: alargar reduz a altura, então busca binária.
+      let z = 1;
+      const h1 = alturaCom(1);
+      if (h1 > FOLHA_H) {
+        let lo = 0.5, hi = 1;
+        // -12: com zoom o navegador arredonda as linhas para cima; folga contra isso.
+        for (let i = 0; i < 10; i++) { const mid = (lo + hi) / 2; if (alturaCom(mid) <= FOLHA_H - 12) lo = mid; else hi = mid; }
+        z = lo;
+      } else if (midias.length) {
+        // Sobrou folha: aumenta o modo de medir / foto do produto até preencher.
+        const extra = Math.min(ALTURA_MIDIA_MAX - ALTURA_MIDIA, Math.floor(FOLHA_H - h1));
+        midias.forEach(m => { m.style.height = `${ALTURA_MIDIA + extra}px`; });
+        el.style.width = `${FOLHA_W}px`;
+      }
+      // Aplica direto: se o zoom calculado for igual ao anterior, o React não
+      // re-renderiza e o elemento ficaria com o zoom 1 da medição.
+      el.style.zoom = String(z);
+      el.style.width = `${FOLHA_W / z}px`;
+      setZoom1(z);
+    }
+    if (notasRef.current) setAlturaFotos(Math.max(150, FOLHA_H - notasRef.current.offsetHeight - 12));
+  }, [pts, gradTamanhos, itensCheck, checklist, comentarios, fotos.length, fotoProduto, videoUrl, imgModoMedir, coresTamanho]);
+  // Ao reduzir, a 2ª passada (largura maior → menos quebra de linha) pode
+  // sobrar espaço, nunca faltar — então uma medida basta.
+  const grade = melhorGrade(fotos.length, FOLHA_W, alturaFotos);
+
   const Field = ({ label, value }: { label: string; value: string }) => (
-    <div style={{ padding: "6px 0", borderBottom: `0.5px solid ${line}` }}>
-      <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "1px" }}>{label}</div>
-      <div style={{ fontSize: "9.5px", fontWeight: 600, color: navy }}>{value || "—"}</div>
+    <div style={{ padding: "3px 0", borderBottom: `0.5px solid ${line}` }}>
+      <div style={{ ...rotulo, marginBottom: "0" }}>{label}</div>
+      <div style={{ fontSize: "9.5px", fontWeight: 600, color: navy, lineHeight: 1.3 }}>{value || "—"}</div>
     </div>
   );
 
   return (
-    <div className="print-ficha" style={{ fontFamily: "'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif", fontSize: "9px", color: navy, lineHeight: 1.5 }}>
-      <div className="print-page">
-        <div style={{ background: headerBg, color: white, borderRadius: "4px", padding: "10px 14px", marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+    <div className="print-ficha" style={{ fontFamily: "'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif", fontSize: "9px", color: navy, lineHeight: 1.4 }}>
+      <div className="print-page" ref={folha1Ref} style={{ width: `${FOLHA_W / zoom1}px`, zoom: zoom1 }}>
+        <div style={{ background: headerBg, color: white, borderRadius: "4px", padding: "7px 12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
           <div>
             <div style={{ fontSize: "6.5px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", opacity: 0.6, marginBottom: "1px" }}>Austral®</div>
             <div style={{ fontSize: "16px", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1 }}>LAUDO DE PRÉ-PRODUÇÃO</div>
@@ -92,7 +164,7 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0 16px", marginBottom: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "0 12px", marginBottom: "8px" }}>
           <Field label="Referência" value={row.ref} />
           <Field label="Descrição" value={row.desc} />
           <Field label="Fornecedor" value={row.fornecedor} />
@@ -106,27 +178,9 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
           <Field label="Data de liberação" value={fmtDataBR(dataLiberacao)} />
         </div>
 
-        {fotoProduto && (
-          <div style={{ marginBottom: "12px" }}>
-            <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "3px" }}>Foto do produto</div>
-            <img src={fotoProduto} alt="Foto do produto" style={{ maxWidth: "100%", maxHeight: "170px", objectFit: "contain", border: `0.5px solid ${line}`, borderRadius: "4px" }} />
-          </div>
-        )}
-
-        {videoUrl && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", pageBreakInside: "avoid" }}>
-            {/* QR: o laudo vai impresso; aponta o celular e abre o vídeo. */}
-            <QRCodeSVG value={videoUrl} size={92} level="L" marginSize={1} style={{ flexShrink: 0 }} />
-            <div style={{ fontSize: "8px", wordBreak: "break-all", minWidth: 0 }}>
-              <span style={{ display: "block", fontWeight: 700, color: muted, marginBottom: "2px" }}>VÍDEO DO LAUDO:</span>
-              <a href={videoUrl} style={{ color: navy, textDecoration: "underline" }}>{videoUrl}</a>
-            </div>
-          </div>
-        )}
-
         {temCheck && (
-          <div style={{ marginBottom: "12px" }}>
-            <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "3px" }}>Conferência</div>
+          <div style={{ marginBottom: "8px" }}>
+            <div style={rotulo}>Conferência</div>
             <table style={tbl}>
               <tbody>
                 {itensCheck.map(item => (
@@ -153,10 +207,34 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
           </div>
         )}
 
-        {imgModoMedir && (
-          <div style={{ marginBottom: "12px" }}>
-            <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "3px" }}>Modo de Medir</div>
-            <img src={imgModoMedir} alt="Modo de Medir" style={{ maxWidth: "100%", maxHeight: "220px", objectFit: "contain", border: `0.5px solid ${line}`, borderRadius: "4px" }} />
+        {/* Modo de medir e foto do produto lado a lado (economiza folha);
+            o QR do vídeo, se houver, numa coluna estreita no fim. */}
+        {(imgModoMedir || fotoProduto || videoUrl) && (
+          <div style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "stretch" }}>
+            {imgModoMedir && (
+              <div style={{ flex: 1.3, minWidth: 0 }}>
+                <div style={rotulo}>Modo de medir</div>
+                <div data-midia style={{ height: ALTURA_MIDIA, border: `0.5px solid ${line}`, borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  <img src={imgModoMedir} alt="Modo de medir" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                </div>
+              </div>
+            )}
+            {fotoProduto && (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={rotulo}>Foto do produto</div>
+                <div data-midia style={{ height: ALTURA_MIDIA, border: `0.5px solid ${line}`, borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  <img src={fotoProduto} alt="Foto do produto" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                </div>
+              </div>
+            )}
+            {videoUrl && (
+              <div style={{ width: "96px", flexShrink: 0 }}>
+                <div style={rotulo}>Vídeo do laudo</div>
+                {/* QR: o laudo vai impresso; aponta o celular e abre o vídeo. */}
+                <a href={videoUrl}><QRCodeSVG value={videoUrl} size={92} level="L" marginSize={1} /></a>
+                <div style={{ fontSize: "7px", color: muted, marginTop: "2px", lineHeight: 1.3 }}>Aponte a câmera do celular para abrir o vídeo</div>
+              </div>
+            )}
           </div>
         )}
 
@@ -168,22 +246,22 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
               <tr>
                 <th style={th} rowSpan={temCores ? 3 : 2}>Ponto</th>
                 {gradTamanhos.map(t => (
-                  <th key={t} style={{ ...th, textAlign: "center", width: wTam, background: t === gradBase ? "#FEFCE8" : "#eef4fb", color: t === gradBase ? warn : muted }} colSpan={2}>{t}{t === gradBase ? " (base)" : ""}</th>
+                  <th key={t} style={{ ...th, textAlign: "center", padding: "4px 3px", background: t === gradBase ? "#FEFCE8" : "#eef4fb", color: t === gradBase ? warn : muted }} colSpan={2}>{t}{t === gradBase ? " (base)" : ""}</th>
                 ))}
                 <th style={{ ...th, textAlign: "center", width: "38px" }} rowSpan={temCores ? 3 : 2}>Tol.</th>
               </tr>
               <tr>
                 {gradTamanhos.map(t => (
                   <Fragment key={t}>
-                    <th style={{ ...th, textAlign: "center", fontSize: "6px" }}>Aprov.</th>
-                    <th style={{ ...th, textAlign: "center", fontSize: "6px" }}>Medido</th>
+                    <th style={{ ...th, textAlign: "center", fontSize: "6px", padding: "3px 2px" }}>Aprov.</th>
+                    <th style={{ ...th, textAlign: "center", fontSize: "6px", padding: "3px 2px" }}>Medido</th>
                   </Fragment>
                 ))}
               </tr>
               {temCores && (
                 <tr>
                   {gradTamanhos.map(t => (
-                    <th key={t} colSpan={2} style={{ ...th, textAlign: "center", fontSize: "6px", fontWeight: 600, color: navy, background: "#F8FAFC" }}>
+                    <th key={t} colSpan={2} style={{ ...th, textAlign: "center", fontSize: "6px", fontWeight: 600, color: navy, background: "#F8FAFC", padding: "3px 2px", textTransform: "none", letterSpacing: 0 }}>
                       {coresTamanho[t] ? `Cor: ${coresTamanho[t]}` : "—"}
                     </th>
                   ))}
@@ -206,8 +284,8 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
                       st === "ok" ? { color: success, fontWeight: 700 } : { color: light };
                     return (
                       <Fragment key={t}>
-                        <td style={{ ...td, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{esperado || "—"}</td>
-                        <td style={{ ...td, textAlign: "center", fontVariantNumeric: "tabular-nums", ...medidoStyle }}>{medido || "—"}</td>
+                        <td style={tdNum}>{esperado || "—"}</td>
+                        <td style={{ ...tdNum, ...medidoStyle }}>{medido || "—"}</td>
                       </Fragment>
                     );
                   })}
@@ -218,7 +296,7 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
           </table>
         )}
 
-        <div style={{ marginTop: "10px", display: "flex", gap: "14px", fontSize: "7.5px", color: muted }}>
+        <div style={{ marginTop: "6px", display: "flex", gap: "14px", fontSize: "7.5px", color: muted }}>
           <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: danger, marginRight: 4 }} />Acima da tolerância</span>
           <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: warn, marginRight: 4 }} />Abaixo da tolerância</span>
           <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: success, marginRight: 4 }} />Dentro da tolerância</span>
@@ -226,23 +304,30 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
       </div>
 
       {temNotas && (
-        <div className="print-page" style={{ pageBreakBefore: "always" }}>
-          <div style={{ fontSize: "10px", fontWeight: 800, color: navy, letterSpacing: "-0.01em", marginBottom: "8px", paddingBottom: "4px", borderBottom: `1.5px solid ${navy}` }}>Comentários e fotos — {row.ref}</div>
+        <div className="print-page" style={{ pageBreakBefore: "always", width: `${FOLHA_W}px` }}>
+          <div ref={notasRef}>
+            <div style={{ fontSize: "10px", fontWeight: 800, color: navy, letterSpacing: "-0.01em", marginBottom: "8px", paddingBottom: "4px", borderBottom: `1.5px solid ${navy}` }}>
+              Comentários e fotos — {row.ref}{numeroPedido ? ` · Pedido ${numeroPedido}` : ""}{correcao ? ` · Correção${correcao > 1 ? ` ${correcao}` : ""}` : ""}
+            </div>
 
-          {bulletsList.length > 0 && (
-            <ul style={{ margin: "0 0 14px", padding: 0, listStyle: "none" }}>
-              {bulletsList.map((b, i) => (
-                <li key={i} style={{ display: "flex", gap: "6px", fontSize: "9px", color: navy, marginBottom: "4px" }}>
-                  <span style={{ color: light }}>•</span>{b}
-                </li>
-              ))}
-            </ul>
-          )}
+            {bulletsList.length > 0 && (
+              <ul style={{ margin: "0 0 10px", padding: 0, listStyle: "none" }}>
+                {bulletsList.map((b, i) => (
+                  <li key={i} style={{ display: "flex", gap: "6px", fontSize: "10px", color: navy, marginBottom: "3px" }}>
+                    <span style={{ color: light }}>•</span>{b}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
+          {/* Fotos o maior possível, preenchendo o resto da folha (sem 3ª página) */}
           {fotos.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${grade.cols}, ${grade.cw}px)`, gap: "8px" }}>
               {fotos.map((url, i) => (
-                <img key={i} src={url} alt={`Foto ${i + 1} do laudo`} style={{ width: "140px", height: "140px", objectFit: "cover", border: `0.5px solid ${line}`, borderRadius: "4px" }} />
+                <div key={i} style={{ width: grade.cw, height: grade.ch, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  <img src={url} alt={`Foto ${i + 1} do laudo`} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", border: `0.5px solid ${line}`, borderRadius: "4px" }} />
+                </div>
               ))}
             </div>
           )}
