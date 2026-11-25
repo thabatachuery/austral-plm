@@ -888,6 +888,7 @@ export type LaudoPPPedido = {
   id: number; numero_pedido: string; status: string; updated_at: string;
   data_entrega_producao: string; data_entrega_pre: string; data_laudo: string;
   correcao_de: number | null;   // laudo de correção: id do laudo reprovado (migration 042)
+  tem_foto: boolean;            // foto é obrigatória para fechar o laudo
 };
 type LaudoPPDatas = { data_entrega_producao?: string | null; data_entrega_pre?: string | null; data_laudo?: string | null };
 
@@ -895,6 +896,7 @@ const laudoPPDeLinha = (r: any): LaudoPPPedido => ({
   id: r.id, numero_pedido: r.numero_pedido || "", status: r.status || "", updated_at: r.updated_at || "",
   data_entrega_producao: r.data_entrega_producao || "", data_entrega_pre: r.data_entrega_pre || "", data_laudo: r.data_laudo || "",
   correcao_de: r.correcao_de ?? null,
+  tem_foto: Array.isArray(r.fotos) && r.fotos.length > 0,
 });
 
 export async function fetchLaudoPPPedidos(fichaId: number): Promise<LaudoPPPedido[]> {

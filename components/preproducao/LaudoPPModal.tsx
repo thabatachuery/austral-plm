@@ -133,6 +133,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
   const [saving, setSaving] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
   const fotoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const { success, Container: ToastContainer } = useToast();
 
   useEffect(() => {
@@ -243,7 +244,15 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
     });
   };
 
+  // Foto de pelo menos uma das peças conferidas é obrigatória para fechar o laudo.
+  const FALTA_FOTO = "Inclua a foto de pelo menos uma das peças conferidas antes de salvar o laudo.\n\nUse \"Tirar foto\" (câmera do celular) ou \"Galeria / arquivo\", no quadro Fotos.";
+  const avisaFaltaFoto = () => {
+    alert(FALTA_FOTO);
+    document.getElementById("laudo-fotos")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
   const handleSave = async () => {
+    if (!fotos.length) { avisaFaltaFoto(); return; }
     setSaving(true);
     await Promise.all([
       upsertLaudoPPMedidas(laudoPedidoId, medidas),
@@ -267,6 +276,8 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
   };
 
   const handleStatusChange = async (v: string) => {
+    // Dar resultado também fecha o laudo: exige a foto (limpar o status não).
+    if (v && !fotos.length) { avisaFaltaFoto(); return; }
     setStatus(v);
     await Promise.all([
       upsertLaudoPPPedido(laudoPedidoId, { status: v }),
@@ -278,6 +289,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
   // Datas do pedido; entrega da pré e laudo feito também vão para a
   // referência (o kanban lê a entrega da pré de lá).
   const handleDataChange = async (campo: "data_entrega_producao" | "data_entrega_pre" | "data_laudo", v: string) => {
+    if (campo === "data_laudo" && v && !fotos.length) { avisaFaltaFoto(); return; }
     if (campo === "data_entrega_producao") setEntregaProducao(v);
     if (campo === "data_entrega_pre") setEntregaPre(v);
     if (campo === "data_laudo") setDataLaudo(v);
@@ -315,17 +327,21 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
   // não perder o anexo se a pessoa fechar o modal antes de clicar salvar).
   const handleAddFotos = async (files: FileList | null) => {
     if (!files || !files.length) return;
-    const imgs = Array.from(files).filter(f => f.type.startsWith("image/"));
+    // Alguns celulares mandam a foto sem tipo (type vazio): aceita também.
+    const imgs = Array.from(files).filter(f => !f.type || f.type.startsWith("image/"));
     if (!imgs.length) return;
     setFotoUploading(true);
     const urls = await Promise.all(
       imgs.map((f, i) => uploadImage(f, `${row.ref}/laudo_pp_${Date.now()}_${i}`)),
     );
-    const novasFotos = [...fotos, ...urls.filter((u): u is string => !!u)];
+    const ok = urls.filter((u): u is string => !!u);
+    const novasFotos = [...fotos, ...ok];
     setFotos(novasFotos);
-    await upsertLaudoPPPedido(laudoPedidoId, { fotos: novasFotos });
+    if (ok.length) await upsertLaudoPPPedido(laudoPedidoId, { fotos: novasFotos });
     setFotoUploading(false);
     if (fotoInputRef.current) fotoInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (ok.length < imgs.length) alert(`${imgs.length - ok.length} foto(s) não subiram. Tente de novo.`);
   };
   const handleRemoveFoto = async (url: string) => {
     const novasFotos = fotos.filter(f => f !== url);
@@ -582,8 +598,25 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
               </div>
 
               {/* Fotos */}
-              <div className="apple-card p-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-2">Fotos</div>
+              <div id="laudo-fotos" className="apple-card p-4">
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">
+                    Fotos <span className="text-[#A8221D] normal-case tracking-normal">* obrigatório</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={fotoUploading}
+                      className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--system-blue)] text-white disabled:opacity-50">
+                      📷 Tirar foto
+                    </button>
+                    <button type="button" onClick={() => fotoInputRef.current?.click()} disabled={fotoUploading}
+                      className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--separator)] text-[var(--label-secondary)] disabled:opacity-50">
+                      🖼️ Galeria / arquivo
+                    </button>
+                  </div>
+                </div>
+                {fotos.length === 0 && (
+                  <p className="text-[11px] text-[#A8221D] bg-[#FBE6E5] rounded-lg px-2.5 py-1.5 mb-2">Inclua a foto de pelo menos uma das peças conferidas — sem foto o laudo não é salvo.</p>
+                )}
                 <div
                   className={`flex flex-wrap gap-2 rounded-xl transition-colors ${fotoDragOver ? "bg-[rgba(0,122,255,0.06)] outline-dashed outline-2 outline-[var(--system-blue)]" : ""}`}
                   style={{ padding: fotoDragOver ? 6 : 0, margin: fotoDragOver ? -6 : 0 }}
@@ -594,7 +627,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
                   {fotos.map(url => (
                     <div key={url} className="relative w-[72px] h-[72px] group">
                       <img src={url} alt="Foto do laudo" className="w-full h-full object-cover rounded-lg border border-[var(--separator)]" />
-                      <button onClick={() => handleRemoveFoto(url)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/60 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remover foto">
+                      <button onClick={() => handleRemoveFoto(url)} className="absolute -top-1.5 -right-1.5 w-6 h-6 sm:w-5 sm:h-5 rounded-full bg-black/60 hover:bg-red-600 text-white flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" title="Remover foto" aria-label="Remover foto">
                         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                       </button>
                     </div>
@@ -613,8 +646,12 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
                     )}
                   </button>
                 </div>
-                <p className="text-[10px] text-[var(--label-quaternary)] mt-1.5">Clique ou arraste — pode soltar várias fotos de uma vez.</p>
-                <input ref={fotoInputRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={e => handleAddFotos(e.target.files)} />
+                <p className="text-[10px] text-[var(--label-quaternary)] mt-1.5">No celular: "Tirar foto" abre a câmera; "Galeria" escolhe fotos já tiradas (várias de uma vez). No computador, dá para arrastar.</p>
+                {/* Câmera: capture abre a câmera direto (iPhone/Android). Galeria: sem
+                    capture, o celular oferece fotos e arquivos — o iPhone com capture
+                    não deixa escolher da galeria, por isso são dois campos. */}
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleAddFotos(e.target.files)} />
+                <input ref={fotoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handleAddFotos(e.target.files)} />
               </div>
             </div>
 

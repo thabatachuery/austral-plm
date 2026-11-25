@@ -131,6 +131,11 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
   };
 
   const setData = async (p: PedidoPP, campo: "data_entrega_pre" | "data_laudo", v: string) => {
+    // "Laudo feito" fecha o laudo: exige a foto de uma das peças conferidas.
+    if (campo === "data_laudo" && v && !laudos.find(l => l.id === p.laudoId)?.tem_foto) {
+      alert("Para marcar o laudo como feito, inclua antes a foto de pelo menos uma das peças conferidas.\n\nClique em \"Preencher laudo\" e use \"Tirar foto\" ou \"Galeria / arquivo\".");
+      return;
+    }
     setBusy(chave(p));
     const id = await garanteLaudo(p);
     if (!id) { setBusy(null); alert("Não foi possível criar o laudo deste pedido."); return; }
