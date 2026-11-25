@@ -955,18 +955,18 @@ export async function criarLaudoPPCorrecao(laudoId: number): Promise<{ id: numbe
   return { id: data!.id, erro: null };
 }
 
-export async function fetchLaudoPPPedido(id: number): Promise<({ numero_pedido: string; status: string; comentarios: string; fotos: string[]; cores_tamanho: Record<string, string>; checklist: Record<string, string>; foto_produto: string } & LaudoPPPedido) | null> {
+export async function fetchLaudoPPPedido(id: number): Promise<({ numero_pedido: string; status: string; comentarios: string; fotos: string[]; cores_tamanho: Record<string, string>; checklist: Record<string, string>; foto_produto: string; video_url: string } & LaudoPPPedido) | null> {
   const { data, error } = await sb().from("ficha_laudo_pp_pedidos").select("*").eq("id", id).maybeSingle();
   if (error) { console.error("fetchLaudoPPPedido:", error); return null; }
   if (!data) return null;
   return {
     ...laudoPPDeLinha(data),
     comentarios: data.comentarios || "", fotos: data.fotos || [], cores_tamanho: data.cores_tamanho || {},
-    checklist: data.checklist || {}, foto_produto: data.foto_produto || "",
+    checklist: data.checklist || {}, foto_produto: data.foto_produto || "", video_url: data.video_url || "",
   };
 }
 
-export async function upsertLaudoPPPedido(id: number, patch: { numero_pedido?: string; status?: string; comentarios?: string; fotos?: string[]; cores_tamanho?: Record<string, string>; checklist?: Record<string, string>; foto_produto?: string | null } & LaudoPPDatas): Promise<string | null> {
+export async function upsertLaudoPPPedido(id: number, patch: { numero_pedido?: string; status?: string; comentarios?: string; fotos?: string[]; cores_tamanho?: Record<string, string>; checklist?: Record<string, string>; foto_produto?: string | null; video_url?: string | null } & LaudoPPDatas): Promise<string | null> {
   const { error } = await sb().from("ficha_laudo_pp_pedidos").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) { console.error("upsertLaudoPPPedido:", error); return error.message || "Erro ao salvar"; }
   return null;

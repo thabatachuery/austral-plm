@@ -7,7 +7,8 @@ import {
 } from "@/lib/db";
 import { previsaoPre, fmtBR, hojeISO, CHECKLIST_PP, resultadoCheck, checklistTemIncorreto, valorCheck, obsKey, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
 import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num, parseTolerancia } from "@/lib/tamanhos";
-import { uploadImage, deleteImage } from "@/lib/storage";
+import { uploadImage, uploadArquivo, deleteImage } from "@/lib/storage";
+import { QRCodeSVG } from "qrcode.react";
 import { STATUS_PRE_PRODUCAO_OPTS, STATUS_PRE_PRODUCAO_COLORS } from "@/lib/constants";
 import { useToast } from "@/components/ui/Toast";
 import LaudoPPPDF from "./LaudoPPPDF";
@@ -129,6 +130,10 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
   const [checklist, setChecklist] = useState<ChecklistPP>({});
   const [fotos, setFotos] = useState<string[]>([]);
   const [fotoProduto, setFotoProduto] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoUploading, setVideoUploading] = useState(false);
+  const videoCameraRef = useRef<HTMLInputElement>(null);
+  const videoArquivoRef = useRef<HTMLInputElement>(null);
   const [prodUploading, setProdUploading] = useState(false);
   const prodCameraRef = useRef<HTMLInputElement>(null);
   const prodGaleriaRef = useRef<HTMLInputElement>(null);
@@ -175,6 +180,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
         setComentarios(pedido.comentarios);
         setFotos(pedido.fotos);
         setFotoProduto(pedido.foto_produto);
+        setVideoUrl(pedido.video_url);
         setCoresTamanho(pedido.cores_tamanho);
         setChecklist(pedido.checklist);
         setEntregaProducao(pedido.data_entrega_producao.slice(0, 10));
@@ -278,6 +284,34 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
     setFotoProduto("");
     await upsertLaudoPPPedido(laudoPedidoId, { foto_produto: null });
     deleteImage(antiga);
+  };
+
+  // Vídeo opcional do laudo. Sobe pelo uploadArquivo (o uploadImage
+  // converteria em JPEG e quebraria o arquivo), como o vídeo da prova na ficha.
+  const handleVideo = async (files: FileList | null) => {
+    const f = files?.[0];
+    if (videoCameraRef.current) videoCameraRef.current.value = "";
+    if (videoArquivoRef.current) videoArquivoRef.current.value = "";
+    if (!f) return;
+    if (f.type && !f.type.startsWith("video/")) { alert("Escolha um arquivo de vídeo."); return; }
+    const mb = f.size / 1048576;
+    if (mb > 100 && !window.confirm(`O vídeo tem ${mb.toFixed(0)} MB. O envio pode demorar bastante. Continuar?`)) return;
+    setVideoUploading(true);
+    const url = await uploadArquivo(f, `${row.ref}/laudo_pp_video`);
+    if (!url) { setVideoUploading(false); alert("Não foi possível enviar o vídeo. Tente de novo."); return; }
+    const err = await upsertLaudoPPPedido(laudoPedidoId, { video_url: url });
+    setVideoUploading(false);
+    if (err) { alert(`Não foi possível salvar o vídeo.\n\n${err}\n\nSe o erro fala de coluna inexistente (video_url), falta rodar a migration 045 no Supabase.`); deleteImage(url); return; }
+    const antigo = videoUrl;
+    setVideoUrl(url);
+    if (antigo) deleteImage(antigo);
+  };
+  const removerVideo = async () => {
+    if (!videoUrl || !confirm("Remover o vídeo do laudo?")) return;
+    const antigo = videoUrl;
+    setVideoUrl("");
+    await upsertLaudoPPPedido(laudoPedidoId, { video_url: null });
+    deleteImage(antigo);
   };
 
   const handleSave = async () => {
@@ -413,7 +447,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
       <div className="print-overlay">
         <LaudoPPPDF
           row={row} pts={pts} gradTamanhos={gradTamanhos} gradBase={gradBase} esperados={esperados} medidas={medidas}
-          statusPP={status} imgModoMedir={imgModoMedir} comentarios={comentarios} fotos={fotos} fotoProduto={fotoProduto}
+          statusPP={status} imgModoMedir={imgModoMedir} comentarios={comentarios} fotos={fotos} fotoProduto={fotoProduto} videoUrl={videoUrl}
           numeroPedido={numeroPedido} coresTamanho={coresTamanho} checklist={checklist}
           dataRecebimentoPre={entregaPre} dataLiberacao={dataLaudo} correcao={correcao}
         />
@@ -524,6 +558,40 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
               )}
               <input ref={prodCameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFotoProduto(e.target.files)} />
               <input ref={prodGaleriaRef} type="file" accept="image/*" className="hidden" onChange={e => handleFotoProduto(e.target.files)} />
+            </div>
+
+            {/* Vídeo — opcional; o PDF imprime o QR code para abrir no celular */}
+            <div className="apple-card p-4">
+              <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">
+                  Vídeo <span className="text-[var(--label-tertiary)] font-normal normal-case tracking-normal">(opcional · sai como QR code no PDF)</span>
+                </div>
+                <div className="flex gap-1.5">
+                  <button type="button" onClick={() => videoCameraRef.current?.click()} disabled={videoUploading}
+                    className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--separator)] text-[var(--label-secondary)] disabled:opacity-50">
+                    🎥 Gravar vídeo
+                  </button>
+                  <button type="button" onClick={() => videoArquivoRef.current?.click()} disabled={videoUploading}
+                    className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--separator)] text-[var(--label-secondary)] disabled:opacity-50">
+                    🖼️ Galeria / arquivo
+                  </button>
+                </div>
+              </div>
+              {videoUploading ? (
+                <p className="text-[12px] text-[var(--label-tertiary)]">Enviando vídeo... (pode demorar, não feche o laudo)</p>
+              ) : videoUrl ? (
+                <div className="flex items-center gap-3 flex-wrap">
+                  <QRCodeSVG value={videoUrl} size={96} level="L" marginSize={1} />
+                  <div className="flex flex-col gap-1">
+                    <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-[13px] font-semibold text-[var(--system-blue)] hover:underline">▶ Abrir vídeo</a>
+                    <button type="button" onClick={removerVideo} className="text-[12px] text-[var(--label-tertiary)] hover:text-[#A8221D] underline self-start">Remover</button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[12px] text-[var(--label-quaternary)]">Nenhum vídeo. Se precisar, grave ou escolha um vídeo — o QR code é gerado sozinho.</p>
+              )}
+              <input ref={videoCameraRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={e => handleVideo(e.target.files)} />
+              <input ref={videoArquivoRef} type="file" accept="video/*" className="hidden" onChange={e => handleVideo(e.target.files)} />
             </div>
 
             <div className="apple-card p-4">

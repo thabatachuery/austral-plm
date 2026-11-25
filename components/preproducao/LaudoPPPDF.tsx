@@ -1,5 +1,6 @@
 "use client";
 import { Fragment } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { cellStatus } from "./LaudoPPModal";
 import { CHECKLIST_PP, resultadoCheck, valorCheck, obsKey, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
 
@@ -22,6 +23,7 @@ type Props = {
   dataLiberacao?: string;
   checklist?: ChecklistPP;
   fotoProduto?: string;
+  videoUrl?: string;
   correcao?: number;          // 1, 2… = laudo de correção (pré corrigida)
 };
 
@@ -50,7 +52,7 @@ const STATUS_PP_COLOR: Record<string, string> = {
   "REPROVADA - NEGOCIAR": danger,
 };
 
-export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao, correcao = 0, checklist = {}, fotoProduto = "" }: Props) {
+export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao, correcao = 0, checklist = {}, fotoProduto = "", videoUrl = "" }: Props) {
   const temCheck = CHECKLIST_PP.some(i => [i.key, ...(i.sub || []).map(s => s.key)].some(k => valorCheck(checklist, k)));
   const Marca = ({ v }: { v: CheckValor | "" | undefined }) => (
     <span style={{ fontWeight: 700, color: v === "ok" ? success : v === "nok" ? danger : light }}>
@@ -107,6 +109,17 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
           <div style={{ marginBottom: "12px" }}>
             <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "3px" }}>Foto do produto</div>
             <img src={fotoProduto} alt="Foto do produto" style={{ maxWidth: "100%", maxHeight: "170px", objectFit: "contain", border: `0.5px solid ${line}`, borderRadius: "4px" }} />
+          </div>
+        )}
+
+        {videoUrl && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", pageBreakInside: "avoid" }}>
+            {/* QR: o laudo vai impresso; aponta o celular e abre o vídeo. */}
+            <QRCodeSVG value={videoUrl} size={92} level="L" marginSize={1} style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: "8px", wordBreak: "break-all", minWidth: 0 }}>
+              <span style={{ display: "block", fontWeight: 700, color: muted, marginBottom: "2px" }}>VÍDEO DO LAUDO:</span>
+              <a href={videoUrl} style={{ color: navy, textDecoration: "underline" }}>{videoUrl}</a>
+            </div>
           </div>
         )}
 
