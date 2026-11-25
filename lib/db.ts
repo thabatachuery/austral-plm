@@ -953,7 +953,7 @@ export async function criarLaudoPPCorrecao(laudoId: number): Promise<{ id: numbe
   return { id: data!.id, erro: null };
 }
 
-export async function fetchLaudoPPPedido(id: number): Promise<({ numero_pedido: string; status: string; comentarios: string; fotos: string[]; cores_tamanho: Record<string, string>; checklist: Record<string, "ok" | "nok"> } & LaudoPPPedido) | null> {
+export async function fetchLaudoPPPedido(id: number): Promise<({ numero_pedido: string; status: string; comentarios: string; fotos: string[]; cores_tamanho: Record<string, string>; checklist: Record<string, string> } & LaudoPPPedido) | null> {
   const { data, error } = await sb().from("ficha_laudo_pp_pedidos").select("*").eq("id", id).maybeSingle();
   if (error) { console.error("fetchLaudoPPPedido:", error); return null; }
   if (!data) return null;
@@ -964,7 +964,7 @@ export async function fetchLaudoPPPedido(id: number): Promise<({ numero_pedido: 
   };
 }
 
-export async function upsertLaudoPPPedido(id: number, patch: { numero_pedido?: string; status?: string; comentarios?: string; fotos?: string[]; cores_tamanho?: Record<string, string>; checklist?: Record<string, "ok" | "nok"> } & LaudoPPDatas): Promise<string | null> {
+export async function upsertLaudoPPPedido(id: number, patch: { numero_pedido?: string; status?: string; comentarios?: string; fotos?: string[]; cores_tamanho?: Record<string, string>; checklist?: Record<string, string> } & LaudoPPDatas): Promise<string | null> {
   const { error } = await sb().from("ficha_laudo_pp_pedidos").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) { console.error("upsertLaudoPPPedido:", error); return error.message || "Erro ao salvar"; }
   return null;

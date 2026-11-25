@@ -5,7 +5,7 @@ import {
   fetchLaudoPPMedidas, upsertLaudoPPMedidas, fetchLaudoPPPedido, upsertLaudoPPPedido,
   upsertControleFluxo, avisarPreRecebida,
 } from "@/lib/db";
-import { previsaoPre, fmtBR, hojeISO, CHECKLIST_PP, resultadoCheck, checklistTemIncorreto, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
+import { previsaoPre, fmtBR, hojeISO, CHECKLIST_PP, resultadoCheck, checklistTemIncorreto, valorCheck, obsKey, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
 import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num, parseTolerancia } from "@/lib/tamanhos";
 import { uploadImage, deleteImage } from "@/lib/storage";
 import { STATUS_PRE_PRODUCAO_OPTS, STATUS_PRE_PRODUCAO_COLORS } from "@/lib/constants";
@@ -67,6 +67,33 @@ function CheckBotoes({ v, onChange }: { v: CheckValor | undefined; onChange: (v:
     );
   };
   return <div className="flex gap-1.5 shrink-0">{btn("ok", "Correto", "#0E6A40", "#E2F2E9")}{btn("nok", "Incorreto", "#A8221D", "#FBE6E5")}</div>;
+}
+
+// Linha da conferência: rótulo + Correto/Incorreto; incorreto abre o campo
+// para escrever o que está errado (grava ao sair do campo).
+function CheckLinha({ label, k, c, onCheck, onObs, sub }: {
+  label: string; k: string; c: ChecklistPP; sub?: boolean;
+  onCheck: (k: string, v: CheckValor | "") => void; onObs: (k: string, t: string) => void;
+}) {
+  const v = valorCheck(c, k);
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <span className={sub ? "text-[12px] text-[var(--label-secondary)]" : "text-[13px] font-semibold"}>{label}</span>
+        <CheckBotoes v={v || undefined} onChange={nv => onCheck(k, nv)} />
+      </div>
+      {v === "nok" && (
+        <input
+          key={`${k}-${c[obsKey(k)] || ""}`}
+          type="text" autoFocus={!c[obsKey(k)]} defaultValue={c[obsKey(k)] || ""}
+          placeholder={`O que está incorreto em ${label.toLowerCase()}?`}
+          onBlur={e => onObs(k, e.target.value.trim())}
+          onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+          className="apple-input w-full text-[12px] mt-1.5 !border-[#A8221D]/40"
+        />
+      )}
+    </div>
+  );
 }
 
 function ResultadoPill({ r }: { r: CheckValor | "" }) {
@@ -191,12 +218,29 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
   };
 
   // Conferência grava na hora, como a cor por tamanho.
-  const setCheck = async (key: string, v: CheckValor | "") => {
-    const next = { ...checklist };
-    if (v) next[key] = v; else delete next[key];
+  // O texto do "incorreto" fica guardado mesmo se a marcação mudar (evita
+  // perder o que foi escrito num clique errado); só aparece quando incorreto.
+  // checkRef guarda o mais recente: o blur do texto e o clique no próximo
+  // botão acontecem em sequência e não podem se sobrescrever.
+  const checkRef = useRef<ChecklistPP>({});
+  checkRef.current = checklist;
+  const gravaChecklist = async (mudar: (c: ChecklistPP) => ChecklistPP) => {
+    const next = mudar({ ...checkRef.current });
+    checkRef.current = next;
     setChecklist(next);
     const err = await upsertLaudoPPPedido(laudoPedidoId, { checklist: next });
     if (err) alert(`Não foi possível salvar a conferência.\n\n${err}\n\nSe o erro fala de coluna inexistente (checklist), falta rodar a migration 043 no Supabase.`);
+  };
+  const setCheck = (key: string, v: CheckValor | "") => gravaChecklist(next => {
+    if (v) next[key] = v; else delete next[key];
+    return next;
+  });
+  const setObs = (key: string, t: string) => {
+    if ((checkRef.current[obsKey(key)] || "") === t) return;
+    gravaChecklist(next => {
+      if (t) next[obsKey(key)] = t; else delete next[obsKey(key)];
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -403,21 +447,20 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
               <div className="divide-y divide-[var(--separator)]">
                 {CHECKLIST_PP.map(item => (
                   <div key={item.key} className="py-2">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <span className="text-[13px] font-semibold">{item.label}</span>
-                      {item.sub
-                        ? <span className="flex items-center gap-2"><span className="text-[11px] text-[var(--label-tertiary)]">correto só com todos os itens corretos</span><ResultadoPill r={resultadoCheck(item, checklist)} /></span>
-                        : <CheckBotoes v={checklist[item.key]} onChange={v => setCheck(item.key, v)} />}
-                    </div>
-                    {item.sub && (
-                      <div className="mt-1.5 ml-4 space-y-1.5">
-                        {item.sub.map(s => (
-                          <div key={s.key} className="flex items-center justify-between gap-3 flex-wrap">
-                            <span className="text-[12px] text-[var(--label-secondary)]">{s.label}</span>
-                            <CheckBotoes v={checklist[s.key]} onChange={v => setCheck(s.key, v)} />
-                          </div>
-                        ))}
-                      </div>
+                    {item.sub ? (
+                      <>
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <span className="text-[13px] font-semibold">{item.label}</span>
+                          <span className="flex items-center gap-2"><span className="text-[11px] text-[var(--label-tertiary)]">correto só com todos os itens corretos</span><ResultadoPill r={resultadoCheck(item, checklist)} /></span>
+                        </div>
+                        <div className="mt-1.5 ml-4 space-y-1.5">
+                          {item.sub.map(s => (
+                            <CheckLinha key={s.key} sub label={s.label} k={s.key} c={checklist} onCheck={setCheck} onObs={setObs} />
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <CheckLinha label={item.label} k={item.key} c={checklist} onCheck={setCheck} onObs={setObs} />
                     )}
                   </div>
                 ))}

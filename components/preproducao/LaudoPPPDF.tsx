@@ -1,7 +1,7 @@
 "use client";
 import { Fragment } from "react";
 import { cellStatus } from "./LaudoPPModal";
-import { CHECKLIST_PP, resultadoCheck, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
+import { CHECKLIST_PP, resultadoCheck, valorCheck, obsKey, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
 
 type Ponto = { cod: string; desc: string; tabela: string; tol: string };
 
@@ -50,7 +50,7 @@ const STATUS_PP_COLOR: Record<string, string> = {
 };
 
 export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao, correcao = 0, checklist = {} }: Props) {
-  const temCheck = Object.keys(checklist).length > 0;
+  const temCheck = CHECKLIST_PP.some(i => [i.key, ...(i.sub || []).map(s => s.key)].some(k => valorCheck(checklist, k)));
   const Marca = ({ v }: { v: CheckValor | "" | undefined }) => (
     <span style={{ fontWeight: 700, color: v === "ok" ? success : v === "nok" ? danger : light }}>
       {v === "ok" ? "✓ Correto" : v === "nok" ? "✗ Incorreto" : "—"}
@@ -113,8 +113,16 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
                     <td style={{ ...td, width: "18%" }}><Marca v={resultadoCheck(item, checklist)} /></td>
                     <td style={{ ...td, color: muted, fontSize: "8px" }}>
                       {item.sub?.map((s, i) => (
-                        <span key={s.key}>{i > 0 && " · "}{s.label}: <Marca v={checklist[s.key]} /></span>
+                        <span key={s.key}>{i > 0 && " · "}{s.label}: <Marca v={valorCheck(checklist, s.key)} /></span>
                       ))}
+                      {/* O que está incorreto (item e subitens) */}
+                      {[{ key: item.key, label: "" }, ...(item.sub || [])]
+                        .filter(s => valorCheck(checklist, s.key) === "nok" && checklist[obsKey(s.key)])
+                        .map(s => (
+                          <div key={`obs-${s.key}`} style={{ color: danger, fontSize: "8px", marginTop: "1px" }}>
+                            {s.label ? `${s.label}: ` : ""}{checklist[obsKey(s.key)]}
+                          </div>
+                        ))}
                     </td>
                   </tr>
                 ))}

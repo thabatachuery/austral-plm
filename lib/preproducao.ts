@@ -163,7 +163,12 @@ export const STATUS_PEDE_CORRECAO = "REPROVADA - CORRIGIR";
 // Item com "sub" só é correto quando TODOS os subitens estão corretos;
 // qualquer subitem incorreto deixa o item incorreto.
 export type CheckValor = "ok" | "nok";
-export type ChecklistPP = Record<string, CheckValor>;
+// Na mesma chave JSONB: "<item>": "ok" | "nok" e "<item>__obs": o que está
+// incorreto (texto livre, só aparece/imprime quando o item está incorreto).
+export type ChecklistPP = Record<string, string>;
+export const obsKey = (key: string) => `${key}__obs`;
+export const valorCheck = (c: ChecklistPP, key: string): CheckValor | "" =>
+  c[key] === "ok" || c[key] === "nok" ? c[key] as CheckValor : "";
 export type ItemCheck = { key: string; label: string; sub?: { key: string; label: string }[] };
 
 export const CHECKLIST_PP: ItemCheck[] = [
@@ -181,8 +186,8 @@ export const CHECKLIST_PP: ItemCheck[] = [
 
 // Resultado do item: "ok", "nok" ou "" (ainda não conferido por completo).
 export function resultadoCheck(item: ItemCheck, c: ChecklistPP): CheckValor | "" {
-  if (!item.sub) return c[item.key] || "";
-  const vals = item.sub.map(s => c[s.key]);
+  if (!item.sub) return valorCheck(c, item.key);
+  const vals = item.sub.map(s => valorCheck(c, s.key));
   if (vals.includes("nok")) return "nok";
   return vals.every(v => v === "ok") ? "ok" : "";
 }
