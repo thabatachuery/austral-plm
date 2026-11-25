@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminClient } from "@/lib/supabase-server";
 import { linxParaFluxo } from "@/lib/linx-fluxo";
 import { sincronizarPedidosProducao } from "@/lib/pedidos-producao-sync";
+import { sincronizarVarianteCompras } from "@/lib/variante-compras-sync";
 import { dispararAvisosPre } from "@/lib/avisos-pre";
 import { encadearAutomaticos, gravarMovimento, provasDaFicha, refCancelada, type FluxoEstado } from "@/lib/fluxo";
 
@@ -23,6 +24,9 @@ export async function GET(req: NextRequest) {
   // Pré-Produção: registra a entrega dos pedidos que saíram do Linx, mesmo
   // se ninguém abrir a aba. Falha aqui não impede o kanban.
   await sincronizarPedidosProducao(db).catch(e => console.error("cron sincronizarPedidosProducao:", e));
+  // Compra x Variante: qtd / pedido / entrega de cada cor vindos do Linx.
+  const vc = await sincronizarVarianteCompras(db).catch(e => ({ erro: String(e?.message || e) }));
+  console.log("cron variante-compras:", JSON.stringify(vc));
   // E-mails de cobrança da pré (15 dias / 5 dias da entrega da produção).
   const avisos = await dispararAvisosPre(db).catch(e => ({ erro: String(e?.message || e) }));
   console.log("cron avisos pré:", JSON.stringify(avisos));

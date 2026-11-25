@@ -73,7 +73,31 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
     return () => { active = false; };
   }, [compras]);
 
-  const { error: showError, Container: ToastContainer } = useToast();
+  const { error: showError, success: showSuccess, Container: ToastContainer } = useToast();
+
+  // Linx -> qtd / pedido / entrega de cada cor (lib/variante-compras-sync.ts).
+  const [linxBusy, setLinxBusy] = useState(false);
+  const atualizarDoLinx = async () => {
+    setLinxBusy(true);
+    try {
+      const r = await fetch("/api/linx/variante-compras", { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+      setVcMap(await fetchVarianteCompras());
+      const extra = [
+        j.zeradasEntregues ? `${j.zeradasEntregues} pedido(s) entregue(s) zerado(s)` : "",
+        j.semEspaco?.length ? `${j.semEspaco.length} cor(es) com mais de 2 pedidos em aberto (só os 2 primeiros entram)` : "",
+        j.semVariante?.length ? `${j.semVariante.length} cor(es) do Linx sem cor na ficha` : "",
+      ].filter(Boolean).join(" · ");
+      showSuccess(`Linx: ${j.variantesAtualizadas} variante(s) atualizada(s).${extra ? ` ${extra}.` : ""}`);
+      if (j.semVariante?.length) console.info("Cores do Linx sem variante na ficha:", j.semVariante);
+      if (j.semEspaco?.length) console.info("Cores com mais de 2 pedidos em aberto:", j.semEspaco);
+    } catch (e: any) {
+      showError(`Não foi possível atualizar do Linx: ${e?.message || e}`);
+    } finally {
+      setLinxBusy(false);
+    }
+  };
 
   const updOrder = async (r: any, field: string, value: any) => {
     if (COMPRA_FIELDS.has(field)) {
@@ -210,7 +234,7 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
       {sf&&(<div className="apple-card p-4 mb-4 bg-[var(--bg-secondary)]"><div className="flex items-center justify-between mb-3"><span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Filtrar por</span>{ac>0&&<button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--system-blue)] font-medium">Limpar</button>}</div><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">{FILTERS.map(k=>(<div key={k}><label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">{FL[k]}</label><MultiSelect value={fl[k]||[]} options={uv(k)} onChange={v=>sf2(k,v)} className="text-[12px] py-1.5"/></div>))}</div></div>)}
       {ac>0&&!sf&&(<div className="flex flex-wrap gap-1.5 mb-3">{Object.entries(fl).map(([k,v])=>{if(!v.length)return null;return(<span key={k} className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 text-[12px] font-medium"><span className="text-blue-300">{FL[k]}:</span>{v.join(", ")}<button onClick={()=>sf2(k,[])} className="ml-0.5 text-blue-300">×</button></span>);})}<button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--label-tertiary)] px-2">Limpar</button></div>)}
 
-      <div className="flex items-baseline gap-3 mb-4"><span className="text-[28px] font-bold tabnum tracking-[-0.03em]">{filtered.length}</span><span className="text-[14px] text-[var(--label-secondary)]">variante{filtered.length!==1&&"s"}</span>{ac>0&&<span className="text-[12px] text-[var(--label-tertiary)]">de {vr.length}</span>}<span className="text-[11px] text-[var(--label-quaternary)] ml-auto">Cores cadastradas na ficha técnica</span></div>
+      <div className="flex items-baseline gap-3 mb-4"><span className="text-[28px] font-bold tabnum tracking-[-0.03em]">{filtered.length}</span><span className="text-[14px] text-[var(--label-secondary)]">variante{filtered.length!==1&&"s"}</span>{ac>0&&<span className="text-[12px] text-[var(--label-tertiary)]">de {vr.length}</span>}<span className="text-[11px] text-[var(--label-quaternary)] ml-auto">Cores cadastradas na ficha técnica</span>{compras&&canEditOrders&&(<button onClick={atualizarDoLinx} disabled={linxBusy} title="Puxa do Linx a quantidade, o número do pedido e a data de entrega de cada cor. Pedido entregue: qtd 0, pedido e data em branco. Também roda sozinho todo dia de manhã." className="apple-btn-secondary text-[12px] py-1.5 px-3 self-center disabled:opacity-50">{linxBusy?"Atualizando…":"↻ Atualizar do Linx"}</button>)}</div>
 
       <ScrollTable><table className="plm-table" style={{width:"max-content",minWidth:"100%"}}><thead><tr>{COLS.map(c=>{
         const sortable = c.key !== "_ficha";
