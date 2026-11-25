@@ -105,7 +105,13 @@ export default function InlineCell({ value, type, options, isStatus, onChange, d
   useEffect(() => {
     if (!editing || type !== "select") { setPos(null); return; }
     recalcPos();
-    const onMove = () => recalcPos();
+    // Rolar a própria lista também dispara este listener (captura); ignorar,
+    // senão a posição é recalculada e a lista volta para a opção destacada.
+    const onMove = (e?: Event) => {
+      const t = e?.target;
+      if (t instanceof Node && listRef.current?.contains(t)) return;
+      recalcPos();
+    };
     window.addEventListener("scroll", onMove, true);
     window.addEventListener("resize", onMove);
     return () => {
@@ -114,11 +120,14 @@ export default function InlineCell({ value, type, options, isStatus, onChange, d
     };
   }, [editing, type, recalcPos]);
 
-  // Mantém a opção destacada visível ao navegar com as setas
+  // Mantém a opção destacada visível ao abrir e ao navegar com as setas.
+  // Depende só de "aberta", não da posição: rolar a página/tabela recalcula a
+  // posição e não pode puxar a lista de volta para a opção destacada.
+  const aberta = pos !== null;
   useEffect(() => {
-    if (!pos) return;
+    if (!aberta) return;
     listRef.current?.querySelector<HTMLElement>(`[data-idx="${activeIdx}"]`)?.scrollIntoView({ block: "nearest" });
-  }, [activeIdx, pos]);
+  }, [activeIdx, aberta]);
 
   const cancel = () => { cancelling.current = true; setTmp(value); setEditing(false); };
   const commit = (v: string | number) => {
