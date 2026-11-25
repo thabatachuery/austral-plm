@@ -887,12 +887,14 @@ export async function fetchNomesTabelasMedidas() {
 export type LaudoPPPedido = {
   id: number; numero_pedido: string; status: string; updated_at: string;
   data_entrega_producao: string; data_entrega_pre: string; data_laudo: string;
+  correcao_de: number | null;   // laudo de correção: id do laudo reprovado (migration 042)
 };
 type LaudoPPDatas = { data_entrega_producao?: string | null; data_entrega_pre?: string | null; data_laudo?: string | null };
 
 const laudoPPDeLinha = (r: any): LaudoPPPedido => ({
   id: r.id, numero_pedido: r.numero_pedido || "", status: r.status || "", updated_at: r.updated_at || "",
   data_entrega_producao: r.data_entrega_producao || "", data_entrega_pre: r.data_entrega_pre || "", data_laudo: r.data_laudo || "",
+  correcao_de: r.correcao_de ?? null,
 });
 
 export async function fetchLaudoPPPedidos(fichaId: number): Promise<LaudoPPPedido[]> {
@@ -935,6 +937,20 @@ export async function criarLaudoPPPedido(fichaId: number, inicial?: { numero_ped
   }
   if (error) { console.error("criarLaudoPPPedido:", error); return null; }
   return data!.id;
+}
+
+// Laudo reprovado para corrigir: abre um laudo novo, em branco, para a pré
+// corrigida — mesmo pedido, mesma entrega da produção e mesmas cores por
+// tamanho; medidas, fotos, datas e status começam do zero.
+export async function criarLaudoPPCorrecao(laudoId: number): Promise<{ id: number | null; erro: string | null }> {
+  const { data: orig, error: e1 } = await sb().from("ficha_laudo_pp_pedidos").select("*").eq("id", laudoId).maybeSingle();
+  if (e1 || !orig) return { id: null, erro: e1?.message || "Laudo original não encontrado." };
+  const { data, error } = await sb().from("ficha_laudo_pp_pedidos").insert({
+    ficha_id: orig.ficha_id, numero_pedido: orig.numero_pedido || "", correcao_de: laudoId,
+    data_entrega_producao: orig.data_entrega_producao || null, cores_tamanho: orig.cores_tamanho || {},
+  }).select("id").single();
+  if (error) { console.error("criarLaudoPPCorrecao:", error); return { id: null, erro: error.message }; }
+  return { id: data!.id, erro: null };
 }
 
 export async function fetchLaudoPPPedido(id: number): Promise<({ numero_pedido: string; status: string; comentarios: string; fotos: string[]; cores_tamanho: Record<string, string> } & LaudoPPPedido) | null> {
@@ -1153,7 +1169,7 @@ export async function fetchMapaEntregas() {
     selectAll((de, ate) => sb().from("fichas_tecnicas").select("id, produto_ref, imagem_url, imagem_modelo, imagem_frente, imagem_costas").range(de, ate), "fetchMapaEntregas/fichas"),
     selectAll((de, ate) => sb().from("tecidos").select("nome, composicao, imagem").range(de, ate), "fetchMapaEntregas/tecidos"),
     selectAll((de, ate) => sb().from("produto_variante_compras").select("*").range(de, ate), "fetchMapaEntregas/varCompras"),
-    selectAll((de, ate) => sb().from("ficha_laudo_pp_pedidos").select("ficha_id, numero_pedido, status").range(de, ate), "fetchMapaEntregas/laudosPedidos"),
+    selectAll((de, ate) => sb().from("ficha_laudo_pp_pedidos").select("ficha_id, numero_pedido, status").order("id").range(de, ate), "fetchMapaEntregas/laudosPedidos"),
   ]);
 
   const imgMap: Record<string, string> = {};

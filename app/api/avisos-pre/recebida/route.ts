@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   if (falta) return NextResponse.json({ enviado: false, motivo: falta });
 
   const db = adminClient();
-  const { data: laudo } = await db.from("ficha_laudo_pp_pedidos").select("id, ficha_id, numero_pedido, data_entrega_producao, data_entrega_pre").eq("id", laudoId).maybeSingle();
+  const { data: laudo } = await db.from("ficha_laudo_pp_pedidos").select("*").eq("id", laudoId).maybeSingle();
   if (!laudo?.data_entrega_pre) return NextResponse.json({ enviado: false, motivo: "Laudo sem entrega da pré." });
   const { data: ficha } = await db.from("fichas_tecnicas").select("produto_ref").eq("id", laudo.ficha_id).maybeSingle();
   const ref = ficha?.produto_ref;
@@ -48,13 +48,15 @@ export async function POST(req: Request) {
   if (!para.length) return NextResponse.json({ enviado: false, motivo: "Sem destinatários (EMAIL_PRE_RECEBIDA_* / EMAIL_PRE_PARA)." });
 
   // Trava contra envio repetido: grava antes; se já existia, não manda de novo.
-  const registro = { tipo: "recebida", ref, numero: numero || `laudo-${laudo.id}`, data_entrega: entrega || "1900-01-01" };
+  // Pré corrigida (laudo de correção): é outra entrega do mesmo pedido, avisa de novo.
+  const correcao = !!laudo.correcao_de;
+  const registro = { tipo: "recebida", ref, numero: correcao ? `${numero || "s-n"}-correcao-${laudo.id}` : numero || `laudo-${laudo.id}`, data_entrega: entrega || "1900-01-01" };
   const { data: novo, error: errReg } = await db.from("avisos_pre_email")
     .upsert(registro, { onConflict: "tipo,ref,numero,data_entrega", ignoreDuplicates: true }).select();
   if (!errReg && !novo?.length) return NextResponse.json({ enviado: false, motivo: "Já avisado." });
 
   try {
-    const { assunto, texto } = textoPreRecebida([{ ref, numero, entrega, fornecedor }]);
+    const { assunto, texto } = textoPreRecebida([{ ref, numero: correcao ? `${numero || "S/ Nº"} (PRÉ CORRIGIDA)` : numero, entrega, fornecedor }]);
     await enviarEmail(para, assunto, texto, cc);
     return NextResponse.json({ enviado: true });
   } catch (e: any) {

@@ -152,7 +152,12 @@ export type PedidoPP = {
   atrasada: boolean;            // pré não chegou e a previsão já passou
   prazoLaudo: PrazoLaudo | null; // pré entregue e laudo por fazer: até quando
   laudoAtrasado: boolean;       // passou dos 3 dias úteis sem laudo
+  correcao: number;             // 0 = laudo do pedido; 1, 2… = laudo de correção
 };
+
+// Reprovada para corrigir: o fornecedor manda nova pré e ela ganha um laudo
+// de correção, com o mesmo número de pedido.
+export const STATUS_PEDE_CORRECAO = "REPROVADA - CORRIGIR";
 
 export function situacaoDe(p: { status: string; dataLaudo: string; entregaPre: string; producaoEntregue?: string }): SituacaoPP {
   if (p.status || p.dataLaudo) return "concluido";
@@ -161,12 +166,28 @@ export function situacaoDe(p: { status: string; dataLaudo: string; entregaPre: s
   return "pendente";
 }
 
-type LaudoLinha = { id: number; numero_pedido: string; status: string; data_entrega_producao: string; data_entrega_pre: string; data_laudo: string };
+type LaudoLinha = { id: number; numero_pedido: string; status: string; data_entrega_producao: string; data_entrega_pre: string; data_laudo: string; correcao_de?: number | null };
 
 export function juntarPedidos(lista: PedidoListaPP[], laudos: LaudoLinha[], hoje = hojeISO()): PedidoPP[] {
   const out: PedidoPP[] = [];
   const usados = new Set<number>();
-  const monta = (numero: string, l: LaudoLinha | null, p: PedidoListaPP | null): PedidoPP => {
+  // Laudos de correção não casam sozinhos com o pedido: entram logo depois
+  // do laudo que reprovou (e as correções delas, em sequência).
+  const ids = new Set(laudos.map(l => l.id));
+  const ehCorrecao = (l: LaudoLinha) => !!l.correcao_de && ids.has(l.correcao_de);
+  const originais = laudos.filter(l => !ehCorrecao(l));
+  const comCorrecoes = (numero: string, l: LaudoLinha, p: PedidoListaPP | null) => {
+    out.push(monta(numero, l, p, 0));
+    let atual = l;
+    for (let n = 1; ; n++) {
+      const c = laudos.find(x => x.correcao_de === atual.id && !usados.has(x.id));
+      if (!c) break;
+      usados.add(c.id);
+      out.push(monta(numero, c, p, n));
+      atual = c;
+    }
+  };
+  const monta = (numero: string, l: LaudoLinha | null, p: PedidoListaPP | null, correcao = 0): PedidoPP => {
     // A data da lista manda (pode ter sido remarcada); o laudo guarda a cópia.
     const entregaProducao = (p?.data || l?.data_entrega_producao || "").slice(0, 10);
     const base = {
@@ -180,17 +201,20 @@ export function juntarPedidos(lista: PedidoListaPP[], laudos: LaudoLinha[], hoje
     const prazo = situacao === "recebida" ? prazoLaudo(base.entregaPre) : null;
     return {
       ...base, situacao, atrasada: situacao === "pendente" && !!base.previsaoPre && base.previsaoPre < hoje,
-      prazoLaudo: prazo, laudoAtrasado: prazo?.situacao === "atrasado",
+      prazoLaudo: prazo, laudoAtrasado: prazo?.situacao === "atrasado", correcao,
     };
   };
   for (const p of lista) {
-    const l = laudos.find(x => !usados.has(x.id) && (p.numero
+    const l = originais.find(x => !usados.has(x.id) && (p.numero
       ? numeroPedidoNorm(x.numero_pedido) === p.numero
       : !x.numero_pedido && (x.data_entrega_producao || "").slice(0, 10) === p.data)) || null;
-    if (l) usados.add(l.id);
-    out.push(monta(p.numero, l, p));
+    if (l) { usados.add(l.id); comCorrecoes(p.numero, l, p); }
+    else out.push(monta(p.numero, null, p));
   }
   // Laudos gravados que não batem com nenhum pedido da lista (avulsos/antigos).
-  for (const l of laudos) if (!usados.has(l.id)) out.push(monta(numeroPedidoNorm(l.numero_pedido), l, null));
+  for (const l of originais) if (!usados.has(l.id)) { usados.add(l.id); comCorrecoes(numeroPedidoNorm(l.numero_pedido), l, null); }
+  // Correção que sobrou (duas abertas para o mesmo laudo): não some da lista.
+  for (const l of laudos) if (!usados.has(l.id)) out.push(monta(numeroPedidoNorm(l.numero_pedido), l, null, 1));
+  // sort é estável: a correção fica logo depois do laudo que reprovou.
   return out.sort((a, b) => (a.entregaProducao || "9").localeCompare(b.entregaProducao || "9"));
 }

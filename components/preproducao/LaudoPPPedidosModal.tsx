@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import {
-  fetchFichaResolvida, fetchLaudoPPPedidos, criarLaudoPPPedido, deleteLaudoPPPedido, upsertLaudoPPPedido,
+  fetchFichaResolvida, fetchLaudoPPPedidos, criarLaudoPPPedido, criarLaudoPPCorrecao, deleteLaudoPPPedido, upsertLaudoPPPedido,
   fetchControleFluxoByRef, upsertControleFluxo, fetchPedidosProducao, setProducaoEntregue, avisarPreRecebida, type LaudoPPPedido,
 } from "@/lib/db";
 import { STATUS_PRE_PRODUCAO_COLORS, STATUS_PP_LIBERADA_ANTES } from "@/lib/constants";
-import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, SITUACAO_PP, PRODUCAO_PP, pillPreRecebida, type PedidoPP, type PedidoListaPP } from "@/lib/preproducao";
+import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, SITUACAO_PP, PRODUCAO_PP, pillPreRecebida, STATUS_PEDE_CORRECAO, type PedidoPP, type PedidoListaPP } from "@/lib/preproducao";
 
 function ProducaoPill({ p }: { p: PedidoPP }) {
   if (p.producaoEntregue) return <Pill label={`${PRODUCAO_PP.entregue.label} ${fmtBR(p.producaoEntregue)}`} bg={PRODUCAO_PP.entregue.bg} color={PRODUCAO_PP.entregue.color} />;
@@ -55,7 +55,7 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
   const [fichaId, setFichaId] = useState<number | null>(null);
   const [laudos, setLaudos] = useState<LaudoPPPedido[]>([]);
   const [lista, setLista] = useState<PedidoListaPP[]>([]);
-  const [editing, setEditing] = useState<{ id: number; cores: string[] } | null>(null);
+  const [editing, setEditing] = useState<{ id: number; cores: string[]; correcao: number } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const { confirm, Dialog: ConfirmDialog } = useConfirm();
 
@@ -113,8 +113,21 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
     setBusy(chave(p));
     const id = await garanteLaudo(p);
     setBusy(null);
-    if (id) setEditing({ id, cores: p.cores });
+    if (id) setEditing({ id, cores: p.cores, correcao: p.correcao });
     else alert("Não foi possível criar o laudo deste pedido.");
+  };
+
+  // Laudo reprovado para corrigir que ainda não tem correção aberta.
+  const podeCorrigir = (p: PedidoPP) =>
+    !!p.laudoId && p.status === STATUS_PEDE_CORRECAO && !laudos.some(l => l.correcao_de === p.laudoId);
+
+  const liberarCorrecao = async (p: PedidoPP) => {
+    if (!p.laudoId) return;
+    setBusy(chave(p));
+    const { erro } = await criarLaudoPPCorrecao(p.laudoId);
+    setBusy(null);
+    if (erro) alert(`Não foi possível liberar o laudo de correção.\n\n${erro}\n\nSe o erro fala de coluna inexistente (correcao_de), falta rodar a migration 042 no Supabase.`);
+    load();
   };
 
   const setData = async (p: PedidoPP, campo: "data_entrega_pre" | "data_laudo", v: string) => {
@@ -143,14 +156,14 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
     setBusy("novo");
     const id = await criarLaudoPPPedido(fichaId);
     setBusy(null);
-    if (id) setEditing({ id, cores: [] });
+    if (id) setEditing({ id, cores: [], correcao: 0 });
   };
 
   const handleExcluir = async (p: PedidoPP) => {
     if (!p.laudoId) return;
     const ok = await confirm({
       title: "Excluir laudo",
-      message: `Isso apaga o laudo${p.numero ? ` do pedido ${p.numero}` : ""} — medidas, comentários, fotos e datas. Não pode ser desfeito.${p.cores.length ? " O pedido continua na lista, sem laudo." : ""}`,
+      message: `Isso apaga o ${p.correcao ? `laudo de correção ${p.correcao}` : "laudo"}${p.numero ? ` do pedido ${p.numero}` : ""} — medidas, comentários, fotos e datas${laudos.some(l => l.correcao_de === p.laudoId) ? ", e também os laudos de correção abertos depois dele" : ""}. Não pode ser desfeito.${p.cores.length && !p.correcao ? " O pedido continua na lista, sem laudo." : ""}`,
       confirmLabel: "Excluir",
       variant: "danger",
     });
@@ -168,6 +181,7 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
         fichaId={fichaId!}
         laudoPedidoId={editing.id}
         coresPedido={editing.cores}
+        correcao={editing.correcao}
         onClose={() => { setEditing(null); load(); }}
       />
     );
@@ -215,10 +229,14 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
                   {pedidos.map(p => {
                     const k = chave(p);
                     return (
-                      <div key={k} className="apple-card p-3" style={{ opacity: busy === k ? 0.6 : 1 }}>
+                      <div key={k} className={`apple-card p-3 ${p.correcao ? "ml-4 sm:ml-6 border-l-4 !border-l-[#A8221D]/40" : ""}`} style={{ opacity: busy === k ? 0.6 : 1 }}>
                         <div className="flex items-start justify-between gap-3 flex-wrap">
                           <div className="min-w-0">
-                            <div className="text-[14px] font-semibold">{p.numero ? `Pedido ${p.numero}` : "Pedido sem número"}{p.qtd ? <span className="text-[12px] font-normal text-[var(--label-tertiary)]"> · {p.qtd} pçs</span> : null}</div>
+                            <div className="text-[14px] font-semibold">
+                              {p.numero ? `Pedido ${p.numero}` : "Pedido sem número"}
+                              {p.correcao > 0 && <span className="ml-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#FBE6E5] text-[#A8221D] align-middle">Laudo de correção{p.correcao > 1 ? ` ${p.correcao}` : ""}</span>}
+                              {p.qtd ? <span className="text-[12px] font-normal text-[var(--label-tertiary)]"> · {p.qtd} pçs</span> : null}
+                            </div>
                             {(p.tipo || p.fornecedor) && <div className="text-[11px] text-[var(--label-tertiary)]">{[p.tipo, p.fornecedor].filter(Boolean).join(" · ")}</div>}
                             <div className="flex gap-1 flex-wrap mt-1">
                               {p.cores.length
@@ -235,14 +253,21 @@ export default function LaudoPPPedidosModal({ row, onClose }: Props) {
                         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3 items-end">
                           <Data l="Entrega produção" v={p.entregaProducao} />
                           <Data l="Previsão da pré" v={p.previsaoPre} />
-                          {p.numero
+                          {p.numero && !p.correcao
                             ? <DataInput l="Produção entregue" v={p.producaoEntregue} onChange={v => setEntregue(p, v)} />
                             : <Data l="Produção entregue" v={p.producaoEntregue} />}
                           <DataInput l="Pré entregue" v={p.entregaPre} onChange={v => setData(p, "data_entrega_pre", v)} />
                           <DataInput l="Laudo feito" v={p.dataLaudo} onChange={v => setData(p, "data_laudo", v)} />
                         </div>
 
-                        <div className="flex gap-2 mt-3 justify-end">
+                        <div className="flex gap-2 mt-3 justify-end flex-wrap">
+                          {podeCorrigir(p) && (
+                            <button onClick={() => liberarCorrecao(p)} disabled={busy === k}
+                              title="Abre um laudo novo, com o mesmo número de pedido, para a pré corrigida que o fornecedor vai mandar"
+                              className="text-[12px] py-1.5 px-3 rounded-lg border border-[#A8221D]/40 text-[#A8221D] font-semibold hover:bg-[#FBE6E5]">
+                              Liberar laudo de correção
+                            </button>
+                          )}
                           {!p.entregaPre && !p.dataLaudo && (
                             <button onClick={() => setData(p, "data_entrega_pre", hojeISO())} disabled={busy === k}
                               className="text-[12px] py-1.5 px-3 rounded-lg border border-[var(--separator)] text-[var(--label-secondary)] hover:bg-[var(--bg-secondary)]">

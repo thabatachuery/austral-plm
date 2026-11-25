@@ -14,7 +14,9 @@ const normPedido = (s: string) => s.trim().toUpperCase();
 function statusPPDoPedido(item: any, pedido: string): string {
   if (!pedido) return "";
   const alvo = normPedido(pedido);
-  return (item.laudosPP || []).find((l: any) => normPedido(l.numero_pedido) === alvo)?.status || "";
+  // Com laudo de correção há mais de um laudo por pedido: vale o mais novo.
+  const doPedido = (item.laudosPP || []).filter((l: any) => normPedido(l.numero_pedido) === alvo);
+  return doPedido[doPedido.length - 1]?.status || "";
 }
 
 /* ── Status ── */

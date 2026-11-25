@@ -56,9 +56,9 @@ const fmtDateInput = (v: any) => (v ? String(v).slice(0, 10) : "");
 
 // coresPedido: cores do pedido na lista de Variantes — limitam as cores que
 // podem ser escolhidas por tamanho (vazio = todas as cores da ficha).
-type Props = { row: any; fichaId: number; laudoPedidoId: number; coresPedido?: string[]; onClose: () => void };
+type Props = { row: any; fichaId: number; laudoPedidoId: number; coresPedido?: string[]; correcao?: number; onClose: () => void };
 
-export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido = [], onClose }: Props) {
+export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido = [], correcao = 0, onClose }: Props) {
   // Ficha completa ao lado do laudo, só para conferir o que foi entregue
   // (tecidos, aviamentos, estamparia, medidas). Não grava nada.
   const [verFicha, setVerFicha] = useState(false);
@@ -267,7 +267,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
     const dd = String(today.getDate()).padStart(2, "0");
     const mm = String(today.getMonth() + 1).padStart(2, "0");
     const yyyy = today.getFullYear();
-    const pdfName = `${row.ref} - Laudo Pré-Produção${numeroPedido ? ` - Pedido ${numeroPedido}` : ""} - ${dd}-${mm}-${yyyy}`;
+    const pdfName = `${row.ref} - Laudo Pré-Produção${numeroPedido ? ` - Pedido ${numeroPedido}` : ""}${correcao ? ` - Correção${correcao > 1 ? ` ${correcao}` : ""}` : ""} - ${dd}-${mm}-${yyyy}`;
     const prevTitle = document.title;
     const onBefore = () => { document.title = pdfName; };
     const onAfter = () => {
@@ -291,7 +291,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
           row={row} pts={pts} gradTamanhos={gradTamanhos} gradBase={gradBase} esperados={esperados} medidas={medidas}
           statusPP={status} imgModoMedir={imgModoMedir} comentarios={comentarios} fotos={fotos}
           numeroPedido={numeroPedido} coresTamanho={coresTamanho}
-          dataRecebimentoPre={entregaPre} dataLiberacao={dataLaudo}
+          dataRecebimentoPre={entregaPre} dataLiberacao={dataLaudo} correcao={correcao}
         />
       </div>
     );
@@ -304,7 +304,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[var(--separator)] gap-3 flex-wrap">
           <div className="flex items-center gap-3 flex-wrap">
             <div id="laudo-pp-title">
-              <h2 className="text-[16px] font-bold">Laudo de Pré-Produção</h2>
+              <h2 className="text-[16px] font-bold">{correcao ? `Laudo de Correção${correcao > 1 ? ` ${correcao}` : ""} — Pré-Produção` : "Laudo de Pré-Produção"}</h2>
               <p className="text-[12px] text-[var(--label-tertiary)]">{row.ref} — {row.desc}{numeroPedido && ` — Pedido ${numeroPedido}`}</p>
             </div>
             {!loading && (

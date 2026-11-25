@@ -73,7 +73,7 @@ export async function pedidosParaAvisar(db: SupabaseClient, hoje = hojeSP()): Pr
     tudo((de, ate) => db.from("controle_fluxo").select("produto_ref, status_pre_producao").order("produto_ref").range(de, ate)),
     tudo((de, ate) => db.from("pedidos_producao").select("*").order("ref").range(de, ate)),
     tudo((de, ate) => db.from("produto_variante_compras").select("*").order("produto_id").range(de, ate)),
-    tudo((de, ate) => db.from("ficha_laudo_pp_pedidos").select("id, ficha_id, numero_pedido, status, data_entrega_producao, data_entrega_pre, data_laudo").order("id").range(de, ate)),
+    tudo((de, ate) => db.from("ficha_laudo_pp_pedidos").select("*").order("id").range(de, ate)),
     tudo((de, ate) => db.from("fichas_tecnicas").select("id, produto_ref").order("id").range(de, ate)),
   ]);
 

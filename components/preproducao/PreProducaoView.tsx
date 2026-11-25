@@ -7,7 +7,8 @@ import { juntarPedidos, mesclarFontes, fmtBR, hojeISO, pillPreRecebida, LAUDO_AT
 
 // Em que pé está a PRODUÇÃO da ref (independe do laudo): pedidos em aberto
 // no Linx, entregues, ou nenhum pedido.
-function ProducaoRef({ peds }: { peds: PedidoPP[] }) {
+function ProducaoRef({ peds: todos }: { peds: PedidoPP[] }) {
+  const peds = todos.filter(p => !p.correcao); // correção é o mesmo pedido
   if (!peds.length) return <span className="text-[11px] text-[var(--label-tertiary)]">Sem pedido de produção no Linx</span>;
   const abertos = peds.filter(p => !p.producaoEntregue);
   const entregues = peds.filter(p => p.producaoEntregue);
@@ -34,6 +35,7 @@ function SituacaoRef({ peds }: { peds: PedidoPP[] }) {
   const pend = peds.filter(p => p.situacao === "pendente");
   const atras = pend.filter(p => p.atrasada).length;
   const conc = peds.filter(p => p.situacao === "concluido").length;
+  const nPed = peds.filter(p => !p.correcao).length;
   let pill: { label: string; bg: string; color: string };
   const entr = peds.filter(p => p.situacao === "entregue").length;
   const recs = peds.filter(p => p.situacao === "recebida");
@@ -53,7 +55,7 @@ function SituacaoRef({ peds }: { peds: PedidoPP[] }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="inline-flex self-start items-center px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap" style={{ background: pill.bg, color: pill.color }}>{pill.label}</span>
-      {peds.length > 1 && <span className="text-[11px] text-[var(--label-tertiary)]">{peds.length} pedidos · {conc} concluído{conc === 1 ? "" : "s"}</span>}
+      {peds.length > 1 && <span className="text-[11px] text-[var(--label-tertiary)]">{nPed > 1 ? `${nPed} pedidos · ` : ""}{peds.length - nPed > 0 ? `${peds.length - nPed} correç${peds.length - nPed === 1 ? "ão" : "ões"} · ` : ""}{conc} laudo{conc === 1 ? "" : "s"} concluído{conc === 1 ? "" : "s"}</span>}
       {peds.some(p => p.producaoEntregue) && (
         <span className="text-[11px] font-semibold" style={{ color: PRODUCAO_PP.entregue.color }}>
           {PRODUCAO_PP.entregue.label}: {peds.filter(p => p.producaoEntregue).map(p => `${p.numero} (${fmtBR(p.producaoEntregue)})`).join(", ")}
@@ -428,7 +430,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
                       const semPre = p.situacao === "pendente" || p.situacao === "entregue";
                       return (
                         <div key={k} className="flex items-center gap-2 whitespace-nowrap py-0.5" style={{ color: SITUACAO_PP[p.situacao].color }}>
-                          <span>{p.numero || "s/ nº"}{p.entregaProducao ? ` · ${fmtBR(p.entregaProducao)}` : ""}</span>
+                          <span>{p.numero || "s/ nº"}{p.correcao ? ` · correção${p.correcao > 1 ? ` ${p.correcao}` : ""}` : ""}{p.entregaProducao ? ` · ${fmtBR(p.entregaProducao)}` : ""}</span>
                           {semPre ? (
                             <button onClick={() => preChegouHoje(r, p)} disabled={salvandoPre === k}
                               title={`Marca a pré do pedido ${p.numero || ""} como entregue hoje (vai para o laudo)`}

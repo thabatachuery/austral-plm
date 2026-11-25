@@ -19,6 +19,7 @@ type Props = {
   coresTamanho?: Record<string, string>;
   dataRecebimentoPre?: string;
   dataLiberacao?: string;
+  correcao?: number;           // 1, 2… = laudo de correção (pré corrigida)
 };
 
 const fmtDataBR = (v?: string) => (v ? v.split("-").reverse().join("/") : "—");
@@ -46,7 +47,7 @@ const STATUS_PP_COLOR: Record<string, string> = {
   "REPROVADA - NEGOCIAR": danger,
 };
 
-export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao }: Props) {
+export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao, correcao = 0 }: Props) {
   const headerBg = STATUS_PP_COLOR[statusPP] || "#4464AF";
   const wTam = gradTamanhos.length > 5 ? "42px" : "52px";
   const bulletsList = (comentarios || "").split("\n").map(s => s.trim()).filter(Boolean);
@@ -75,7 +76,7 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
           )}
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: "8px", opacity: 0.7, lineHeight: 1.6 }}>Coleção <strong style={{ opacity: 1 }}>{row.colecao}</strong></div>
-            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "-0.01em" }}>{row.ref}{numeroPedido ? ` · Pedido ${numeroPedido}` : ""}</div>
+            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "-0.01em" }}>{row.ref}{numeroPedido ? ` · Pedido ${numeroPedido}` : ""}{correcao ? ` · Correção${correcao > 1 ? ` ${correcao}` : ""}` : ""}</div>
           </div>
         </div>
 
