@@ -781,7 +781,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
                     )}
                   </button>
                 </div>
-                <p className="text-[10px] text-[var(--label-quaternary)] mt-1.5">No celular: "Tirar foto" abre a câmera; "Galeria" escolhe fotos já tiradas (várias de uma vez). No computador, dá para arrastar.</p>
+                <p className="text-[10px] text-[var(--label-quaternary)] mt-1.5">No celular: “Tirar foto” abre a câmera; “Galeria” escolhe fotos já tiradas (várias de uma vez). No computador, dá para arrastar.</p>
                 {/* Câmera: capture abre a câmera direto (iPhone/Android). Galeria: sem
                     capture, o celular oferece fotos e arquivos — o iPhone com capture
                     não deixa escolher da galeria, por isso são dois campos. */}
