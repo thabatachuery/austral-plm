@@ -888,7 +888,7 @@ export type LaudoPPPedido = {
   id: number; numero_pedido: string; status: string; updated_at: string;
   data_entrega_producao: string; data_entrega_pre: string; data_laudo: string;
   correcao_de: number | null;   // laudo de correção: id do laudo reprovado (migration 042)
-  tem_foto: boolean;            // foto é obrigatória para fechar o laudo
+  tem_foto: boolean;            // "foto do produto" é obrigatória para fechar o laudo (migration 044)
 };
 type LaudoPPDatas = { data_entrega_producao?: string | null; data_entrega_pre?: string | null; data_laudo?: string | null };
 
@@ -896,7 +896,7 @@ const laudoPPDeLinha = (r: any): LaudoPPPedido => ({
   id: r.id, numero_pedido: r.numero_pedido || "", status: r.status || "", updated_at: r.updated_at || "",
   data_entrega_producao: r.data_entrega_producao || "", data_entrega_pre: r.data_entrega_pre || "", data_laudo: r.data_laudo || "",
   correcao_de: r.correcao_de ?? null,
-  tem_foto: Array.isArray(r.fotos) && r.fotos.length > 0,
+  tem_foto: !!r.foto_produto,
 });
 
 export async function fetchLaudoPPPedidos(fichaId: number): Promise<LaudoPPPedido[]> {
@@ -955,18 +955,18 @@ export async function criarLaudoPPCorrecao(laudoId: number): Promise<{ id: numbe
   return { id: data!.id, erro: null };
 }
 
-export async function fetchLaudoPPPedido(id: number): Promise<({ numero_pedido: string; status: string; comentarios: string; fotos: string[]; cores_tamanho: Record<string, string>; checklist: Record<string, string> } & LaudoPPPedido) | null> {
+export async function fetchLaudoPPPedido(id: number): Promise<({ numero_pedido: string; status: string; comentarios: string; fotos: string[]; cores_tamanho: Record<string, string>; checklist: Record<string, string>; foto_produto: string } & LaudoPPPedido) | null> {
   const { data, error } = await sb().from("ficha_laudo_pp_pedidos").select("*").eq("id", id).maybeSingle();
   if (error) { console.error("fetchLaudoPPPedido:", error); return null; }
   if (!data) return null;
   return {
     ...laudoPPDeLinha(data),
     comentarios: data.comentarios || "", fotos: data.fotos || [], cores_tamanho: data.cores_tamanho || {},
-    checklist: data.checklist || {},
+    checklist: data.checklist || {}, foto_produto: data.foto_produto || "",
   };
 }
 
-export async function upsertLaudoPPPedido(id: number, patch: { numero_pedido?: string; status?: string; comentarios?: string; fotos?: string[]; cores_tamanho?: Record<string, string>; checklist?: Record<string, string> } & LaudoPPDatas): Promise<string | null> {
+export async function upsertLaudoPPPedido(id: number, patch: { numero_pedido?: string; status?: string; comentarios?: string; fotos?: string[]; cores_tamanho?: Record<string, string>; checklist?: Record<string, string>; foto_produto?: string | null } & LaudoPPDatas): Promise<string | null> {
   const { error } = await sb().from("ficha_laudo_pp_pedidos").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) { console.error("upsertLaudoPPPedido:", error); return error.message || "Erro ao salvar"; }
   return null;

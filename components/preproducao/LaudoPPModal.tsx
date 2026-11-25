@@ -128,6 +128,10 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
   const [comentarios, setComentarios] = useState("");
   const [checklist, setChecklist] = useState<ChecklistPP>({});
   const [fotos, setFotos] = useState<string[]>([]);
+  const [fotoProduto, setFotoProduto] = useState("");
+  const [prodUploading, setProdUploading] = useState(false);
+  const prodCameraRef = useRef<HTMLInputElement>(null);
+  const prodGaleriaRef = useRef<HTMLInputElement>(null);
   const [fotoUploading, setFotoUploading] = useState(false);
   const [fotoDragOver, setFotoDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -170,6 +174,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
         setStatus(pedido.status);
         setComentarios(pedido.comentarios);
         setFotos(pedido.fotos);
+        setFotoProduto(pedido.foto_produto);
         setCoresTamanho(pedido.cores_tamanho);
         setChecklist(pedido.checklist);
         setEntregaProducao(pedido.data_entrega_producao.slice(0, 10));
@@ -244,15 +249,39 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
     });
   };
 
-  // Foto de pelo menos uma das peças conferidas é obrigatória para fechar o laudo.
-  const FALTA_FOTO = "Inclua a foto de pelo menos uma das peças conferidas antes de salvar o laudo.\n\nUse \"Tirar foto\" (câmera do celular) ou \"Galeria / arquivo\", no quadro Fotos.";
+  // "Foto do produto" (uma das peças conferidas) é obrigatória para fechar o laudo.
+  const FALTA_FOTO = "Inclua a FOTO DO PRODUTO (uma das peças conferidas) antes de fechar o laudo.\n\nUse \"Tirar foto\" (câmera do celular) ou \"Galeria\", no quadro Foto do produto.";
   const avisaFaltaFoto = () => {
     alert(FALTA_FOTO);
-    document.getElementById("laudo-fotos")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    document.getElementById("laudo-foto-produto")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  // Foto do produto: uma só, grava na hora.
+  const handleFotoProduto = async (files: FileList | null) => {
+    const f = files?.[0];
+    if (prodCameraRef.current) prodCameraRef.current.value = "";
+    if (prodGaleriaRef.current) prodGaleriaRef.current.value = "";
+    if (!f || (f.type && !f.type.startsWith("image/"))) return;
+    setProdUploading(true);
+    const url = await uploadImage(f, `${row.ref}/laudo_pp_produto_${Date.now()}`);
+    if (!url) { setProdUploading(false); alert("A foto não subiu. Tente de novo."); return; }
+    const err = await upsertLaudoPPPedido(laudoPedidoId, { foto_produto: url });
+    setProdUploading(false);
+    if (err) { alert(`Não foi possível salvar a foto do produto.\n\n${err}\n\nSe o erro fala de coluna inexistente (foto_produto), falta rodar a migration 044 no Supabase.`); deleteImage(url); return; }
+    const antiga = fotoProduto;
+    setFotoProduto(url);
+    if (antiga) deleteImage(antiga);
+  };
+  const removerFotoProduto = async () => {
+    if (!fotoProduto || !confirm("Remover a foto do produto?")) return;
+    const antiga = fotoProduto;
+    setFotoProduto("");
+    await upsertLaudoPPPedido(laudoPedidoId, { foto_produto: null });
+    deleteImage(antiga);
   };
 
   const handleSave = async () => {
-    if (!fotos.length) { avisaFaltaFoto(); return; }
+    if (!fotoProduto) { avisaFaltaFoto(); return; }
     setSaving(true);
     await Promise.all([
       upsertLaudoPPMedidas(laudoPedidoId, medidas),
@@ -277,7 +306,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
 
   const handleStatusChange = async (v: string) => {
     // Dar resultado também fecha o laudo: exige a foto (limpar o status não).
-    if (v && !fotos.length) { avisaFaltaFoto(); return; }
+    if (v && !fotoProduto) { avisaFaltaFoto(); return; }
     setStatus(v);
     await Promise.all([
       upsertLaudoPPPedido(laudoPedidoId, { status: v }),
@@ -289,7 +318,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
   // Datas do pedido; entrega da pré e laudo feito também vão para a
   // referência (o kanban lê a entrega da pré de lá).
   const handleDataChange = async (campo: "data_entrega_producao" | "data_entrega_pre" | "data_laudo", v: string) => {
-    if (campo === "data_laudo" && v && !fotos.length) { avisaFaltaFoto(); return; }
+    if (campo === "data_laudo" && v && !fotoProduto) { avisaFaltaFoto(); return; }
     if (campo === "data_entrega_producao") setEntregaProducao(v);
     if (campo === "data_entrega_pre") setEntregaPre(v);
     if (campo === "data_laudo") setDataLaudo(v);
@@ -384,7 +413,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
       <div className="print-overlay">
         <LaudoPPPDF
           row={row} pts={pts} gradTamanhos={gradTamanhos} gradBase={gradBase} esperados={esperados} medidas={medidas}
-          statusPP={status} imgModoMedir={imgModoMedir} comentarios={comentarios} fotos={fotos}
+          statusPP={status} imgModoMedir={imgModoMedir} comentarios={comentarios} fotos={fotos} fotoProduto={fotoProduto}
           numeroPedido={numeroPedido} coresTamanho={coresTamanho} checklist={checklist}
           dataRecebimentoPre={entregaPre} dataLiberacao={dataLaudo} correcao={correcao}
         />
@@ -456,6 +485,45 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
                 </EditableField>
                 {coresPedido.length > 0 && <Field l="Cores do pedido" v={coresPedido.join(", ")} />}
               </div>
+            </div>
+
+            {/* Foto do produto — obrigatória para fechar o laudo */}
+            <div id="laudo-foto-produto" className="apple-card p-4" style={!fotoProduto ? { outline: "2px solid rgba(168,34,29,0.35)", outlineOffset: -2 } : undefined}>
+              <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">
+                  Foto do produto <span className="text-[#A8221D] normal-case tracking-normal">* obrigatório</span>
+                </div>
+                <div className="flex gap-1.5">
+                  <button type="button" onClick={() => prodCameraRef.current?.click()} disabled={prodUploading}
+                    className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--system-blue)] text-white disabled:opacity-50">
+                    📷 Tirar foto
+                  </button>
+                  <button type="button" onClick={() => prodGaleriaRef.current?.click()} disabled={prodUploading}
+                    className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--separator)] text-[var(--label-secondary)] disabled:opacity-50">
+                    🖼️ Galeria
+                  </button>
+                </div>
+              </div>
+              {prodUploading ? (
+                <div className="h-[160px] rounded-xl bg-[var(--bg-secondary)] flex items-center justify-center text-[12px] text-[var(--label-tertiary)]">Enviando foto...</div>
+              ) : fotoProduto ? (
+                <div className="flex items-start gap-3 flex-wrap">
+                  <a href={fotoProduto} target="_blank" rel="noreferrer">
+                    <img src={fotoProduto} alt="Foto do produto" className="max-h-[260px] max-w-full rounded-xl border border-[var(--separator)] object-contain" />
+                  </a>
+                  <button type="button" onClick={removerFotoProduto} className="text-[12px] text-[var(--label-tertiary)] hover:text-[#A8221D] underline">Remover</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => prodCameraRef.current?.click()}
+                  onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); handleFotoProduto(e.dataTransfer.files); }}
+                  className="w-full h-[140px] rounded-xl border-2 border-dashed border-[#A8221D]/40 bg-[#FBE6E5]/40 flex flex-col items-center justify-center gap-1 text-[#A8221D]">
+                  <span className="text-[24px]">📷</span>
+                  <span className="text-[12px] font-semibold">Foto de uma das peças conferidas</span>
+                  <span className="text-[11px] opacity-80">sem ela o laudo não é salvo</span>
+                </button>
+              )}
+              <input ref={prodCameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFotoProduto(e.target.files)} />
+              <input ref={prodGaleriaRef} type="file" accept="image/*" className="hidden" onChange={e => handleFotoProduto(e.target.files)} />
             </div>
 
             <div className="apple-card p-4">
@@ -601,7 +669,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
               <div id="laudo-fotos" className="apple-card p-4">
                 <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">
-                    Fotos <span className="text-[#A8221D] normal-case tracking-normal">* obrigatório</span>
+                    Outras fotos <span className="text-[var(--label-tertiary)] font-normal normal-case tracking-normal">(opcional)</span>
                   </div>
                   <div className="flex gap-1.5">
                     <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={fotoUploading}
@@ -614,9 +682,6 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
                     </button>
                   </div>
                 </div>
-                {fotos.length === 0 && (
-                  <p className="text-[11px] text-[#A8221D] bg-[#FBE6E5] rounded-lg px-2.5 py-1.5 mb-2">Inclua a foto de pelo menos uma das peças conferidas — sem foto o laudo não é salvo.</p>
-                )}
                 <div
                   className={`flex flex-wrap gap-2 rounded-xl transition-colors ${fotoDragOver ? "bg-[rgba(0,122,255,0.06)] outline-dashed outline-2 outline-[var(--system-blue)]" : ""}`}
                   style={{ padding: fotoDragOver ? 6 : 0, margin: fotoDragOver ? -6 : 0 }}

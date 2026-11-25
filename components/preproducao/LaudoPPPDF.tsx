@@ -21,6 +21,7 @@ type Props = {
   dataRecebimentoPre?: string;
   dataLiberacao?: string;
   checklist?: ChecklistPP;
+  fotoProduto?: string;
   correcao?: number;          // 1, 2… = laudo de correção (pré corrigida)
 };
 
@@ -49,7 +50,7 @@ const STATUS_PP_COLOR: Record<string, string> = {
   "REPROVADA - NEGOCIAR": danger,
 };
 
-export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao, correcao = 0, checklist = {} }: Props) {
+export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao, correcao = 0, checklist = {}, fotoProduto = "" }: Props) {
   const temCheck = CHECKLIST_PP.some(i => [i.key, ...(i.sub || []).map(s => s.key)].some(k => valorCheck(checklist, k)));
   const Marca = ({ v }: { v: CheckValor | "" | undefined }) => (
     <span style={{ fontWeight: 700, color: v === "ok" ? success : v === "nok" ? danger : light }}>
@@ -101,6 +102,13 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
           <Field label="Data receb. da pré" value={fmtDataBR(dataRecebimentoPre)} />
           <Field label="Data de liberação" value={fmtDataBR(dataLiberacao)} />
         </div>
+
+        {fotoProduto && (
+          <div style={{ marginBottom: "12px" }}>
+            <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "3px" }}>Foto do produto</div>
+            <img src={fotoProduto} alt="Foto do produto" style={{ maxWidth: "100%", maxHeight: "170px", objectFit: "contain", border: `0.5px solid ${line}`, borderRadius: "4px" }} />
+          </div>
+        )}
 
         {temCheck && (
           <div style={{ marginBottom: "12px" }}>
