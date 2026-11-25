@@ -23,7 +23,7 @@ const MODOS: { key: Modo; label: string; regra: string; statusMatch: (s: string)
     statusMatch: s => s.includes("DESENVOLVIMENTO") },
   { key: "mostruario",      label: "Mostruário",      regra: "quantidade de mostruário da variante",
     statusMatch: s => s.includes("MOSTRUÁRIO") || s.includes("MOSTRUARIO") },
-  { key: "producao",        label: "Produção",        regra: "compra da variante (pedidos não entregues)",
+  { key: "producao",        label: "Produção",        regra: "compra da variante (só pedidos não entregues, com nº de pedido ou data; sem preenchimento = 0)",
     statusMatch: s => s.includes("PRODUÇÃO") || s.includes("PRODUCAO") },
 ];
 
@@ -141,9 +141,13 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
 
   // Compra de uma variante somando os dois pedidos, mas só os que ainda não
   // foram entregues — se o pedido 1 já chegou e o 2 não, conta só o 2.
+  // Sem preenchimento (sem nº de pedido e sem data de entrega) vale × 0: é
+  // quantidade solta, não pedido — não entra na explosão de produção. O Linx
+  // preenche pedido e data dos pedidos em aberto (lib/variante-compras-sync.ts).
+  const preenchido = (pedido: any, data: any) => !!String(pedido ?? "").trim() || !!data;
   const comprasPendentes = (vc: any, hoje: string) =>
-    (pedidoPendente(vc.data_entrega1, hoje) ? Number(vc.qtd_compra1) || 0 : 0) +
-    (pedidoPendente(vc.data_entrega2, hoje) ? Number(vc.qtd_compra2) || 0 : 0);
+    (preenchido(vc.pedido1, vc.data_entrega1) && pedidoPendente(vc.data_entrega1, hoje) ? Number(vc.qtd_compra1) || 0 : 0) +
+    (preenchido(vc.pedido2, vc.data_entrega2) && pedidoPendente(vc.data_entrega2, hoje) ? Number(vc.qtd_compra2) || 0 : 0);
 
   // produto_id → total comprado e pendente (soma de todas as cores) — usado só
   // para aviamentos sem distinção de cor (ex. adesivo, tag), que valem pra peça

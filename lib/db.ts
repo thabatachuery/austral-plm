@@ -769,7 +769,8 @@ export async function fetchExplosaoData() {
     selectAll((de, ate) => sb().from("aviamentos").select("codigo, nome, fornecedor, preco, imagem, imagens_cores, codigo_fornecedor").range(de, ate), "fetchExplosaoData/avLib"),
     // As datas de entrega entram porque a explosão em modo Produção só conta
     // pedido ainda não entregue (data vazia ou de hoje pra frente).
-    selectAll((de, ate) => sb().from("produto_variante_compras").select("produto_id, cor, qtd_compra1, data_entrega1, qtd_compra2, data_entrega2").range(de, ate), "fetchExplosaoData/comprasVar"),
+    // O pedido entra porque compra sem pedido e sem data não conta (× 0).
+    selectAll((de, ate) => sb().from("produto_variante_compras").select("produto_id, cor, qtd_compra1, pedido1, data_entrega1, qtd_compra2, pedido2, data_entrega2").range(de, ate), "fetchExplosaoData/comprasVar"),
     // Cores do tecido por ficha (1º tecido, "Tec.01") — é o que define qual
     // variante (VAR 01, VAR 02...) tem qual cor de peça, pra casar com a cor
     // do aviamento escolhida na mesma variante.
@@ -779,7 +780,7 @@ export async function fetchExplosaoData() {
     fichas: fichas as { id: number; produto_ref: string; colecao: string | null; qtd_most_var01: number|null; qtd_most_var02: number|null; qtd_most_var03: number|null; qtd_most_var04: number|null; qtd_most_var05: number|null; qtd_most_var06: number|null }[],
     avFichas: avFichas as { ficha_id: number; codigo: string; qtd: number; valor: number; localizacao: string; var01: string; var02: string; var03: string; var04: string; var05: string; var06: string }[],
     avLib: avLib as { codigo: string; nome: string; fornecedor: string; preco: number; imagem: string; imagens_cores: Record<string, string>; codigo_fornecedor: string }[],
-    comprasVar: comprasVar as { produto_id: number; cor: string; qtd_compra1: number|null; data_entrega1: string|null; qtd_compra2: number|null; data_entrega2: string|null }[],
+    comprasVar: comprasVar as { produto_id: number; cor: string; qtd_compra1: number|null; pedido1: string|null; data_entrega1: string|null; qtd_compra2: number|null; pedido2: string|null; data_entrega2: string|null }[],
     tecFichas: tecFichas as { ficha_id: number; cores: string[] }[],
   };
 }
