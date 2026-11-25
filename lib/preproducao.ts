@@ -159,6 +159,36 @@ export type PedidoPP = {
 // de correção, com o mesmo número de pedido.
 export const STATUS_PEDE_CORRECAO = "REPROVADA - CORRIGIR";
 
+// ── Conferência do laudo: itens "correto" / "incorreto" ──
+// Item com "sub" só é correto quando TODOS os subitens estão corretos;
+// qualquer subitem incorreto deixa o item incorreto.
+export type CheckValor = "ok" | "nok";
+export type ChecklistPP = Record<string, CheckValor>;
+export type ItemCheck = { key: string; label: string; sub?: { key: string; label: string }[] };
+
+export const CHECKLIST_PP: ItemCheck[] = [
+  { key: "embalagem", label: "Embalagem" },
+  { key: "tag_papel", label: "Tag de papel" },
+  { key: "codigo_barras", label: "Códigos de barras", sub: [
+    { key: "cb_referencia", label: "Referência" },
+    { key: "cb_cor", label: "Cor" },
+    { key: "cb_nome", label: "Nome" },
+    { key: "cb_tamanho", label: "Tamanho" },
+  ] },
+  { key: "aviamentos", label: "Aviamentos" },
+  { key: "etiqueta_composicao", label: "Etiqueta de composição" },
+];
+
+// Resultado do item: "ok", "nok" ou "" (ainda não conferido por completo).
+export function resultadoCheck(item: ItemCheck, c: ChecklistPP): CheckValor | "" {
+  if (!item.sub) return c[item.key] || "";
+  const vals = item.sub.map(s => c[s.key]);
+  if (vals.includes("nok")) return "nok";
+  return vals.every(v => v === "ok") ? "ok" : "";
+}
+
+export const checklistTemIncorreto = (c: ChecklistPP) => CHECKLIST_PP.some(i => resultadoCheck(i, c) === "nok");
+
 export function situacaoDe(p: { status: string; dataLaudo: string; entregaPre: string; producaoEntregue?: string }): SituacaoPP {
   if (p.status || p.dataLaudo) return "concluido";
   if (p.entregaPre) return "recebida";

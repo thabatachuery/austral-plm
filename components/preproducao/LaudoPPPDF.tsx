@@ -1,6 +1,7 @@
 "use client";
 import { Fragment } from "react";
 import { cellStatus } from "./LaudoPPModal";
+import { CHECKLIST_PP, resultadoCheck, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
 
 type Ponto = { cod: string; desc: string; tabela: string; tol: string };
 
@@ -19,7 +20,8 @@ type Props = {
   coresTamanho?: Record<string, string>;
   dataRecebimentoPre?: string;
   dataLiberacao?: string;
-  correcao?: number;           // 1, 2… = laudo de correção (pré corrigida)
+  checklist?: ChecklistPP;
+  correcao?: number;          // 1, 2… = laudo de correção (pré corrigida)
 };
 
 const fmtDataBR = (v?: string) => (v ? v.split("-").reverse().join("/") : "—");
@@ -47,7 +49,13 @@ const STATUS_PP_COLOR: Record<string, string> = {
   "REPROVADA - NEGOCIAR": danger,
 };
 
-export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao, correcao = 0 }: Props) {
+export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao, correcao = 0, checklist = {} }: Props) {
+  const temCheck = Object.keys(checklist).length > 0;
+  const Marca = ({ v }: { v: CheckValor | "" | undefined }) => (
+    <span style={{ fontWeight: 700, color: v === "ok" ? success : v === "nok" ? danger : light }}>
+      {v === "ok" ? "✓ Correto" : v === "nok" ? "✗ Incorreto" : "—"}
+    </span>
+  );
   const headerBg = STATUS_PP_COLOR[statusPP] || "#4464AF";
   const wTam = gradTamanhos.length > 5 ? "42px" : "52px";
   const bulletsList = (comentarios || "").split("\n").map(s => s.trim()).filter(Boolean);
@@ -93,6 +101,27 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
           <Field label="Data receb. da pré" value={fmtDataBR(dataRecebimentoPre)} />
           <Field label="Data de liberação" value={fmtDataBR(dataLiberacao)} />
         </div>
+
+        {temCheck && (
+          <div style={{ marginBottom: "12px" }}>
+            <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "3px" }}>Conferência</div>
+            <table style={tbl}>
+              <tbody>
+                {CHECKLIST_PP.map(item => (
+                  <tr key={item.key}>
+                    <td style={{ ...td, fontWeight: 600, width: "32%" }}>{item.label}</td>
+                    <td style={{ ...td, width: "18%" }}><Marca v={resultadoCheck(item, checklist)} /></td>
+                    <td style={{ ...td, color: muted, fontSize: "8px" }}>
+                      {item.sub?.map((s, i) => (
+                        <span key={s.key}>{i > 0 && " · "}{s.label}: <Marca v={checklist[s.key]} /></span>
+                      ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {imgModoMedir && (
           <div style={{ marginBottom: "12px" }}>

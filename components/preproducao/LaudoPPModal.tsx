@@ -5,7 +5,7 @@ import {
   fetchLaudoPPMedidas, upsertLaudoPPMedidas, fetchLaudoPPPedido, upsertLaudoPPPedido,
   upsertControleFluxo, avisarPreRecebida,
 } from "@/lib/db";
-import { previsaoPre, fmtBR, hojeISO } from "@/lib/preproducao";
+import { previsaoPre, fmtBR, hojeISO, CHECKLIST_PP, resultadoCheck, checklistTemIncorreto, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
 import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num, parseTolerancia } from "@/lib/tamanhos";
 import { uploadImage, deleteImage } from "@/lib/storage";
 import { STATUS_PRE_PRODUCAO_OPTS, STATUS_PRE_PRODUCAO_COLORS } from "@/lib/constants";
@@ -54,6 +54,28 @@ const CELL_STYLE: Record<string, React.CSSProperties> = {
 
 const fmtDateInput = (v: any) => (v ? String(v).slice(0, 10) : "");
 
+// Par de botões Correto / Incorreto; clicar no marcado de novo desmarca.
+function CheckBotoes({ v, onChange }: { v: CheckValor | undefined; onChange: (v: CheckValor | "") => void }) {
+  const btn = (alvo: CheckValor, label: string, cor: string, fundo: string) => {
+    const ativo = v === alvo;
+    return (
+      <button type="button" onClick={() => onChange(ativo ? "" : alvo)} aria-pressed={ativo}
+        className="text-[12px] font-semibold px-3 py-1 rounded-lg border transition-colors"
+        style={ativo ? { background: fundo, color: cor, borderColor: cor } : { borderColor: "var(--separator)", color: "var(--label-tertiary)" }}>
+        {alvo === "ok" ? "✓ " : "✗ "}{label}
+      </button>
+    );
+  };
+  return <div className="flex gap-1.5 shrink-0">{btn("ok", "Correto", "#0E6A40", "#E2F2E9")}{btn("nok", "Incorreto", "#A8221D", "#FBE6E5")}</div>;
+}
+
+function ResultadoPill({ r }: { r: CheckValor | "" }) {
+  if (!r) return <span className="text-[11px] text-[var(--label-quaternary)]">a conferir</span>;
+  return r === "ok"
+    ? <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#E2F2E9] text-[#0E6A40]">Correto</span>
+    : <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#FBE6E5] text-[#A8221D]">Incorreto</span>;
+}
+
 // coresPedido: cores do pedido na lista de Variantes — limitam as cores que
 // podem ser escolhidas por tamanho (vazio = todas as cores da ficha).
 type Props = { row: any; fichaId: number; laudoPedidoId: number; coresPedido?: string[]; correcao?: number; onClose: () => void };
@@ -77,6 +99,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
   const [dataLaudo, setDataLaudo] = useState("");
   const [imgModoMedir, setImgModoMedir] = useState<string | null>(null);
   const [comentarios, setComentarios] = useState("");
+  const [checklist, setChecklist] = useState<ChecklistPP>({});
   const [fotos, setFotos] = useState<string[]>([]);
   const [fotoUploading, setFotoUploading] = useState(false);
   const [fotoDragOver, setFotoDragOver] = useState(false);
@@ -120,6 +143,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
         setComentarios(pedido.comentarios);
         setFotos(pedido.fotos);
         setCoresTamanho(pedido.cores_tamanho);
+        setChecklist(pedido.checklist);
         setEntregaProducao(pedido.data_entrega_producao.slice(0, 10));
         setEntregaPre(pedido.data_entrega_pre.slice(0, 10));
         setDataLaudo(pedido.data_laudo.slice(0, 10));
@@ -161,7 +185,18 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
         if (st === "acima" || st === "abaixo") algumFora = true;
       });
     });
-    return algumMedido ? (algumFora ? "REPROVADA - CORRIGIR" : "LIBERADA") : status;
+    // Item da conferência incorreto também pede correção.
+    if (algumFora || checklistTemIncorreto(checklist)) return "REPROVADA - CORRIGIR";
+    return algumMedido ? "LIBERADA" : status;
+  };
+
+  // Conferência grava na hora, como a cor por tamanho.
+  const setCheck = async (key: string, v: CheckValor | "") => {
+    const next = { ...checklist };
+    if (v) next[key] = v; else delete next[key];
+    setChecklist(next);
+    const err = await upsertLaudoPPPedido(laudoPedidoId, { checklist: next });
+    if (err) alert(`Não foi possível salvar a conferência.\n\n${err}\n\nSe o erro fala de coluna inexistente (checklist), falta rodar a migration 043 no Supabase.`);
   };
 
   const handleSave = async () => {
@@ -290,7 +325,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
         <LaudoPPPDF
           row={row} pts={pts} gradTamanhos={gradTamanhos} gradBase={gradBase} esperados={esperados} medidas={medidas}
           statusPP={status} imgModoMedir={imgModoMedir} comentarios={comentarios} fotos={fotos}
-          numeroPedido={numeroPedido} coresTamanho={coresTamanho}
+          numeroPedido={numeroPedido} coresTamanho={coresTamanho} checklist={checklist}
           dataRecebimentoPre={entregaPre} dataLiberacao={dataLaudo} correcao={correcao}
         />
       </div>
@@ -360,6 +395,32 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
                   <input type="date" value={dataLaudo} onChange={e => handleDataChange("data_laudo", e.target.value)} className="apple-input text-[12px] py-1" />
                 </EditableField>
                 {coresPedido.length > 0 && <Field l="Cores do pedido" v={coresPedido.join(", ")} />}
+              </div>
+            </div>
+
+            <div className="apple-card p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-2">Conferência</div>
+              <div className="divide-y divide-[var(--separator)]">
+                {CHECKLIST_PP.map(item => (
+                  <div key={item.key} className="py-2">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <span className="text-[13px] font-semibold">{item.label}</span>
+                      {item.sub
+                        ? <span className="flex items-center gap-2"><span className="text-[11px] text-[var(--label-tertiary)]">correto só com todos os itens corretos</span><ResultadoPill r={resultadoCheck(item, checklist)} /></span>
+                        : <CheckBotoes v={checklist[item.key]} onChange={v => setCheck(item.key, v)} />}
+                    </div>
+                    {item.sub && (
+                      <div className="mt-1.5 ml-4 space-y-1.5">
+                        {item.sub.map(s => (
+                          <div key={s.key} className="flex items-center justify-between gap-3 flex-wrap">
+                            <span className="text-[12px] text-[var(--label-secondary)]">{s.label}</span>
+                            <CheckBotoes v={checklist[s.key]} onChange={v => setCheck(s.key, v)} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
