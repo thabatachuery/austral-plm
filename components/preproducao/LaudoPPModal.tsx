@@ -5,7 +5,7 @@ import {
   fetchLaudoPPMedidas, upsertLaudoPPMedidas, fetchLaudoPPPedido, upsertLaudoPPPedido,
   upsertControleFluxo, avisarPreRecebida,
 } from "@/lib/db";
-import { previsaoPre, fmtBR, hojeISO, CHECKLIST_PP, resultadoCheck, checklistTemIncorreto, valorCheck, obsKey, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
+import { previsaoPre, fmtBR, hojeISO, checklistItens, resultadoCheck, checklistTemIncorreto, valorCheck, obsKey, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
 import { tamanhosParaExibir, valorNoTamanho, calcularDaBase, num, parseTolerancia } from "@/lib/tamanhos";
 import { uploadImage, uploadArquivo, deleteImage } from "@/lib/storage";
 import { QRCodeSVG } from "qrcode.react";
@@ -192,6 +192,8 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
     })();
   }, [row.ref, row.tab_medidas, laudoPedidoId]);
 
+  // Conferência: itens fixos + uma linha por cor do pedido.
+  const itensCheck = useMemo(() => checklistItens(coresDisponiveis), [coresDisponiveis]);
   const gradTamanhos = useMemo(() => tamanhosParaExibir(tabTamanhos, row.grade), [tabTamanhos, row.grade]);
   const gradBase = tabBase || tabTamanhos[Math.floor(tabTamanhos.length / 2)] || "";
   const valorGrad = (g: Grad, t: string) => valorNoTamanho(g as any, t, tabTamanhos);
@@ -225,7 +227,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
       });
     });
     // Item da conferência incorreto também pede correção.
-    if (algumFora || checklistTemIncorreto(checklist)) return "REPROVADA - CORRIGIR";
+    if (algumFora || checklistTemIncorreto(checklist, itensCheck)) return "REPROVADA - CORRIGIR";
     return algumMedido ? "LIBERADA" : status;
   };
 
@@ -447,7 +449,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
       <div className="print-overlay">
         <LaudoPPPDF
           row={row} pts={pts} gradTamanhos={gradTamanhos} gradBase={gradBase} esperados={esperados} medidas={medidas}
-          statusPP={status} imgModoMedir={imgModoMedir} comentarios={comentarios} fotos={fotos} fotoProduto={fotoProduto} videoUrl={videoUrl}
+          statusPP={status} imgModoMedir={imgModoMedir} comentarios={comentarios} fotos={fotos} fotoProduto={fotoProduto} videoUrl={videoUrl} itensCheck={itensCheck}
           numeroPedido={numeroPedido} coresTamanho={coresTamanho} checklist={checklist}
           dataRecebimentoPre={entregaPre} dataLiberacao={dataLaudo} correcao={correcao}
         />
@@ -597,13 +599,13 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
             <div className="apple-card p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)] mb-2">Conferência</div>
               <div className="divide-y divide-[var(--separator)]">
-                {CHECKLIST_PP.map(item => (
+                {itensCheck.map(item => (
                   <div key={item.key} className="py-2">
                     {item.sub ? (
                       <>
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                           <span className="text-[13px] font-semibold">{item.label}</span>
-                          <span className="flex items-center gap-2"><span className="text-[11px] text-[var(--label-tertiary)]">correto só com todos os itens corretos</span><ResultadoPill r={resultadoCheck(item, checklist)} /></span>
+                          <span className="flex items-center gap-2"><span className="text-[11px] text-[var(--label-tertiary)]">{item.key === "cores" ? "correto só com todas as cores corretas" : "correto só com todos os itens corretos"}</span><ResultadoPill r={resultadoCheck(item, checklist)} /></span>
                         </div>
                         <div className="mt-1.5 ml-4 space-y-1.5">
                           {item.sub.map(s => (

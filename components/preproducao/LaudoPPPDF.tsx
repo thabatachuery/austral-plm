@@ -2,7 +2,7 @@
 import { Fragment } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { cellStatus } from "./LaudoPPModal";
-import { CHECKLIST_PP, resultadoCheck, valorCheck, obsKey, type ChecklistPP, type CheckValor } from "@/lib/preproducao";
+import { CHECKLIST_PP, resultadoCheck, valorCheck, obsKey, type ChecklistPP, type CheckValor, type ItemCheck } from "@/lib/preproducao";
 
 type Ponto = { cod: string; desc: string; tabela: string; tol: string };
 
@@ -24,6 +24,7 @@ type Props = {
   checklist?: ChecklistPP;
   fotoProduto?: string;
   videoUrl?: string;
+  itensCheck?: ItemCheck[];     // itens da conferência (fixos + cores do pedido)
   correcao?: number;          // 1, 2… = laudo de correção (pré corrigida)
 };
 
@@ -52,8 +53,8 @@ const STATUS_PP_COLOR: Record<string, string> = {
   "REPROVADA - NEGOCIAR": danger,
 };
 
-export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao, correcao = 0, checklist = {}, fotoProduto = "", videoUrl = "" }: Props) {
-  const temCheck = CHECKLIST_PP.some(i => [i.key, ...(i.sub || []).map(s => s.key)].some(k => valorCheck(checklist, k)));
+export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados, medidas, statusPP, imgModoMedir, comentarios, fotos = [], numeroPedido, coresTamanho = {}, dataRecebimentoPre, dataLiberacao, correcao = 0, checklist = {}, fotoProduto = "", videoUrl = "", itensCheck = CHECKLIST_PP }: Props) {
+  const temCheck = itensCheck.some(i => [i.key, ...(i.sub || []).map(s => s.key)].some(k => valorCheck(checklist, k)));
   const Marca = ({ v }: { v: CheckValor | "" | undefined }) => (
     <span style={{ fontWeight: 700, color: v === "ok" ? success : v === "nok" ? danger : light }}>
       {v === "ok" ? "✓ Correto" : v === "nok" ? "✗ Incorreto" : "—"}
@@ -128,7 +129,7 @@ export default function LaudoPPPDF({ row, pts, gradTamanhos, gradBase, esperados
             <div style={{ fontSize: "6.5px", fontWeight: 600, color: light, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "3px" }}>Conferência</div>
             <table style={tbl}>
               <tbody>
-                {CHECKLIST_PP.map(item => (
+                {itensCheck.map(item => (
                   <tr key={item.key}>
                     <td style={{ ...td, fontWeight: 600, width: "32%" }}>{item.label}</td>
                     <td style={{ ...td, width: "18%" }}><Marca v={resultadoCheck(item, checklist)} /></td>

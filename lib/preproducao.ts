@@ -192,7 +192,23 @@ export function resultadoCheck(item: ItemCheck, c: ChecklistPP): CheckValor | ""
   return vals.every(v => v === "ok") ? "ok" : "";
 }
 
-export const checklistTemIncorreto = (c: ChecklistPP) => CHECKLIST_PP.some(i => resultadoCheck(i, c) === "nok");
+// Itens da conferência deste laudo: os fixos + "Cores do pedido", com um
+// correto/incorreto por cor (correto só se todas as cores estão corretas).
+// A chave usa o código da cor ("C02 - PRETO" → cor_C02), que não muda se o
+// nome for escrito diferente na ficha e no pedido.
+export const chaveCor = (cor: string) => `cor_${String(cor).trim().split(/[\s-]/)[0].toUpperCase()}`;
+export function checklistItens(cores: string[]): ItemCheck[] {
+  const vistas = new Set<string>();
+  const sub = cores.filter(c => {
+    const k = chaveCor(c);
+    if (!String(c).trim() || vistas.has(k)) return false;
+    vistas.add(k);
+    return true;
+  }).map(c => ({ key: chaveCor(c), label: c }));
+  return sub.length ? [...CHECKLIST_PP, { key: "cores", label: "Cores do pedido", sub }] : CHECKLIST_PP;
+}
+
+export const checklistTemIncorreto = (c: ChecklistPP, itens: ItemCheck[] = CHECKLIST_PP) => itens.some(i => resultadoCheck(i, c) === "nok");
 
 export function situacaoDe(p: { status: string; dataLaudo: string; entregaPre: string; producaoEntregue?: string }): SituacaoPP {
   if (p.status || p.dataLaudo) return "concluido";
