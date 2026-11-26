@@ -4,6 +4,7 @@ import { fetchCadastros, addCadastro, removeCadastro, addCadastrosBulk, fetchTec
 import { ozParaGramatura } from "@/lib/peso";
 import { uploadImage, uploadArquivo, deleteImage } from "@/lib/storage";
 import { subscribeRealtime } from "@/lib/realtime";
+import MultiSelect from "@/components/ui/MultiSelect";
 
 const TABS=[{k:"grupo",l:"Grupo"},{k:"subgrupo",l:"Subgrupo"},{k:"categoria",l:"Categoria"},{k:"subcategoria",l:"Subcategoria"},{k:"linha",l:"Linha"},{k:"grade",l:"Grade"},{k:"operacao",l:"Operação"},{k:"tipo",l:"Tipo"},{k:"fornecedor",l:"Fornecedor"},{k:"drop",l:"Drop"},{k:"colecao",l:"Coleção"},{k:"status",l:"Status"},{k:"piloto_most",l:"Piloto / mostr."},{k:"estilista",l:"Estilista"},{k:"cor",l:"Cores"},{k:"tingimento",l:"Tipo de Tingimento"},{k:"aviamento",l:"Aviamentos"},{k:"tecido",l:"Tecidos"}];
 
@@ -20,7 +21,7 @@ export default function CadView(){
   const [to,setTo]=useState("");const [tg,setTg]=useState("");const [tl,setTl]=useState("");const [tel,setTel]=useState("");const [tea,setTea]=useState("");const [tr,setTr]=useState("");
   const [st,setSt]=useState("");
   const [cc,setCc]=useState("");const [cn,setCn]=useState("");
-  const [ac,setAc]=useState("");const [an,setAn]=useState("");const [ap,setAp]=useState("");const [al,setAl]=useState("");const [af,setAf]=useState("");const [acf,setAcf]=useState("");const [sr,setSr]=useState("");
+  const [ac,setAc]=useState("");const [an,setAn]=useState("");const [ap,setAp]=useState("");const [al,setAl]=useState("");const [af,setAf]=useState("");const [acf,setAcf]=useState("");const [sr,setSr]=useState("");const [avFl,setAvFl]=useState<Record<string,string[]>>({});
   const [avImgUploading,setAvImgUploading]=useState<string|null>(null);
   const avImgRef=useRef<HTMLInputElement>(null);
   const [avImgTarget,setAvImgTarget]=useState<string|null>(null);
@@ -263,7 +264,21 @@ export default function CadView(){
   const remCor=async(nome:string)=>{await removeCadastro("cor",nome);setCad(p=>({...p,cor:(p.cor||[]).filter((c:string)=>c!==nome)}));};
 
   const gc=(k:string)=>{if(k==="tecido")return tecidos.length;if(k==="aviamento")return aviamentos.length;if(k==="cor")return(cad.cor||[]).length;return(cad[k]||[]).length;};
-  const fa=sr?aviamentos.filter((a:any)=>(a.cod+a.nome).toLowerCase().includes(sr.toLowerCase())):aviamentos;
+  // Aviamentos: a busca procura em todos os campos; os filtros (fornecedor,
+  // localização, unidade, cor, foto) aceitam vários valores ao mesmo tempo.
+  const AV_FILTROS:{key:string;label:string;valores:(a:any)=>string[]}[]=[
+    {key:"fornecedor",label:"Fornecedor",valores:a=>[a.fornecedor||"(sem fornecedor)"]},
+    {key:"localizacao_padrao",label:"Localização padrão",valores:a=>[a.localizacao_padrao||"(sem localização)"]},
+    {key:"unidade",label:"Unidade",valores:a=>[a.unidade||"(sem unidade)"]},
+    {key:"cor",label:"Cor disponível",valores:a=>(a.cores_disponiveis||[]).length?a.cores_disponiveis:["(sem cor)"]},
+    {key:"foto",label:"Foto",valores:a=>[a.imagem?"Com foto":"Sem foto"]},
+  ];
+  const avOpcoes=(k:string)=>{const f=AV_FILTROS.find(x=>x.key===k)!;return Array.from(new Set(aviamentos.flatMap((a:any)=>f.valores(a)))).sort((x:any,y:any)=>String(x).localeCompare(String(y),"pt-BR"));};
+  const avTexto=(a:any)=>[a.cod,a.nome,a.fornecedor,a.codigo_fornecedor,a.localizacao_padrao,a.unidade,a.preco,...(a.cores_disponiveis||[]),...(a.cores_fabricante||[])].map(v=>v??"").join(" ").toLowerCase();
+  const fa=aviamentos.filter((a:any)=>
+    (!sr||avTexto(a).includes(sr.toLowerCase())) &&
+    AV_FILTROS.every(f=>!(avFl[f.key]||[]).length||f.valores(a).some(v=>avFl[f.key].includes(v))));
+  const avFiltrosAtivos=Object.values(avFl).filter(v=>v.length).length;
   const ft=st?tecidos.filter((t:any)=>`${t.nome} ${t.forn} ${t.comp}`.toLowerCase().includes(st.toLowerCase())):tecidos;
   const inp="apple-input";const btn="apple-btn-primary";
 
@@ -378,8 +393,20 @@ export default function CadView(){
                 <input className={`${inp} w-32`} aria-label="Código do fornecedor do aviamento" value={acf} onChange={e=>setAcf(e.target.value)} placeholder="Cód. fornecedor"/>
                 <button onClick={addAv} className={btn}>Adicionar</button>
               </div>
-              <div className="mb-4">
-                <input type="text" aria-label="Buscar aviamento por código ou nome" value={sr} onChange={e=>setSr(e.target.value)} placeholder="Buscar aviamento..." className={`${inp} w-full`}/>
+              <div className="mb-2">
+                <input type="text" aria-label="Buscar aviamento em todos os campos" value={sr} onChange={e=>setSr(e.target.value)} placeholder="Buscar em todos os campos (código, nome, fornecedor, cód. fornecedor, cor, localização…)" className={`${inp} w-full`}/>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-2">
+                {AV_FILTROS.map(f=>(
+                  <div key={f.key}>
+                    <label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">{f.label}</label>
+                    <MultiSelect value={avFl[f.key]||[]} options={avOpcoes(f.key)} onChange={v=>setAvFl(p=>({...p,[f.key]:v}))} className="text-[12px] py-1.5"/>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-3 mb-3 text-[12px] text-[var(--label-secondary)]">
+                <span><b className="tabnum text-[var(--label-primary)]">{fa.length}</b> de {aviamentos.length} aviamentos</span>
+                {(avFiltrosAtivos>0||sr)&&<button onClick={()=>{setAvFl({});setSr("");}} className="text-[var(--system-blue)] font-medium">Limpar filtros</button>}
               </div>
               <div className="border border-[var(--separator)] rounded-xl overflow-hidden max-h-[540px] overflow-y-auto overscroll-y-contain">
                 {avCoresOpen && <div className="fixed inset-0 z-40" onClick={() => setAvCoresOpen(null)} />}
