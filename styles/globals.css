@@ -240,6 +240,13 @@ input:focus, select:focus, textarea:focus {
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
+/* Rolagem pedida numa apple-card tem de valer. Este arquivo vem depois do
+   @tailwind utilities, então o overflow:hidden acima vencia o overflow-x-auto
+   do Tailwind e as tabelas largas ficavam cortadas, sem barra (laudo,
+   aviamentos, ficha técnica...). Duas classes = mais específico. */
+.apple-card.overflow-auto   { overflow: auto; }
+.apple-card.overflow-x-auto { overflow-x: auto; }
+.apple-card.overflow-y-auto { overflow-y: auto; }
 
 /* ═══ Dashboard Card — SnowUI inspired ═══ */
 .dash-card {

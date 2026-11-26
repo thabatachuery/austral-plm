@@ -359,7 +359,7 @@ export default function CadView(){
                 <input className={`${inp} flex-1 min-w-[140px]`} aria-label="Nome da cor" value={cn} onChange={e=>setCn(e.target.value)} placeholder="Nome da cor" onKeyDown={e=>e.key==="Enter"&&addCor()}/>
                 <button onClick={addCor} className={btn}>Adicionar</button>
               </div>
-              <div className="border border-[var(--separator)] rounded-xl overflow-hidden">
+              <div className="border border-[var(--separator)] rounded-xl overflow-x-auto">
                 <table className="plm-table"><thead><tr><th className="px-4">Cor (Código - Nome)</th><th className="w-10"></th></tr></thead>
                 <tbody>{(cad.cor||[]).map((c:string)=>(
                   <tr key={c}><td className="font-medium px-4">{c}</td><td className="text-center"><button onClick={()=>remCor(c)} className="text-[var(--label-quaternary)] hover:text-[var(--system-red)] transition-colors">×</button></td></tr>
@@ -408,7 +408,7 @@ export default function CadView(){
                 <span><b className="tabnum text-[var(--label-primary)]">{fa.length}</b> de {aviamentos.length} aviamentos</span>
                 {(avFiltrosAtivos>0||sr)&&<button onClick={()=>{setAvFl({});setSr("");}} className="text-[var(--system-blue)] font-medium">Limpar filtros</button>}
               </div>
-              <div className="border border-[var(--separator)] rounded-xl overflow-hidden max-h-[540px] overflow-y-auto overscroll-y-contain">
+              <div className="border border-[var(--separator)] rounded-xl overflow-auto max-h-[540px] overscroll-contain">
                 {avCoresOpen && <div className="fixed inset-0 z-40" onClick={() => setAvCoresOpen(null)} />}
                 <table className="plm-table"><thead><tr>
                   <th className="w-16 px-3 text-center">Foto</th>
