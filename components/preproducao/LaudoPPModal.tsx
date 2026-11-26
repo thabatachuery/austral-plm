@@ -324,15 +324,21 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
       upsertLaudoPPMedidas(laudoPedidoId, medidas),
       upsertLaudoPPPedido(laudoPedidoId, { comentarios }),
     ]);
-    const sugerido = statusSugerido();
-    setStatus(sugerido);
+    // O status escolhido à mão prevalece (ex. LIBERADA COM RESTRIÇÃO com uma
+    // medida fora). A sugestão pelas medidas/conferência só entra quando o
+    // laudo ainda está sem status; se discordar da escolha, só avisa.
+    const sugestao = statusSugerido();
+    const final = status || sugestao;
+    setStatus(final);
     await Promise.all([
-      upsertLaudoPPPedido(laudoPedidoId, { status: sugerido }),
-      upsertControleFluxo(row.ref, "status_pre_producao", sugerido || null),
-      marcaLaudoFeito(sugerido),
+      upsertLaudoPPPedido(laudoPedidoId, { status: final }),
+      upsertControleFluxo(row.ref, "status_pre_producao", final || null),
+      marcaLaudoFeito(final),
     ]);
     setSaving(false);
-    success("Laudo salvo.");
+    success(status && sugestao && sugestao !== status
+      ? `Laudo salvo com o status escolhido (${status}). Pelas medidas/conferência seria ${sugestao}.`
+      : "Laudo salvo.");
   };
 
   // Laudo com resultado e sem data: "laudo feito" = hoje.
