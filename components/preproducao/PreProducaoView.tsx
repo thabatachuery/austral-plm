@@ -401,6 +401,7 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
       <ScrollTable>
         <table className="plm-table" style={{ width: "max-content", minWidth: "100%" }}>
           <thead><tr>
+            <th style={{ width: 110 }}>Laudo</th>
             <th style={{ width: 120 }}>Referência</th>
             <th style={{ width: 260 }}>Descrição</th>
             <th style={{ width: 150 }}>Coleção</th>
@@ -409,7 +410,6 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
             <th style={{ width: 160 }}>Fornecedor</th>
             <th style={{ width: 260 }}>Pedidos (entrega)</th>
             <th style={{ width: 300 }}>Status Pré-Produção</th>
-            <th style={{ width: 90 }}></th>
           </tr></thead>
           <tbody>
             {sorted.map(r => {
@@ -418,6 +418,10 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
               const peds = pedidosQueContam(r);
               return (
                 <tr key={r.id}>
+                  {/* Botão na 1ª coluna: sem precisar rolar a tabela até o fim */}
+                  <td className="text-center px-2">
+                    <button onClick={() => onOpenLaudo(r)} className="apple-btn-secondary text-[12px] py-1 px-3 whitespace-nowrap">Abrir laudo</button>
+                  </td>
                   <td className="font-medium px-3">{r.ref}</td>
                   <td className="px-3">{r.desc || "—"}</td>
                   <td className="px-3">{r.colecao || "—"}</td>
@@ -460,9 +464,6 @@ export default function PreProducaoView({ rows, onOpenLaudo }: Props) {
                     )}
                     {/* Liberada antes do PLM: mostra se a produção já foi entregue / tem pedido no Linx. */}
                     {st === STATUS_PP_LIBERADA_ANTES && !peds.length && <div className="mt-1"><ProducaoRef peds={todos} /></div>}
-                  </td>
-                  <td className="text-center px-2">
-                    <button onClick={() => onOpenLaudo(r)} className="apple-btn-secondary text-[12px] py-1 px-3 whitespace-nowrap">Abrir laudo</button>
                   </td>
                 </tr>
               );
