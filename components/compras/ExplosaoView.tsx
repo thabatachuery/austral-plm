@@ -104,15 +104,24 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
   const fichaRefMap = useMemo(() => {
     if (!data) return new Map<number, string>();
     const m = new Map<number, string>();
-    // Clássico que entrou pela temporada filtrada conta só a ficha daquela
-    // temporada, não a de todas.
+    // UMA ficha por ref: a compra da variante é da ref, não da temporada. Ref
+    // com ficha de outra temporada (ex. 22010059: INVERNO 27 + VERÃO 28 ainda
+    // em branco) somava as duas — a vazia entrava sem cor e com a compra
+    // inteira da ref, duplicando o aviamento (ET00113 sem cor).
+    // Escolha: 1º a ficha da temporada filtrada; 2º a da coleção do produto;
+    // 3º a primeira da ref (ordem, depois id).
     const colecaoDoProduto: Record<string, string> = {};
     filteredProd.forEach((p: any) => { colecaoDoProduto[p.ref] = p.colecao || ""; });
-    data.fichas.forEach((f: any) => {
-      if (!refSet.has(f.produto_ref)) return;
-      if (flColecao.length && f.colecao && !flColecao.includes(colecaoDoProduto[f.produto_ref]) && !flColecao.includes(f.colecao)) return;
-      m.set(f.id, f.produto_ref);
-    });
+    const porRef: Record<string, any[]> = {};
+    data.fichas.forEach((f: any) => { if (refSet.has(f.produto_ref)) (porRef[f.produto_ref] ||= []).push(f); });
+    for (const [ref, fs] of Object.entries(porRef)) {
+      const ordenadas = [...fs].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0) || a.id - b.id);
+      const escolhida =
+        (flColecao.length ? ordenadas.find(f => f.colecao && flColecao.includes(f.colecao)) : undefined)
+        || ordenadas.find(f => f.colecao && f.colecao === colecaoDoProduto[ref])
+        || ordenadas[0];
+      if (escolhida) m.set(escolhida.id, ref);
+    }
     return m;
   }, [data, refSet, filteredProd, flColecao]);
 

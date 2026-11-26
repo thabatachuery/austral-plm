@@ -764,7 +764,7 @@ async function gravarLinhasEspeciais(tabela: string, fid: number, chave: "cod" |
 // ══ EXPLOSÃO DE AVIAMENTOS ══
 export async function fetchExplosaoData() {
   const [fichas, avFichas, avLib, comprasVar, tecFichas] = await Promise.all([
-    selectAll((de, ate) => sb().from("fichas_tecnicas").select("id, produto_ref, colecao, qtd_most_var01, qtd_most_var02, qtd_most_var03, qtd_most_var04, qtd_most_var05, qtd_most_var06").range(de, ate), "fetchExplosaoData/fichas"),
+    selectAll((de, ate) => sb().from("fichas_tecnicas").select("id, produto_ref, colecao, ordem, qtd_most_var01, qtd_most_var02, qtd_most_var03, qtd_most_var04, qtd_most_var05, qtd_most_var06").range(de, ate), "fetchExplosaoData/fichas"),
     selectAll((de, ate) => sb().from("ficha_aviamentos").select("ficha_id, codigo, qtd, valor, localizacao, var01, var02, var03, var04, var05, var06").range(de, ate), "fetchExplosaoData/avFichas"),
     selectAll((de, ate) => sb().from("aviamentos").select("codigo, nome, fornecedor, preco, imagem, imagens_cores, codigo_fornecedor").range(de, ate), "fetchExplosaoData/avLib"),
     // As datas de entrega entram porque a explosão em modo Produção só conta
@@ -777,7 +777,7 @@ export async function fetchExplosaoData() {
     selectAll((de, ate) => sb().from("ficha_tecidos").select("ficha_id, cores").order("id").range(de, ate), "fetchExplosaoData/tecFichas"),
   ]);
   return {
-    fichas: fichas as { id: number; produto_ref: string; colecao: string | null; qtd_most_var01: number|null; qtd_most_var02: number|null; qtd_most_var03: number|null; qtd_most_var04: number|null; qtd_most_var05: number|null; qtd_most_var06: number|null }[],
+    fichas: fichas as { id: number; produto_ref: string; colecao: string | null; ordem: number | null; qtd_most_var01: number|null; qtd_most_var02: number|null; qtd_most_var03: number|null; qtd_most_var04: number|null; qtd_most_var05: number|null; qtd_most_var06: number|null }[],
     avFichas: avFichas as { ficha_id: number; codigo: string; qtd: number; valor: number; localizacao: string; var01: string; var02: string; var03: string; var04: string; var05: string; var06: string }[],
     avLib: avLib as { codigo: string; nome: string; fornecedor: string; preco: number; imagem: string; imagens_cores: Record<string, string>; codigo_fornecedor: string }[],
     comprasVar: comprasVar as { produto_id: number; cor: string; qtd_compra1: number|null; pedido1: string|null; data_entrega1: string|null; qtd_compra2: number|null; pedido2: string|null; data_entrega2: string|null }[],
