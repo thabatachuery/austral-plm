@@ -13,6 +13,7 @@ import { STATUS_PRE_PRODUCAO_OPTS, STATUS_PRE_PRODUCAO_COLORS } from "@/lib/cons
 import { useToast } from "@/components/ui/Toast";
 import LaudoPPPDF from "./LaudoPPPDF";
 import FichaModal from "@/components/ficha/FichaModal";
+import ScrollTable from "@/components/ui/ScrollTable";
 
 type Ponto = { cod: string; desc: string; tabela: string; tol: string };
 type Grad = { desc: string; valores: Record<string, string>; ampliacoes: Record<string, string>; tol: string };
@@ -641,11 +642,15 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
             {!row.tab_medidas || pts.length === 0 ? (
               <div className="apple-card p-16 text-center"><p className="text-[15px] font-medium text-[var(--label-secondary)]">Esta referência não tem tabela de medidas com pontos cadastrados.</p></div>
             ) : (
-              <div className="apple-card overflow-x-auto">
+              // ScrollTable: rolagem horizontal com barra também no topo. Antes era
+              // um apple-card com overflow-x-auto, mas o overflow:hidden do
+              // apple-card vencia e as colunas da direita ficavam cortadas.
+              // maxHeight "none": quem rola na vertical é o próprio laudo.
+              <ScrollTable maxHeight="none">
                 <table className="plm-table">
                   <thead>
                     <tr>
-                      <th rowSpan={2} className="text-left min-w-[180px]">Ponto</th>
+                      <th rowSpan={2} className="text-left min-w-[180px]" style={{ position: "sticky", left: 0 }}>Ponto</th>
                       {gradTamanhos.map(t => (
                         <th key={t} colSpan={2} className={`text-center ${t === gradBase ? "bg-[rgba(255,204,0,0.14)] text-[#856500] font-bold" : "bg-[rgba(0,122,255,0.04)]"}`}>
                           <div>{t}{t === gradBase ? " (base)" : ""}</div>
@@ -675,7 +680,8 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
                   <tbody>
                     {pts.map((pt, i) => (
                       <tr key={pt.cod}>
-                        <td className="px-3">
+                        {/* Coluna do ponto fixa ao rolar para o lado */}
+                        <td className="px-3" style={{ position: "sticky", left: 0, zIndex: 2, background: "var(--bg-primary)", boxShadow: "1px 0 0 var(--separator)" }}>
                           <div className="font-medium text-[13px]">{pt.cod}</div>
                           <div className="text-[11px] text-[var(--label-tertiary)]">{pt.desc}</div>
                         </td>
@@ -714,7 +720,7 @@ export default function LaudoPPModal({ row, fichaId, laudoPedidoId, coresPedido 
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ScrollTable>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
