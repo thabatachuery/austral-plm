@@ -214,6 +214,10 @@ export default function ExplosaoView({ comprasRows, variantes, temporadasPorRef 
     const byKey: Record<string, Entry> = {};
 
     const addQty = (av: any, cor: string, ref: string, qty: number) => {
+      // Produção: variante sem pedido (compra 0) não entra — nem a ref na
+      // lista de refs do aviamento, nem o aviamento que ainda não tem pedido
+      // em nenhuma ref (ex. ET0051, PL0002 C03 listando refs com pedido 0).
+      if (modo === "producao" && !(qty > 0)) return;
       const key = `${av.codigo}||${cor}`;
       const lib = avLibMap[av.codigo] || { nome: av.codigo, fornecedor: "", codForn: "", preco: 0, imagem: "", imagensCor: {} };
       if (!byKey[key]) {
