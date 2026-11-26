@@ -411,15 +411,17 @@ export default function CadView(){
               <div className="border border-[var(--separator)] rounded-xl overflow-auto max-h-[540px] overscroll-contain">
                 {avCoresOpen && <div className="fixed inset-0 z-40" onClick={() => setAvCoresOpen(null)} />}
                 <table className="plm-table"><thead><tr>
+                  {/* Larguras mínimas: a tabela não espreme as colunas (cortava fornecedor e
+                      código) — se não couber na tela, aparece a barra para rolar. */}
                   <th className="w-16 px-3 text-center">Foto</th>
-                  <th className="w-28">Nosso cód.</th>
-                  <th>Nome</th>
-                  <th className="min-w-[120px]">Fornecedor</th>
-                  <th className="w-32">Cód. fornecedor</th>
-                  <th className="min-w-[200px]">Cores disponíveis</th>
-                  <th className="min-w-[180px]">Localização padrão</th>
-                  <th className="w-20">Unidade</th>
-                  <th className="w-24 text-right">Preço (R$)</th>
+                  <th className="min-w-[110px]">Nosso cód.</th>
+                  <th className="min-w-[200px]">Nome</th>
+                  <th className="min-w-[190px]">Fornecedor</th>
+                  <th className="min-w-[190px]">Cód. fornecedor</th>
+                  <th className="min-w-[260px]">Cores disponíveis</th>
+                  <th className="min-w-[230px]">Localização padrão</th>
+                  <th className="min-w-[80px]">Unidade</th>
+                  <th className="min-w-[100px] text-right">Preço (R$)</th>
                   <th className="w-10"></th>
                 </tr></thead>
                 <tbody>{fa.map((a:any)=>(
@@ -454,7 +456,8 @@ export default function CadView(){
                     </td>
                     {/* ── Cores disponíveis ── */}
                     <td className="px-2 py-1.5">
-                      <div className="relative z-50">
+                      {/* z-50 só com a lista de cores aberta: sempre ligado, os chips passavam por cima do cabeçalho fixo ao rolar */}
+                      <div className={`relative ${avCoresOpen===a.cod?"z-50":""}`}>
                         <div className="flex flex-wrap gap-1 items-center">
                           {(a.cores_disponiveis||[]).map((c:string)=>{
                             const refCor=(a.cores_fabricante||[]).find((x:any)=>String(x.cor).toUpperCase()===String(c).toUpperCase())?.ref;
