@@ -4,7 +4,7 @@ import InlineCell from "@/components/ui/InlineCell";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import COLUMNS from "@/lib/columns";
-import { fetchCadastros, fetchTecidos, fetchNomesTabelasMedidas, updateProdutoFields, insertProduto, deleteProduto, cloneProduto, bulkUpdateStatus, criarAlerta, novoGrupoAlerta, aplicarMostruarioLiberadoNoFluxo } from "@/lib/db";
+import { fetchCadastros, fetchTecidos, fetchNomesTabelasMedidas, updateProdutoFields, insertProduto, deleteProduto, cloneProduto, criarAlerta, novoGrupoAlerta, aplicarMostruarioLiberadoNoFluxo } from "@/lib/db";
 import { useAuth } from "@/lib/auth-context";
 import { exportToExcel, fmtExcelDate } from "@/lib/export-excel";
 import { STATUS_ESTILO, STATUS_COMPRAS_OPTS } from "@/lib/constants";
@@ -21,6 +21,7 @@ const STATUS_RESUMO: [string, string, string][] = [
 ];
 const STATUS_ALERTA = [STATUS_ESTILO.MOSTARIO_LIBERADO, STATUS_ESTILO.PRODUCAO_LIBERADA, STATUS_ESTILO.REPILOTANDO_PRODUCAO] as string[];
 import ScrollTable from "@/components/ui/ScrollTable";
+import BulkEditBar, { type BulkField } from "@/components/ui/BulkEditBar";
 import MultiSelect, { normalizarFiltros, comFiltro } from "@/components/ui/MultiSelect";
 import FichaExportLote from "@/components/ficha/FichaExportLote";
 import { naColecao, colecoesComTemporadas, type TemporadasPorRef } from "@/lib/colecao";
@@ -122,7 +123,6 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
   // SKUs criados agora: nascem vazios, então não passariam por nenhum filtro.
   // Ficam fixados no topo da lista até sair da tela, pra dar pra preencher.
   const [novos, setNovos] = useState<Set<number>>(new Set());
-  const [bulkStatus, setBulkStatus] = useState("");
   const [cloneSource, setCloneSource] = useState<any>(null);
   const [cloneRef, setCloneRef] = useState("");
   const ac = Object.values(fl).filter(v => v.length).length;
@@ -318,7 +318,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     });
   };
 
-  const upd = async (id:number, k:string, v:string|number) => {
+  const upd = async (id:number, k:string, v:string|number|null, quiet = false): Promise<string|null> => {
     // Apara aqui também (o db.ts já apara ao gravar): sem isso a checagem de
     // duplicata abaixo compara " 23090002 " com "23090002" e deixa passar, e a
     // tela fica mostrando o valor com espaço até recarregar.
@@ -329,7 +329,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       if (dup) {
         setDupAlert(`Referência "${v}" já existe no produto "${dup.desc}"`);
         setTimeout(() => setDupAlert(null), 4000);
-        return; // Don't save
+        return "referência duplicada"; // Don't save
       }
     }
 
@@ -347,14 +347,14 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
 
     const err = await updateProdutoFields(id, patch);
     if (err) {
-      showError(`Erro ao salvar: ${err}`);
+      if (!quiet) showError(`Erro ao salvar: ${err}`);
       setRows((p:any[]) => p.map((r:any) => {
         if (r.id !== id || !prevRow) return r;
         const desfeito = { ...r };
         Object.keys(patch).forEach(campo => { desfeito[campo] = prevRow[campo]; });
         return desfeito;
       }));
-      return;
+      return err;
     }
     alertarCampoAlterado(prevRow, k, prevRow?.[k], v);
     // Liberou para mostruário: o Controle de Fluxo acompanha sozinho, em vez de
@@ -362,6 +362,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     if (k === "status" && v === STATUS_ESTILO.MOSTARIO_LIBERADO && prevRow?.ref) {
       await aplicarMostruarioLiberadoNoFluxo(prevRow.ref);
     }
+    return null;
   };
 
   const { confirm, Dialog: ConfirmDialog } = useConfirm();
@@ -440,26 +441,37 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
     setCloneRef("");
   };
 
-  const handleBulkStatus = async () => {
-    if (!bulkStatus || selected.size === 0) return;
-    const ids = Array.from(selected);
-    ids.forEach(id => alertarCampoAlterado(rows.find((r:any) => r.id === id), "status", rows.find((r:any) => r.id === id)?.status, bulkStatus));
-    setRows((p:any[]) => p.map((r:any) => ids.includes(r.id) ? { ...r, status: bulkStatus } : r));
-    const error = await bulkUpdateStatus(ids, bulkStatus);
-    if (error) {
-      showError(`Erro: ${error}`);
-    } else {
-      // Mesma regra da edição avulsa, aplicada a cada SKU da seleção.
-      if (bulkStatus === STATUS_ESTILO.MOSTARIO_LIBERADO) {
-        const refs = ids.map(id => rows.find((r:any) => r.id === id)?.ref).filter(Boolean);
-        for (const ref of refs) await aplicarMostruarioLiberadoNoFluxo(ref);
-      }
-      success(`Status atualizado para ${selected.size} SKU(s)`);
+  // Colunas que dá pra alterar em massa: as mesmas que a pessoa edita na
+  // célula (respeitando permissão e a aba). Referência fica de fora — é única.
+  const bulkFields: BulkField[] = readOnly ? [] : (permPrefix === "compras_"
+    ? [
+        ...COMPRAS_STATUS_COLS.filter(sc => isColVisible(sc.key) && canEdit(sc.key)).map(sc => ({ key: sc.key, label: sc.label, type: "select" as const, options: sc.opts })),
+        ...((isAdmin || perms["compras_precos"] === true) ? PRICE_COLS.filter(pc => !pc.computed && isColVisible(pc.key)).map(pc => ({ key: pc.key, label: pc.label, type: "number" as const })) : []),
+      ]
+    : COLS_TABELA
+        .filter(c => c.key !== "ref" && ["text", "number", "select"].includes(c.type) && isColVisible(c.key) && canEdit(c.key))
+        .map(c => ({
+          key: c.key, label: c.label, type: c.type as BulkField["type"],
+          options: c.type === "select" ? (c.key === "status" && !(cad.status||[]).length ? [STATUS_ESTILO.DESENVOLVIMENTO, STATUS_ESTILO.MOSTARIO_LIBERADO, STATUS_ESTILO.PRODUCAO_LIBERADA, STATUS_ESTILO.CANCELADO] : (cad[c.cad!] || [])) : undefined,
+        })));
+
+  // Mesmo caminho da edição célula a célula (upd): alerta de SKU liberado,
+  // tecido arrastando fornecedor/composição, fluxo do mostruário, desfazer se falhar.
+  const handleBulkEdit = async (campo: BulkField, valor: string | number | null) => {
+    const ids = rows.filter((r:any) => selected.has(r.id)).map((r:any) => r.id);
+    if (!ids.length) return;
+    const erros: string[] = [];
+    for (let i = 0; i < ids.length; i += 6) {
+      const lote = await Promise.all(ids.slice(i, i + 6).map((id: number) => upd(id, campo.key, valor, true)));
+      lote.forEach((e, j) => { if (e) erros.push(`${rows.find((r:any) => r.id === ids[i + j])?.ref || ids[i + j]}: ${e}`); });
     }
-    setSelected(new Set());
-    setBulkStatus("");
+    const ok = ids.length - erros.length;
+    if (erros.length) showError(`${campo.label}: ${ok} de ${ids.length} salvos. Falhou — ${erros.slice(0, 3).join(" · ")}${erros.length > 3 ? "…" : ""}`);
+    else { success(`${campo.label} alterado em ${ok} SKU${ok !== 1 ? "s" : ""}`); setSelected(new Set()); }
   };
 
+  // Marcar linhas serve pra alterar em massa e pra exportar fichas.
+  const podeSelecionar = !readOnly && (canAdd || bulkFields.length > 0);
   const toggleSelect = (id: number) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleSelectAll = () => setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((r:any) => r.id)));
 
@@ -645,16 +657,9 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       )}
 
       {selected.size > 0 && !readOnly && (
-        <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--system-blue)",borderRadius:10,padding:"10px 16px",marginBottom:12,flexWrap:"wrap"}}>
-          <span style={{fontSize:13,fontWeight:600,color:"#fff"}}>{selected.size} SKU{selected.size!==1?"s":""} selecionado{selected.size!==1?"s":""}</span>
-          <select value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)} style={{fontSize:12,padding:"4px 10px",borderRadius:6,border:"none",background:"rgba(255,255,255,0.2)",color:"#fff",flex:1,minWidth:160,maxWidth:260}}>
-            <option value="">Alterar status para…</option>
-            {(opts("status")||[STATUS_ESTILO.DESENVOLVIMENTO,STATUS_ESTILO.MOSTARIO_LIBERADO,STATUS_ESTILO.PRODUCAO_LIBERADA,STATUS_ESTILO.CANCELADO]).map((s:string)=><option key={s} value={s} style={{color:"#000"}}>{s}</option>)}
-          </select>
-          <button onClick={handleBulkStatus} disabled={!bulkStatus} style={{fontSize:12,fontWeight:600,padding:"5px 14px",borderRadius:6,background:bulkStatus?"#fff":"rgba(255,255,255,0.3)",color:bulkStatus?"var(--system-blue)":"rgba(255,255,255,0.6)",border:"none",cursor:bulkStatus?"pointer":"default"}}>Aplicar</button>
+        <BulkEditBar count={selected.size} noun="SKU" fields={bulkFields} onApply={handleBulkEdit} onCancel={()=>setSelected(new Set())}>
           <button onClick={()=>setShowExportLote(true)} title="Gera um PDF por referência, com o nome já pronto" style={{fontSize:12,fontWeight:600,padding:"5px 14px",borderRadius:6,background:"rgba(255,255,255,0.2)",color:"#fff",border:"1px solid rgba(255,255,255,0.4)",cursor:"pointer"}}>Exportar fichas</button>
-          <button onClick={()=>setSelected(new Set())} style={{fontSize:12,color:"rgba(255,255,255,0.8)",background:"none",border:"none",cursor:"pointer",marginLeft:"auto"}}>Cancelar</button>
-        </div>
+        </BulkEditBar>
       )}
 
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-4"><span className="text-[28px] font-bold tabnum tracking-[-0.03em]">{filtered.length}</span><span className="text-[14px] text-[var(--label-secondary)]">SKU{filtered.length!==1&&"s"}</span>{ac>0&&<span className="text-[12px] text-[var(--label-tertiary)]">de {rows.length}</span>}{permPrefix!=="compras_"&&STATUS_RESUMO.map(([st,rot,cor])=>{const n=filtered.filter((r:any)=>r.status===st).length;return <span key={st} className="inline-flex items-center gap-1.5 self-center text-[12px] px-2.5 py-0.5 rounded-full bg-[var(--bg-primary)] border border-[var(--separator-opaque)] text-[var(--label-primary)]"><span style={{width:8,height:8,borderRadius:"50%",background:cor}}/>{rot} {n}</span>;})}<span className="text-[11px] text-[var(--label-quaternary)] ml-auto italic hidden sm:inline">duplo-clique para editar · salva automaticamente</span></div>
@@ -662,7 +667,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       <ScrollTable><table className="plm-table" style={{width:"max-content",minWidth:"100%"}}>
       <caption className="sr-only">Tabela de SKUs com filtros e opções de edição</caption>
       <thead><tr>
-        {!readOnly && canAdd && <th ref={thCheckRef} style={{width:36,padding:"0 8px",position:"sticky",left:0,zIndex:3,background:"var(--bg-primary)"}}><input type="checkbox" aria-label="Selecionar todos" checked={selected.size===filtered.length&&filtered.length>0} onChange={toggleSelectAll} style={{cursor:"pointer"}}/></th>}
+        {podeSelecionar && <th ref={thCheckRef} style={{width:36,padding:"0 8px",position:"sticky",left:0,zIndex:3,background:"var(--bg-primary)"}}><input type="checkbox" aria-label="Selecionar todos" checked={selected.size===filtered.length&&filtered.length>0} onChange={toggleSelectAll} style={{cursor:"pointer"}}/></th>}
         {COLS_TABELA.filter(c=>isColVisible(c.key)).flatMap(c=>{
         const sortable = c.type !== "action";
         const isActive = sort?.key === c.key;
@@ -706,7 +711,7 @@ export default function DevTable({ rows, setRows, onOpenFicha, userEmail, readOn
       </th>
       <th style={{width:36}}/></tr></thead><tbody>
         {filtered.map((row:any)=>(<tr key={row.id} style={selected.has(row.id)?{background:"rgba(0,122,255,0.06)"}:novos.has(row.id)?{background:"rgba(255,204,0,0.10)"}:{}}>
-          {!readOnly && canAdd && <td style={{width:36,padding:"0 8px",position:"sticky",left:0,zIndex:2,background:"var(--bg-primary)"}}><input type="checkbox" aria-label={`Selecionar SKU ${row.ref}`} checked={selected.has(row.id)} onChange={()=>toggleSelect(row.id)} style={{cursor:"pointer"}}/></td>}
+          {podeSelecionar && <td style={{width:36,padding:"0 8px",position:"sticky",left:0,zIndex:2,background:"var(--bg-primary)"}}><input type="checkbox" aria-label={`Selecionar SKU ${row.ref}`} checked={selected.has(row.id)} onChange={()=>toggleSelect(row.id)} style={{cursor:"pointer"}}/></td>}
           {COLS_TABELA.filter(c=>isColVisible(c.key)).flatMap(c=>{
           const isSticky = isStickyCol(c.key);
           const mainTd = <td key={c.key} style={{width:c.width,minWidth:c.width,...(isSticky?{position:"sticky",left:stickyLeft[c.key as "ref"|"link_ficha"],zIndex:2,background:"var(--bg-primary)",...(c.key===ultimaSticky?{boxShadow:"2px 0 4px rgba(0,0,0,0.04)"}:{})}:{})}}>{c.type==="action"?<div style={{display:"flex",gap:4}}><button onClick={()=>onOpenFicha(colecaoAtiva&&row.colecao!==colecaoAtiva?{...row,_temporada:colecaoAtiva}:row)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir</button>{!readOnly&&canAdd&&permPrefix!=="compras_"&&<button onClick={()=>{setCloneSource(row);setCloneRef("");}} title="Clonar SKU" className="apple-btn-secondary text-[12px] py-1 px-2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>}</div>:c.type==="readonly"?<span className="text-[13px] px-2.5 py-1.5 block text-[var(--label-secondary)]">{row[c.key]||"—"}</span>:(readOnly||permPrefix==="compras_")?<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-secondary)"}}>{row[c.key]||"—"}</span>:canEdit(c.key)?<InlineCell value={row[c.key]} type={c.type} options={c.cad?opts(c.cad):undefined} isStatus={c.key==="status"} onChange={v=>upd(row.id,c.key,v)}/>:<span style={{fontSize:13,padding:"6px 10px",display:"block",color:"var(--label-tertiary)",cursor:"default"}} title="Sem permissão para editar">{row[c.key]||"—"}</span>}</td>;

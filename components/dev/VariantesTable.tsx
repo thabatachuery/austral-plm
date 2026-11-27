@@ -8,6 +8,7 @@ import { exportToExcel, fmtExcelDate } from "@/lib/export-excel";
 import ScrollTable from "@/components/ui/ScrollTable";
 import MultiSelect, { comFiltro } from "@/components/ui/MultiSelect";
 import { useToast } from "@/components/ui/Toast";
+import BulkEditBar, { type BulkField } from "@/components/ui/BulkEditBar";
 
 // Colunas ESTILO
 const VC=[{key:"_ficha",label:"Ficha",w:70},{key:"ref",label:"Referência",w:120},{key:"desc",label:"Descrição",w:260},{key:"cor",label:"Cor",w:180},{key:"colecao",label:"Coleção",w:140},{key:"tecido",label:"Tecido",w:200},{key:"composicao",label:"Composição",w:160},{key:"forn_tecido",label:"Forn. tecido",w:140},{key:"status",label:"Status",w:180},{key:"fornecedor",label:"Fornecedor",w:140},{key:"grupo",label:"Grupo",w:120},{key:"subgrupo",label:"Subgrupo",w:200}];
@@ -99,7 +100,7 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
     }
   };
 
-  const updOrder = async (r: any, field: string, value: any) => {
+  const updOrder = async (r: any, field: string, value: any, quiet = false): Promise<string | null> => {
     if (COMPRA_FIELDS.has(field)) {
       const key = `${r.id}:${r.cor}`;
       const prevValue = vcMap[key]?.[field];
@@ -111,17 +112,19 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
       // Persist
       const err = await upsertVarianteCompra(r.id, r.cor, field, value);
       if (err) {
-        showError(`Erro ao salvar: ${err}`);
+        if (!quiet) showError(`Erro ao salvar: ${err}`);
         setVcMap(prev => ({ ...prev, [key]: { ...(prev[key] ?? {}), [field]: prevValue } }));
       }
+      return err;
     } else {
       const prevRow = rows.find((row:any) => row.id === r.id);
       setRows?.((p:any[]) => p.map((row:any) => row.id===r.id ? {...row,[field]:value} : row));
       const err = await updateProdutoField(r.id, field, value);
       if (err) {
-        showError(`Erro ao salvar: ${err}`);
+        if (!quiet) showError(`Erro ao salvar: ${err}`);
         setRows?.((p:any[]) => p.map((row:any) => row.id === r.id && prevRow ? { ...row, [field]: prevRow[field] } : row));
       }
+      return err;
     }
   };
 
@@ -221,6 +224,25 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
   const uv = (k: string): string[] => Array.from(new Set(vr.map(r => r[k]).filter(Boolean))).sort();
   const sf2 = (k: string, v: string[]) => setFl(p => comFiltro(p, k, v));
 
+  // Alterar em massa: marca as cores e grava o mesmo pedido/qtd/entrega em todas.
+  const podeSelecionar = compras && canEditOrders;
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSelect = (vid: string) => setSelected(p => { const n = new Set(p); n.has(vid) ? n.delete(vid) : n.add(vid); return n; });
+  const todosMarcados = filtered.length > 0 && filtered.every(r => selected.has(r._vid));
+  const toggleSelectAll = () => setSelected(todosMarcados ? new Set() : new Set(filtered.map(r => r._vid)));
+  const bulkFields: BulkField[] = (COLS as any[]).filter(c => c.colType).map(c => ({ key: c.key, label: c.label, type: c.colType }));
+  const handleBulkEdit = async (campo: BulkField, valor: string | number | null) => {
+    const alvo = vr.filter(r => selected.has(r._vid));
+    const erros: string[] = [];
+    for (let i = 0; i < alvo.length; i += 6) {
+      const lote = await Promise.all(alvo.slice(i, i + 6).map(r => updOrder(r, campo.key, valor, true)));
+      lote.forEach((e, j) => { if (e) erros.push(`${alvo[i + j].ref} ${alvo[i + j].cor}: ${e}`); });
+    }
+    const ok = alvo.length - erros.length;
+    if (erros.length) showError(`${campo.label}: ${ok} de ${alvo.length} salvos. Falhou — ${erros.slice(0, 3).join(" · ")}${erros.length > 3 ? "…" : ""}`);
+    else { showSuccess(`${campo.label} alterado em ${ok} variante${ok !== 1 ? "s" : ""}`); setSelected(new Set()); }
+  };
+
   return (
     <div>
       <div className="flex gap-2 mb-3 flex-wrap items-center">
@@ -234,9 +256,11 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
       {sf&&(<div className="apple-card p-4 mb-4 bg-[var(--bg-secondary)]"><div className="flex items-center justify-between mb-3"><span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--label-secondary)]">Filtrar por</span>{ac>0&&<button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--system-blue)] font-medium">Limpar</button>}</div><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">{FILTERS.map(k=>(<div key={k}><label className="text-[11px] text-[var(--label-secondary)] mb-1 block font-medium">{FL[k]}</label><MultiSelect value={fl[k]||[]} options={uv(k)} onChange={v=>sf2(k,v)} className="text-[12px] py-1.5"/></div>))}</div></div>)}
       {ac>0&&!sf&&(<div className="flex flex-wrap gap-1.5 mb-3">{Object.entries(fl).map(([k,v])=>{if(!v.length)return null;return(<span key={k} className="inline-flex items-center gap-1 bg-blue-50 text-[var(--system-blue)] rounded-lg px-2.5 py-1 text-[12px] font-medium"><span className="text-blue-300">{FL[k]}:</span>{v.join(", ")}<button onClick={()=>sf2(k,[])} className="ml-0.5 text-blue-300">×</button></span>);})}<button onClick={()=>{setFl({});setQ("");}} className="text-[12px] text-[var(--label-tertiary)] px-2">Limpar</button></div>)}
 
+      {podeSelecionar && selected.size > 0 && <BulkEditBar count={selected.size} noun="variante" feminino fields={bulkFields} onApply={handleBulkEdit} onCancel={()=>setSelected(new Set())} />}
+
       <div className="flex items-baseline gap-3 mb-4"><span className="text-[28px] font-bold tabnum tracking-[-0.03em]">{filtered.length}</span><span className="text-[14px] text-[var(--label-secondary)]">variante{filtered.length!==1&&"s"}</span>{ac>0&&<span className="text-[12px] text-[var(--label-tertiary)]">de {vr.length}</span>}<span className="text-[11px] text-[var(--label-quaternary)] ml-auto">Cores cadastradas na ficha técnica</span>{compras&&canEditOrders&&(<button onClick={atualizarDoLinx} disabled={linxBusy} title="Puxa do Linx a quantidade, o número do pedido e a data de entrega de cada cor. Pedido entregue: qtd 0, pedido e data em branco. Também roda sozinho todo dia de manhã." className="apple-btn-secondary text-[12px] py-1.5 px-3 self-center disabled:opacity-50">{linxBusy?"Atualizando…":"↻ Atualizar do Linx"}</button>)}</div>
 
-      <ScrollTable><table className="plm-table" style={{width:"max-content",minWidth:"100%"}}><thead><tr>{COLS.map(c=>{
+      <ScrollTable><table className="plm-table" style={{width:"max-content",minWidth:"100%"}}><thead><tr>{podeSelecionar&&<th style={{width:36,padding:"0 8px"}}><input type="checkbox" aria-label="Selecionar todas" checked={todosMarcados} onChange={toggleSelectAll} style={{cursor:"pointer"}}/></th>}{COLS.map(c=>{
         const sortable = c.key !== "_ficha";
         const isActive = sort?.key === c.key;
         return (
@@ -252,7 +276,7 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
           </th>
         );
       })}</tr></thead><tbody>
-        {filtered.map((r:any)=>(<tr key={r._vid}>{COLS.map((c:any)=>(<td key={c.key} style={{width:c.w,minWidth:c.w,textAlign:c.colType==="number"?"right":"left"}}>
+        {filtered.map((r:any)=>(<tr key={r._vid} style={selected.has(r._vid)?{background:"rgba(0,122,255,0.06)"}:{}}>{podeSelecionar&&<td style={{width:36,padding:"0 8px"}}><input type="checkbox" aria-label={`Selecionar ${r.ref} ${r.cor}`} checked={selected.has(r._vid)} onChange={()=>toggleSelect(r._vid)} style={{cursor:"pointer"}}/></td>}{COLS.map((c:any)=>(<td key={c.key} style={{width:c.w,minWidth:c.w,textAlign:c.colType==="number"?"right":"left"}}>
           {c.key==="_ficha"
             ?<button onClick={()=>onOpenFicha(r)} className="apple-btn-secondary text-[12px] py-1 px-3">Abrir</button>
           :c.key==="status"&&r.status
@@ -267,7 +291,7 @@ export default function VariantesTable({rows, variantes, variantesPorColecao={},
               :<span className={`text-[13px] px-2.5 py-1.5 block ${c.colType==="number"?"tabnum":""} ${r[c.key]?"":"text-[var(--label-quaternary)]"}`}>{c.colType==="date"&&r[c.key]?String(r[c.key]).split("-").reverse().join("/"):c.colType==="number"&&r[c.key]?String(Math.round(Number(r[c.key]))):r[c.key]||"—"}</span>)
           :<span className={`text-[13px] px-2.5 py-1 block ${r[c.key]?"":"text-[var(--label-quaternary)]"}`}>{r[c.key]||"—"}</span>}
         </td>))}</tr>))}
-        {filtered.length===0&&<tr><td colSpan={COLS.length} className="py-16 text-center text-[var(--label-tertiary)]">Nenhuma variante</td></tr>}
+        {filtered.length===0&&<tr><td colSpan={COLS.length+(podeSelecionar?1:0)} className="py-16 text-center text-[var(--label-tertiary)]">Nenhuma variante</td></tr>}
       </tbody></table></ScrollTable>
       <ToastContainer />
     </div>
